@@ -1,9 +1,9 @@
 export const colors = {
-  bgBase: "#06010F",
-  bgSurface: "#110724",
-  bgSurfaceLight: "#1B0F35",
-  parchment: "#0F0520",
-  parchmentSurface: "#170833",
+  bgBase: "#000000",
+  bgSurface: "#0A0414",
+  bgSurfaceLight: "#15082A",
+  parchment: "#070210",
+  parchmentSurface: "#0F0520",
   brass: "#00F0FF",          // cyan neon
   copper: "#B026FF",          // magenta/purple neon
   textOnDark: "#E8E4FF",

@@ -5,7 +5,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "../../src/theme";
 
-const LOGO = "https://customer-assets.emergentagent.com/job_book-swipe-1/artifacts/x605wthw_Screenshot_20260315_232455125.jpg";
+const LOGO = "https://customer-assets.emergentagent.com/job_book-swipe-1/artifacts/3rm492li_grok_image_1776093602296_edit_926181258950751.jpg";
 
 export default function Home() {
   const insets = useSafeAreaInsets();
@@ -21,7 +21,7 @@ export default function Home() {
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: colors.bgBase }}>
       <View style={[styles.container, { paddingTop: insets.top + 24 }]} testID="home-screen">
-        <Image source={{ uri: LOGO }} style={styles.logo} resizeMode="contain" />
+        <Image source={{ uri: LOGO }} style={styles.logo} resizeMode="cover" />
         <Text style={styles.tagline}>UN CLICK · UNA HISTORIA</Text>
 
         <View style={styles.searchBox}>
@@ -74,7 +74,13 @@ export default function Home() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 22, alignItems: "stretch", gap: 18 },
-  logo: { width: 200, height: 200, alignSelf: "center", marginTop: 10 },
+  logo: {
+    width: "100%",
+    height: 130,
+    alignSelf: "center",
+    marginTop: 4,
+    borderRadius: 14,
+  },
   tagline: {
     textAlign: "center",
     color: colors.brass,
