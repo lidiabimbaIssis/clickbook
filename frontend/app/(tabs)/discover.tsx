@@ -91,9 +91,23 @@ export default function Discover() {
   };
 
   const handleVerticalSwipe = (dir: "up" | "down") => {
-    if (dir === "up") setMode((m) => (m === "ficha" ? "cover" : "ficha"));
-    else setMode((m) => (m === "summary" ? "cover" : "summary"));
-    resetPan();
+    const nextMode: Mode = dir === "up" ? (mode === "ficha" ? "cover" : "ficha") : mode === "summary" ? "cover" : "summary";
+    const exitY = dir === "up" ? -800 : 800;
+    Animated.timing(pan, {
+      toValue: { x: 0, y: exitY },
+      duration: 260,
+      useNativeDriver: false,
+    }).start(() => {
+      setMode(nextMode);
+      // Re-enter from opposite side
+      pan.setValue({ x: 0, y: -exitY });
+      Animated.spring(pan, {
+        toValue: { x: 0, y: 0 },
+        useNativeDriver: false,
+        friction: 7,
+        tension: 40,
+      }).start();
+    });
   };
 
   const panResponder = useRef(
