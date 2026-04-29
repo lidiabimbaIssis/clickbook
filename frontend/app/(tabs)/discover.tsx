@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { createAudioPlayer } from "expo-audio";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { api, Book } from "../../src/lib/api";
 import { useAuth } from "../../src/providers/AuthProvider";
 import { colors } from "../../src/theme";
@@ -27,6 +28,9 @@ export default function Discover() {
   const { user } = useAuth();
   const lang = (user?.lang || "es") as "es" | "en";
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const params = useLocalSearchParams<{ q?: string }>();
+  const query = (params.q || "").toString();
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<Mode>("cover");
@@ -52,7 +56,8 @@ export default function Discover() {
   const fetchBooks = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api<{ books: Book[] }>("/books/feed?count=5");
+      const qp = query ? `&query=${encodeURIComponent(query)}` : "";
+      const res = await api<{ books: Book[] }>(`/books/feed?count=5${qp}`);
       setBooks((prev) => {
         const existingIds = new Set(prev.map((b) => b.book_id));
         const incoming = res.books.filter((b) => !existingIds.has(b.book_id));
@@ -63,7 +68,7 @@ export default function Discover() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [query]);
 
   useEffect(() => {
     fetchBooks();
@@ -99,7 +104,6 @@ export default function Discover() {
       useNativeDriver: false,
     }).start(() => {
       setMode(nextMode);
-      // Re-enter from opposite side
       pan.setValue({ x: 0, y: -exitY });
       Animated.spring(pan, {
         toValue: { x: 0, y: 0 },
@@ -124,7 +128,7 @@ export default function Discover() {
     })
   ).current;
 
-  const rotate = pan.x.interpolate({ inputRange: [-400, 0, 400], outputRange: ["-18deg", "0deg", "18deg"] });
+  const rotate = pan.x.interpolate({ inputRange: [-400, 0, 400], outputRange: ["-14deg", "0deg", "14deg"] });
   const likeOpacity = pan.x.interpolate({ inputRange: [0, 120], outputRange: [0, 1], extrapolate: "clamp" });
   const nopeOpacity = pan.x.interpolate({ inputRange: [-120, 0], outputRange: [1, 0], extrapolate: "clamp" });
 
@@ -167,7 +171,7 @@ export default function Discover() {
     return (
       <View style={styles.center} testID="discover-loading">
         <ActivityIndicator size="large" color={colors.brass} />
-        <Text style={styles.loadingText}>Calentando las calderas…</Text>
+        <Text style={styles.loadingText}>Conectando al ciberespacio…</Text>
       </View>
     );
   }
@@ -175,7 +179,7 @@ export default function Discover() {
   if (!current) {
     return (
       <View style={styles.center} testID="discover-empty">
-        <Ionicons name="cog-outline" size={64} color={colors.brass} />
+        <Ionicons name="sparkles-outline" size={64} color={colors.copper} />
         <Text style={styles.emptyTitle}>No quedan libros por descubrir</Text>
         <TouchableOpacity
           style={styles.reloadBtn}
@@ -192,19 +196,24 @@ export default function Discover() {
   }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 8 }]} testID="discover-screen">
+    <View style={[styles.container, { paddingTop: insets.top + 6 }]} testID="discover-screen">
+      {/* Top bar compacto */}
       <View style={styles.topBar}>
-        <View style={styles.gearRow}>
-          <Ionicons name="cog" size={18} color={colors.brass} />
-          <Text style={styles.brand}>VAPOR & TINTA</Text>
-          <Ionicons name="cog" size={18} color={colors.brass} />
-        </View>
-        <Text style={styles.modeHint}>
-          {mode === "cover" ? "← descartar · → favorito · ↑ ficha · ↓ resumen" : mode === "ficha" ? "FICHA TÉCNICA ↑↓" : "RESUMEN 1 MIN ↑↓"}
-        </Text>
+        <TouchableOpacity onPress={() => router.push("/home")} style={styles.backBtn} testID="btn-back-home">
+          <Ionicons name="chevron-back" size={20} color={colors.brass} />
+        </TouchableOpacity>
+        <Text style={styles.brand}>CLICKBOOK</Text>
+        <View style={{ width: 36 }} />
       </View>
 
-      <View style={styles.stack}>
+      {query ? (
+        <Text style={styles.queryHint} numberOfLines={1}>
+          <Ionicons name="search" size={11} color={colors.copper} /> {query}
+        </Text>
+      ) : null}
+
+      {/* Zona de carta: ocupa casi toda la pantalla */}
+      <View style={styles.cardZone}>
         {books[1] && <StaticCard book={books[1]} depth={1} />}
         <Animated.View
           testID="swipe-card"
@@ -215,10 +224,10 @@ export default function Discover() {
           {...panResponder.panHandlers}
         >
           <Animated.View style={[styles.stampLike, { opacity: likeOpacity }]}>
-            <Text style={styles.stampLikeText}>GUARDADO</Text>
+            <Text style={styles.stampLikeText}>FAV</Text>
           </Animated.View>
           <Animated.View style={[styles.stampNope, { opacity: nopeOpacity }]}>
-            <Text style={styles.stampNopeText}>DESCARTADO</Text>
+            <Text style={styles.stampNopeText}>NOPE</Text>
           </Animated.View>
 
           {mode === "cover" && <CoverView book={current} lang={lang} />}
@@ -233,19 +242,60 @@ export default function Discover() {
             />
           )}
         </Animated.View>
+
+        {/* Botones flotantes alrededor de la carta */}
+        <FloatingBtn
+          icon={mode === "ficha" ? "close" : "information-circle"}
+          color={colors.copper}
+          onPress={() => handleVerticalSwipe("up")}
+          position="top"
+          testID="btn-ficha"
+        />
+        <FloatingBtn
+          icon={mode === "summary" ? "close" : "headset"}
+          color={colors.copper}
+          onPress={() => handleVerticalSwipe("down")}
+          position="bottom"
+          testID="btn-summary"
+        />
+        <FloatingBtn
+          icon="close"
+          color={colors.iron}
+          onPress={() => handleSwipe("left")}
+          position="left"
+          big
+          testID="btn-discard"
+        />
+        <FloatingBtn
+          icon="heart"
+          color={colors.verdigris}
+          onPress={() => handleSwipe("right")}
+          position="right"
+          big
+          testID="btn-like"
+        />
       </View>
 
-      <View style={[styles.actions, { paddingBottom: 8 }]}>
-        <CircleBtn icon="close" color={colors.iron} onPress={() => handleSwipe("left")} testID="btn-discard" />
-        <CircleBtn icon="arrow-up" color={colors.brass} onPress={() => handleVerticalSwipe("up")} small testID="btn-ficha" />
-        <CircleBtn icon="arrow-down" color={colors.brass} onPress={() => handleVerticalSwipe("down")} small testID="btn-summary" />
-        <CircleBtn icon="heart" color={colors.verdigris} onPress={() => handleSwipe("right")} testID="btn-like" />
-      </View>
-
-      <View style={styles.buyRow}>
-        <BuyBtn label="Amazon" onPress={() => openStore(current.amazon_url)} testID="btn-buy-amazon" />
-        <BuyBtn label="Casa del Libro" onPress={() => openStore(current.casa_del_libro_url)} testID="btn-buy-casa" />
-        <BuyBtn label="Google Books" onPress={() => openStore(current.google_books_url)} testID="btn-buy-google" />
+      {/* Botones de compra al mismo nivel */}
+      <View style={[styles.buyRow, { paddingBottom: insets.bottom + 6 }]}>
+        <BuyBtn
+          label="Amazon"
+          icon="logo-amazon"
+          onPress={() => openStore(current.amazon_url)}
+          testID="btn-buy-amazon"
+        />
+        <BuyBtn
+          label="Casa Libro"
+          icon="book"
+          onPress={() => openStore(current.casa_del_libro_url)}
+          testID="btn-buy-casa"
+        />
+        <BuyBtn
+          label="Google"
+          icon="logo-google"
+          onPress={() => openStore(current.google_books_url)}
+          testID="btn-buy-google"
+        />
       </View>
     </View>
   );
@@ -265,7 +315,7 @@ function CoverView({ book, lang }: { book: Book; lang: "es" | "en" }) {
           <Chip label={`${book.pages} pág.`} />
           <Chip label={`★ ${book.rating.toFixed(1)}`} />
         </View>
-        <Text style={styles.synopsis} numberOfLines={5}>{synopsis}</Text>
+        <Text style={styles.synopsis} numberOfLines={4}>{synopsis}</Text>
       </View>
     </View>
   );
@@ -274,15 +324,15 @@ function CoverView({ book, lang }: { book: Book; lang: "es" | "en" }) {
 function FichaView({ book }: { book: Book }) {
   return (
     <View style={styles.parchment} testID="ficha-view">
-      <Text style={styles.parchmentHeader}>FICHA TÉCNICA</Text>
+      <Text style={styles.parchmentHeader}>// FICHA TÉCNICA</Text>
       <View style={styles.divider2} />
       <Text style={styles.parchmentTitle}>{book.title}</Text>
       <Text style={styles.parchmentAuthor}>por {book.author}</Text>
       <View style={styles.fichaGrid}>
-        <FichaRow label="Año" value={String(book.year)} />
-        <FichaRow label="Género" value={book.genre} />
-        <FichaRow label="Páginas" value={String(book.pages)} />
-        <FichaRow label="Valoración" value={`★ ${book.rating.toFixed(1)} / 5`} />
+        <FichaRow label="AÑO" value={String(book.year)} />
+        <FichaRow label="GÉNERO" value={book.genre} />
+        <FichaRow label="PÁGINAS" value={String(book.pages)} />
+        <FichaRow label="VALORACIÓN" value={`★ ${book.rating.toFixed(1)} / 5`} />
       </View>
     </View>
   );
@@ -305,7 +355,7 @@ function SummaryView({
   return (
     <View style={styles.parchment} testID="summary-view">
       <View style={styles.summaryHeader}>
-        <Text style={styles.parchmentHeader}>RESUMEN · 1 MIN</Text>
+        <Text style={styles.parchmentHeader}>// RESUMEN · 1 MIN</Text>
         <TouchableOpacity
           testID="btn-play-audio"
           onPress={onPlay}
@@ -315,7 +365,7 @@ function SummaryView({
           {audioLoading ? (
             <ActivityIndicator size="small" color={colors.brass} />
           ) : (
-            <Ionicons name={playing ? "pause" : "play"} size={22} color={colors.brass} />
+            <Ionicons name={playing ? "pause" : "play"} size={20} color={colors.brass} />
           )}
         </TouchableOpacity>
       </View>
@@ -345,39 +395,77 @@ function Chip({ label }: { label: string }) {
   );
 }
 
-function CircleBtn({
+function FloatingBtn({
   icon,
   color,
   onPress,
-  small,
+  position,
+  big,
   testID,
 }: {
   icon: any;
   color: string;
   onPress: () => void;
-  small?: boolean;
+  position: "top" | "bottom" | "left" | "right";
+  big?: boolean;
   testID?: string;
 }) {
-  const size = small ? 48 : 60;
+  const size = big ? 56 : 44;
+  // cardZone padding: vertical 32, horizontal 38. Card edges at those positions.
+  const pos: any = { position: "absolute", zIndex: 20 };
+  if (position === "top") {
+    pos.top = 32 - size / 2;
+    pos.left = "50%";
+    pos.marginLeft = -size / 2;
+  } else if (position === "bottom") {
+    pos.bottom = 32 - size / 2;
+    pos.left = "50%";
+    pos.marginLeft = -size / 2;
+  } else if (position === "left") {
+    pos.left = 38 - size / 2;
+    pos.top = "50%";
+    pos.marginTop = -size / 2;
+  } else if (position === "right") {
+    pos.right = 38 - size / 2;
+    pos.top = "50%";
+    pos.marginTop = -size / 2;
+  }
   return (
     <TouchableOpacity
       testID={testID}
       onPress={onPress}
       activeOpacity={0.85}
       style={[
-        styles.circleBtn,
-        { width: size, height: size, borderRadius: size / 2, borderColor: color },
+        styles.floatingBtn,
+        {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          borderColor: color,
+          shadowColor: color,
+        },
+        pos,
       ]}
     >
-      <Ionicons name={icon} size={small ? 20 : 26} color={color} />
+      <Ionicons name={icon} size={big ? 28 : 22} color={color} />
     </TouchableOpacity>
   );
 }
 
-function BuyBtn({ label, onPress, testID }: { label: string; onPress: () => void; testID?: string }) {
+function BuyBtn({
+  label,
+  icon,
+  onPress,
+  testID,
+}: {
+  label: string;
+  icon: any;
+  onPress: () => void;
+  testID?: string;
+}) {
   return (
     <TouchableOpacity testID={testID} style={styles.buyBtn} onPress={onPress} activeOpacity={0.85}>
-      <Ionicons name="cart" size={14} color={colors.brass} />
+      <Ionicons name={icon} size={16} color={colors.brass} />
       <Text style={styles.buyText}>{label}</Text>
     </TouchableOpacity>
   );
@@ -385,7 +473,13 @@ function BuyBtn({ label, onPress, testID }: { label: string; onPress: () => void
 
 function StaticCard({ book, depth }: { book: Book; depth: number }) {
   return (
-    <View style={[styles.card, styles.cardBehind, { transform: [{ scale: 1 - depth * 0.04 }, { translateY: depth * 10 }] }]}>
+    <View
+      style={[
+        styles.card,
+        styles.cardBehind,
+        { transform: [{ scale: 1 - depth * 0.04 }, { translateY: depth * 10 }] },
+      ]}
+    >
       <Image source={{ uri: book.cover_url }} style={styles.cover} resizeMode="cover" />
       <View style={styles.coverOverlay} />
     </View>
@@ -393,8 +487,14 @@ function StaticCard({ book, depth }: { book: Book; depth: number }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bgBase, paddingHorizontal: 16 },
-  center: { flex: 1, backgroundColor: colors.bgBase, alignItems: "center", justifyContent: "center", padding: 24 },
+  container: { flex: 1, backgroundColor: colors.bgBase, paddingHorizontal: 12 },
+  center: {
+    flex: 1,
+    backgroundColor: colors.bgBase,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
   loadingText: { color: colors.textOnDarkMuted, marginTop: 14, letterSpacing: 1 },
   emptyTitle: { color: colors.textOnDark, fontSize: 18, marginTop: 12, textAlign: "center" },
   reloadBtn: {
@@ -406,52 +506,78 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   reloadText: { color: colors.brass, letterSpacing: 2, fontWeight: "700" },
-  topBar: { alignItems: "center", paddingVertical: 8 },
-  gearRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  topBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.brassSoft,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.bgSurface,
+  },
   brand: {
     color: colors.brass,
     fontWeight: "900",
-    fontSize: 15,
-    letterSpacing: 5,
-    fontFamily: Platform.select({ ios: "Georgia", default: "serif" }),
+    fontSize: 16,
+    letterSpacing: 6,
   },
-  modeHint: { color: colors.textOnDarkMuted, fontSize: 11, marginTop: 6, letterSpacing: 1.5 },
-  stack: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 12 },
+  queryHint: {
+    color: colors.copper,
+    fontSize: 11,
+    letterSpacing: 1,
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  cardZone: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 38,
+    paddingVertical: 32,
+    position: "relative",
+  },
   card: {
-    width: "100%",
-    maxWidth: 420,
-    height: "100%",
-    maxHeight: 560,
     borderRadius: 22,
     backgroundColor: colors.bgSurface,
-    borderWidth: 3,
-    borderColor: colors.bgSurfaceLight,
+    borderWidth: 2,
+    borderColor: colors.brassSoft,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOpacity: 0.6,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 10 },
+    shadowColor: colors.brass,
+    shadowOpacity: 0.35,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 0 },
     elevation: 14,
     position: "absolute",
+    top: 32,
+    bottom: 32,
+    left: 38,
+    right: 38,
   },
-  cardBehind: { opacity: 0.6 },
+  cardBehind: { opacity: 0.5 },
   coverWrap: { flex: 1 },
   cover: { width: "100%", height: "100%" },
   coverOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(18,14,10,0.55)",
+    backgroundColor: "rgba(6,1,15,0.55)",
   },
   coverInfo: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 20, gap: 8 },
   bookTitle: {
     color: colors.textOnDark,
-    fontSize: 24,
-    fontWeight: "800",
-    fontFamily: Platform.select({ ios: "Georgia", default: "serif" }),
+    fontSize: 26,
+    fontWeight: "900",
   },
-  bookAuthor: { color: colors.brass, fontSize: 14, letterSpacing: 1 },
+  bookAuthor: { color: colors.brass, fontSize: 14, letterSpacing: 1, fontWeight: "700" },
   chips: { flexDirection: "row", gap: 6, flexWrap: "wrap", marginTop: 4 },
   chip: {
-    backgroundColor: "rgba(196,139,71,0.15)",
+    backgroundColor: "rgba(0,240,255,0.10)",
     borderWidth: 1,
     borderColor: colors.brassSoft,
     paddingHorizontal: 10,
@@ -459,55 +585,71 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   chipText: { color: colors.brass, fontSize: 11, fontWeight: "700", letterSpacing: 0.8 },
-  synopsis: { color: colors.textOnDark, fontSize: 13, lineHeight: 19, marginTop: 8, opacity: 0.92 },
+  synopsis: {
+    color: colors.textOnDark,
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 8,
+    opacity: 0.92,
+  },
   parchment: {
     flex: 1,
-    backgroundColor: colors.parchment,
-    padding: 24,
-    borderWidth: 4,
-    borderColor: colors.brass,
+    backgroundColor: colors.parchmentSurface,
+    padding: 22,
   },
   parchmentHeader: {
     color: colors.copper,
-    letterSpacing: 4,
+    letterSpacing: 3,
     fontSize: 12,
     fontWeight: "900",
   },
   divider2: { height: 1, backgroundColor: colors.copper, opacity: 0.4, marginVertical: 10 },
   parchmentTitle: {
-    color: colors.textOnLight,
-    fontSize: 24,
-    fontWeight: "800",
-    fontFamily: Platform.select({ ios: "Georgia", default: "serif" }),
+    color: colors.textOnDark,
+    fontSize: 22,
+    fontWeight: "900",
   },
-  parchmentAuthor: { color: colors.textOnLightMuted, fontSize: 14, marginTop: 4, fontStyle: "italic" },
+  parchmentAuthor: {
+    color: colors.textOnDarkMuted,
+    fontSize: 14,
+    marginTop: 4,
+    fontStyle: "italic",
+  },
   fichaGrid: { marginTop: 20, gap: 10 },
   fichaRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(123,59,28,0.2)",
+    borderBottomColor: "rgba(176,38,255,0.25)",
     paddingVertical: 10,
   },
-  fichaLabel: { color: colors.textOnLightMuted, letterSpacing: 2, fontSize: 11, fontWeight: "800" },
+  fichaLabel: {
+    color: colors.copper,
+    letterSpacing: 2,
+    fontSize: 11,
+    fontWeight: "800",
+  },
   fichaValue: {
-    color: colors.textOnLight,
+    color: colors.textOnDark,
     fontSize: 15,
-    fontFamily: Platform.select({ ios: "Georgia", default: "serif" }),
     fontWeight: "700",
   },
-  summaryHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  summaryHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   playBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     borderWidth: 2,
     borderColor: colors.brass,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.bgBase,
   },
-  summaryText: { color: colors.textOnLight, fontSize: 15, lineHeight: 23 },
+  summaryText: { color: colors.textOnDark, fontSize: 15, lineHeight: 23 },
   stampLike: {
     position: "absolute",
     top: 28,
@@ -518,8 +660,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 6,
     zIndex: 5,
+    borderRadius: 6,
   },
-  stampLikeText: { color: colors.verdigris, fontWeight: "900", fontSize: 18, letterSpacing: 2 },
+  stampLikeText: {
+    color: colors.verdigris,
+    fontWeight: "900",
+    fontSize: 22,
+    letterSpacing: 4,
+  },
   stampNope: {
     position: "absolute",
     top: 28,
@@ -530,43 +678,48 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 6,
     zIndex: 5,
+    borderRadius: 6,
   },
-  stampNopeText: { color: colors.iron, fontWeight: "900", fontSize: 18, letterSpacing: 2 },
-  actions: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 8,
+  stampNopeText: {
+    color: colors.iron,
+    fontWeight: "900",
+    fontSize: 22,
+    letterSpacing: 4,
   },
-  circleBtn: {
+  floatingBtn: {
     borderWidth: 2,
     backgroundColor: colors.bgSurface,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
+    shadowOpacity: 0.8,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 12,
   },
   buyRow: {
     flexDirection: "row",
-    justifyContent: "center",
+    justifyContent: "space-between",
     gap: 8,
-    paddingBottom: 6,
-    flexWrap: "wrap",
+    paddingTop: 8,
+    paddingHorizontal: 4,
   },
   buyBtn: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 6,
     borderWidth: 1,
     borderColor: colors.brassSoft,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
     backgroundColor: colors.bgSurface,
   },
-  buyText: { color: colors.brass, fontSize: 12, fontWeight: "700", letterSpacing: 0.5 },
+  buyText: {
+    color: colors.brass,
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
 });

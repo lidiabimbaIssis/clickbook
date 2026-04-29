@@ -240,8 +240,13 @@ BOOK_SYSTEM_PROMPT = (
 )
 
 
-async def generate_books_via_llm(count: int, exclude_titles: List[str], genre: Optional[str] = None) -> List[dict]:
-    genre_hint = f"Enfócate en el género: {genre}. " if genre else "Mezcla géneros diversos (ficción, ensayo, ciencia, historia, novela, filosofía). "
+async def generate_books_via_llm(count: int, exclude_titles: List[str], genre: Optional[str] = None, query: Optional[str] = None) -> List[dict]:
+    if query:
+        genre_hint = f"El usuario busca específicamente: '{query}' (puede ser título, autor, tema o género). Incluye libros que coincidan con esa búsqueda. "
+    elif genre:
+        genre_hint = f"Enfócate en el género: {genre}. "
+    else:
+        genre_hint = "Mezcla géneros diversos (ficción, ensayo, ciencia, historia, novela, filosofía). "
     exclude_str = "; ".join(exclude_titles[:80]) if exclude_titles else "ninguno"
 
     user_prompt = f"""Genera EXACTAMENTE {count} recomendaciones de libros REALES (que existen de verdad).
@@ -356,27 +361,29 @@ async def persist_books(raw_books: List[dict]) -> List[Book]:
 
 # ----------------- Book routes -----------------
 @api_router.get("/books/feed")
-async def books_feed(count: int = 5, genre: Optional[str] = None, user: User = Depends(get_current_user)):
+async def books_feed(count: int = 5, genre: Optional[str] = None, query: Optional[str] = None, user: User = Depends(get_current_user)):
     # Books user has interacted with
     interactions = await db.user_interactions.find({"user_id": user.user_id}, {"_id": 0, "book_id": 1}).to_list(10000)
     seen_ids = {i["book_id"] for i in interactions}
 
-    # Try to serve existing books not seen by user
-    query = {"book_id": {"$nin": list(seen_ids)}}
-    if genre:
-        query["genre"] = {"$regex": genre, "$options": "i"}
-    existing = await db.books.find(query, {"_id": 0}).to_list(count)
+    # If query is provided, try existing matches first
+    mongo_query: dict = {"book_id": {"$nin": list(seen_ids)}}
+    if query:
+        q = {"$regex": query, "$options": "i"}
+        mongo_query["$or"] = [{"title": q}, {"author": q}, {"genre": q}]
+    elif genre:
+        mongo_query["genre"] = {"$regex": genre, "$options": "i"}
+    existing = await db.books.find(mongo_query, {"_id": 0}).to_list(count)
 
     if len(existing) >= count:
         return {"books": existing[:count]}
 
     # Generate more
     need = count - len(existing)
-    # Exclude all known titles
     all_titles_docs = await db.books.find({}, {"_id": 0, "title": 1}).to_list(500)
     exclude_titles = [d["title"] for d in all_titles_docs]
     try:
-        raw = await generate_books_via_llm(count=max(need + 2, 5), exclude_titles=exclude_titles, genre=genre)
+        raw = await generate_books_via_llm(count=max(need + 2, 5), exclude_titles=exclude_titles, genre=genre, query=query)
     except HTTPException:
         raise
     except Exception as e:
@@ -386,7 +393,6 @@ async def books_feed(count: int = 5, genre: Optional[str] = None, user: User = D
         raise HTTPException(500, f"Generation failed: {e}")
 
     new_books = await persist_books(raw)
-    # Filter those not already seen
     combined = existing + [b.dict() for b in new_books if b.book_id not in seen_ids]
     return {"books": combined[:count]}
 

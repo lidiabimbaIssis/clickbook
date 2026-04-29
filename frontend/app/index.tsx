@@ -40,7 +40,7 @@ export default function LoginScreen() {
         // clean hash
         window.history.replaceState(null, "", window.location.pathname);
         await refresh();
-        router.replace("/discover");
+        router.replace("/home");
       } catch (e) {
         console.warn("Auth exchange failed", e);
         setProcessing(false);
@@ -51,7 +51,7 @@ export default function LoginScreen() {
   // Already logged in -> go to app
   useEffect(() => {
     if (!loading && user) {
-      router.replace("/discover");
+      router.replace("/home");
     }
   }, [loading, user, router]);
 
@@ -96,11 +96,10 @@ export default function LoginScreen() {
 
       <View style={styles.header}>
         <View style={styles.gearRow}>
-          <Ionicons name="cog" size={28} color={colors.brass} />
-          <Ionicons name="cog-outline" size={22} color={colors.copper} />
-          <Ionicons name="cog" size={18} color={colors.brass} />
+          <Ionicons name="book" size={22} color={colors.brass} />
+          <Ionicons name="flash" size={22} color={colors.copper} />
         </View>
-        <Text style={styles.brand}>VAPOR & TINTA</Text>
+        <Text style={styles.brand}>CLICKBOOK</Text>
         <View style={styles.divider} />
       </View>
 
@@ -137,7 +136,7 @@ export default function LoginScreen() {
             const data = await api<any>("/auth/guest", { method: "POST" });
             if (data?.session_token) await setToken(data.session_token);
             await refresh();
-            router.replace("/discover");
+            router.replace("/home");
           } catch (e) {
             console.warn("Guest login failed", e);
             setProcessing(false);
@@ -149,9 +148,7 @@ export default function LoginScreen() {
         <Text style={styles.guestText}>Entrar como invitado</Text>
       </TouchableOpacity>
 
-      <Text style={styles.footer}>
-        Una biblioteca mecánica de la era del vapor
-      </Text>
+      <Text style={styles.footer}>Un click · Una historia</Text>
     </ImageBackground>
   );
 }
