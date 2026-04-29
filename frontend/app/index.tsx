@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../src/providers/AuthProvider";
 import { api, setToken } from "../src/lib/api";
 import { colors } from "../src/theme";
+import Logo from "../src/components/Logo";
 
 // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
 export default function LoginScreen() {
@@ -95,11 +96,7 @@ export default function LoginScreen() {
       <View style={styles.overlay} />
 
       <View style={styles.header}>
-        <View style={styles.gearRow}>
-          <Ionicons name="book" size={22} color={colors.brass} />
-          <Ionicons name="flash" size={22} color={colors.copper} />
-        </View>
-        <Text style={styles.brand}>CLICKBOOK</Text>
+        <Logo size="lg" />
         <View style={styles.divider} />
       </View>
 
