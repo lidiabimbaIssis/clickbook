@@ -187,6 +187,30 @@ async def auth_me(user: User = Depends(get_current_user)):
     return user.dict()
 
 
+@api_router.post("/auth/guest")
+async def guest_login():
+    """Create an anonymous guest account + session (no Google required)."""
+    user_id = f"guest_{uuid.uuid4().hex[:12]}"
+    session_token = f"guest_{uuid.uuid4().hex}"
+    user_doc = {
+        "user_id": user_id,
+        "email": f"{user_id}@guest.local",
+        "name": "Invitado",
+        "picture": None,
+        "lang": "es",
+        "created_at": datetime.now(timezone.utc),
+    }
+    await db.users.insert_one(dict(user_doc))
+    user_doc.pop("_id", None)
+    await db.user_sessions.insert_one({
+        "user_id": user_id,
+        "session_token": session_token,
+        "expires_at": datetime.now(timezone.utc) + timedelta(days=30),
+        "created_at": datetime.now(timezone.utc),
+    })
+    return {"user": User(**user_doc).dict(), "session_token": session_token}
+
+
 @api_router.post("/auth/logout")
 async def logout(response: Response, authorization: Optional[str] = Header(None), session_token: Optional[str] = Cookie(None)):
     token = None

@@ -128,6 +128,27 @@ export default function LoginScreen() {
         <Text style={styles.loginText}>Entrar con Google</Text>
       </TouchableOpacity>
 
+      <TouchableOpacity
+        testID="btn-guest-login"
+        style={styles.guestBtn}
+        onPress={async () => {
+          setProcessing(true);
+          try {
+            const data = await api<any>("/auth/guest", { method: "POST" });
+            if (data?.session_token) await setToken(data.session_token);
+            await refresh();
+            router.replace("/discover");
+          } catch (e) {
+            console.warn("Guest login failed", e);
+            setProcessing(false);
+          }
+        }}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="eye-outline" size={18} color={colors.brass} />
+        <Text style={styles.guestText}>Entrar como invitado</Text>
+      </TouchableOpacity>
+
       <Text style={styles.footer}>
         Una biblioteca mecánica de la era del vapor
       </Text>
@@ -235,6 +256,24 @@ const styles = StyleSheet.create({
     color: colors.bgBase,
     fontSize: 16,
     fontWeight: "800",
+    letterSpacing: 1.5,
+  },
+  guestBtn: {
+    marginTop: 12,
+    paddingVertical: 14,
+    borderRadius: 999,
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: colors.brassSoft,
+    backgroundColor: "rgba(34,26,19,0.6)",
+  },
+  guestText: {
+    color: colors.brass,
+    fontSize: 14,
+    fontWeight: "700",
     letterSpacing: 1.5,
   },
   footer: {
