@@ -1,0 +1,105 @@
+{
+  "theme": "dark",
+  "archetype": "5 (Jewel & Luxury - Steampunk / Victorian Industrial variant)",
+  "rationale": "The user requested a 'steampunk' aesthetic for a book discovery app. This requires deep, rich materials (leather, brass, copper) mixed with Victorian typography and parchment textures. The dark theme serves as a moody, immersive backdrop for glowing metallic accents and vintage book covers.",
+  "colors": {
+    "background": {
+      "base": "#120E0A",
+      "surface": "#221A13",
+      "surface_light": "#36271A",
+      "description": "Deepest obsidian brown (aged leather) for the main background. Surfaces are lighter worn leather tones."
+    },
+    "parchment": {
+      "base": "#F4ECD8",
+      "surface": "#EAE0C8",
+      "description": "Used specifically for the 'inside' of the cards (Summary and Technical details) to contrast heavily with the dark app background, mimicking old paper."
+    },
+    "accents": {
+      "primary": "#C48B47",
+      "secondary": "#7B3B1C",
+      "primary_description": "Burnished Brass / Amber glow for primary CTAs and active states.",
+      "secondary_description": "Rusty Copper / Deep Mahogany for secondary highlights."
+    },
+    "typography": {
+      "on_dark": "#E8DCC2",
+      "on_dark_muted": "#A4947A",
+      "on_light": "#2A1E15",
+      "on_light_muted": "#5C4A3D",
+      "description": "Parchment tint for text on dark leather backgrounds. Deep Sepia Ink for text on parchment backgrounds."
+    },
+    "feedback": {
+      "favorite": "#4A6E30",
+      "discard": "#8A2A20",
+      "favorite_description": "Aged Verdigris Green for 'Like' (Swipe Right).",
+      "discard_description": "Oxidized Iron Red for 'Discard' (Swipe Left)."
+    }
+  },
+  "typography": {
+    "heading_font": "Playfair Display",
+    "body_font": "IBM Plex Sans",
+    "strategies": {
+      "h1": "text-4xl sm:text-5xl font-black tracking-tighter text-[#C48B47] drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]",
+      "h2": "text-2xl sm:text-3xl font-bold tracking-tight text-[#E8DCC2]",
+      "h3": "text-xl sm:text-2xl font-semibold",
+      "body": "text-base font-medium leading-relaxed",
+      "overline": "text-xs font-bold uppercase tracking-[0.2em] text-[#A4947A]"
+    },
+    "rules": [
+      "Headings must use Playfair Display to reinforce the Victorian/Classic aesthetic.",
+      "Body text MUST use IBM Plex Sans for optimal legibility, especially for the 1-minute summaries.",
+      "Never use default generic sans-serif (Inter) for headers."
+    ]
+  },
+  "spacing_and_layout": {
+    "scale": "Tailwind standard scale, but favor generous padding (p-6 to p-8) inside parchment cards to feel like book margins.",
+    "bento_mode": "Card-centric absolute layout for the Tinder stack.",
+    "rules": [
+      "The main interface is a central stack of cards. The container should be flex, centered, filling the screen minus nav.",
+      "Mobile-first constraint: The card stack MUST NOT exceed 75vh to allow room for bottom navigation or absolute buttons.",
+      "Inside the card (Ficha Tecnica or Summary), use a standard 1-column flow with gap-4."
+    ]
+  },
+  "micro_themes": {
+    "steampunk_card": "rounded-2xl border-4 border-[#36271A] bg-[#221A13] shadow-[0_12px_40px_rgba(0,0,0,0.8),inset_0_2px_10px_rgba(196,139,71,0.2)] overflow-hidden",
+    "steampunk_button": "rounded-full bg-[#120E0A] border-2 border-[#C48B47]/60 text-[#C48B47] shadow-[0_4px_12px_rgba(0,0,0,0.6),inset_0_2px_4px_rgba(196,139,71,0.3)] hover:bg-[#221A13] hover:border-[#C48B47] transition-all duration-200",
+    "parchment_surface": "bg-[#F4ECD8] text-[#2A1E15] border-x-4 border-[#C48B47]/30 shadow-[inset_0_0_40px_rgba(123,59,28,0.1)]",
+    "glass_nav": "backdrop-blur-xl bg-[#120E0A]/80 border-t border-[#36271A] shadow-[0_-4px_24px_rgba(0,0,0,0.5)]"
+  },
+  "components": {
+    "tinder_stack": "Use framer-motion for the swipe interactions. Drag constraints, dragElastic=0.6. Use useTransform to map drag x/y to rotation and opacity (e.g., swiping right rotates slightly clockwise and reveals a green 'Favorite' stamp).",
+    "audio_player": "A prominent circular 'Victorian Gear' button using the 'steampunk_button' micro-theme. Place it prominently on the 1-minute summary view.",
+    "buy_buttons": "Use brand colors but muted to fit the theme (e.g., Amazon Orange but slightly brassy). Use standard Shadcn Button layout but apply custom borders and inner shadows.",
+    "ficha_tecnica": "A grid (grid-cols-2 gap-4) displaying Author, Year, Genre, Pages. Use overline styles for the labels and serif font for the values."
+  },
+  "interactions_and_motion": {
+    "swipe_physics": "Spring physics: stiffness: 120, damping: 20. Must feel heavy and mechanical.",
+    "card_flip_slide": "When swiping Up/Down to reveal Ficha or Summary, transition the card background to the parchment theme and crossfade the content.",
+    "hover_states": "Buttons should lift slightly (-translate-y-1) and increase their inner amber glow (box-shadow)."
+  },
+  "media": {
+    "background_texture": {
+      "url": "https://images.pexels.com/photos/30989203/pexels-photo-30989203.jpeg",
+      "description": "Dark leather texture. Apply as an absolute background with opacity-30 and mix-blend-multiply over the #120E0A base."
+    },
+    "gears_texture": {
+      "url": "https://images.unsplash.com/photo-1634689740880-e035aeb04a4d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNzl8MHwxfHNlYXJjaHwxfHxzdGVhbXB1bmslMjBnZWFycyUyMHRleHR1cmV8ZW58MHx8fHwxNzc3NDg4NDA4fDA&ixlib=rb-4.1.0&q=85",
+      "description": "Use as a subtle overlay in empty states or login screen with opacity-20 and grayscale filter."
+    },
+    "placeholder_books": [
+      {
+        "url": "https://images.pexels.com/photos/3747506/pexels-photo-3747506.jpeg",
+        "description": "Vintage green book. Use in the Tinder stack."
+      },
+      {
+        "url": "https://images.pexels.com/photos/8614303/pexels-photo-8614303.jpeg",
+        "description": "Little Women vintage cover. Use in the Tinder stack."
+      }
+    ],
+    "icons": "Use lucide-react. Standard mapping: Heart (Favorite), X (Discard), FileText (Summary), Info (Ficha Técnica), Headphones (Audio), ShoppingCart (Buy), Settings/Menu (Gears)."
+  },
+  "accessibility_and_testing": {
+    "contrast": "Ensure the parchment background (#F4ECD8) uses the dark sepia ink (#2A1E15) to maintain APCA readability. For the dark leather cards, text MUST be the bright parchment color (#E8DCC2).",
+    "test_ids": "Add data-testid to swipe_card, btn_like, btn_discard, btn_details, btn_summary, btn_play_audio, btn_buy_amazon, btn_language_toggle.",
+    "reduced_motion": "Wrap framer-motion components with reduced motion checks if possible, though the core app mechanic is gesture-driven."
+  }
+}
