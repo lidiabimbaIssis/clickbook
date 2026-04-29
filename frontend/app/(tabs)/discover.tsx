@@ -19,6 +19,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { api, Book } from "../../src/lib/api";
 import { useAuth } from "../../src/providers/AuthProvider";
 import { colors } from "../../src/theme";
+import PaywallModal from "../../src/components/PaywallModal";
 import Logo from "../../src/components/Logo";
 
 const SWIPE_THRESHOLD = 110;
@@ -26,7 +27,7 @@ const SWIPE_THRESHOLD = 110;
 type Mode = "cover" | "ficha" | "summary";
 
 export default function Discover() {
-  const { user } = useAuth();
+  const { user, refresh: refreshAuth } = useAuth();
   const lang = (user?.lang || "es") as "es" | "en";
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -38,6 +39,8 @@ export default function Discover() {
   const [audioLoading, setAudioLoading] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [premiumSummaries, setPremiumSummaries] = useState<Record<string, string>>({});
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  const [paywallReason, setPaywallReason] = useState<"limit" | "chat" | "general">("limit");
   const playerRef = useRef<any>(null);
 
   const pan = useRef(new Animated.ValueXY()).current;
@@ -151,10 +154,10 @@ export default function Discover() {
         text = sumRes.summary;
         setPremiumSummaries((prev) => ({ ...prev, [current.book_id]: text! }));
       }
-      // 2) TTS the premium summary
+      // 2) TTS the premium summary (cached in DB by book_id+voice+lang)
       const res = await api<{ audio_base64: string; mime: string }>("/tts", {
         method: "POST",
-        body: JSON.stringify({ text, voice: "fable" }),
+        body: JSON.stringify({ text, voice: "fable", book_id: current.book_id, lang }),
       });
       const uri = `data:${res.mime};base64,${res.audio_base64}`;
       const p = createAudioPlayer({ uri });
@@ -166,11 +169,31 @@ export default function Discover() {
       });
       p.play();
       setPlaying(true);
-    } catch (e) {
-      console.warn("audio error", e);
+    } catch (e: any) {
+      // 402 = daily limit reached → open paywall
+      const msg = String(e?.message || "");
+      if (msg.includes("402") || msg.includes("daily_limit_reached")) {
+        setPaywallReason("limit");
+        setPaywallOpen(true);
+      } else {
+        console.warn("audio error", e);
+      }
     } finally {
       setAudioLoading(false);
     }
+  };
+
+  const openAuthorChat = () => {
+    if (!current) return;
+    if (!user?.is_premium) {
+      setPaywallReason("chat");
+      setPaywallOpen(true);
+      return;
+    }
+    router.push({
+      pathname: "/author-chat",
+      params: { book_id: current.book_id, title: current.title, author: current.author },
+    });
   };
 
   const openStore = (url: string) => {
@@ -254,6 +277,8 @@ export default function Discover() {
               playing={playing}
               audioLoading={audioLoading}
               onPlay={playAudio}
+              onAuthorChat={openAuthorChat}
+              isPremium={!!user?.is_premium}
             />
           )}
         </Animated.View>
@@ -312,6 +337,15 @@ export default function Discover() {
           testID="btn-buy-google"
         />
       </View>
+
+      <PaywallModal
+        visible={paywallOpen}
+        onClose={() => setPaywallOpen(false)}
+        reason={paywallReason}
+        onUpgraded={async () => {
+          await refreshAuth();
+        }}
+      />
     </View>
   );
 }
@@ -360,6 +394,8 @@ function SummaryView({
   playing,
   audioLoading,
   onPlay,
+  onAuthorChat,
+  isPremium,
 }: {
   book: Book;
   lang: "es" | "en";
@@ -367,15 +403,17 @@ function SummaryView({
   playing: boolean;
   audioLoading: boolean;
   onPlay: () => void;
+  onAuthorChat: () => void;
+  isPremium: boolean;
 }) {
   const fallback = lang === "es" ? book.summary_es : book.summary_en;
   const text = premiumText || fallback;
-  const isPremium = !!premiumText;
+  const hasPremium = !!premiumText;
   return (
     <View style={styles.parchment} testID="summary-view">
       <View style={styles.summaryHeader}>
         <Text style={styles.parchmentHeader}>
-          // RESUMEN · 1 MIN {isPremium ? "★" : ""}
+          // RESUMEN · 1 MIN {hasPremium ? "★" : ""}
         </Text>
         <TouchableOpacity
           testID="btn-play-audio"
@@ -392,14 +430,31 @@ function SummaryView({
       </View>
       <View style={styles.divider2} />
       <Text style={styles.parchmentTitle}>{book.title}</Text>
-      {!isPremium && !audioLoading && (
+      {!hasPremium && !audioLoading && (
         <Text style={styles.summaryHint}>
           Pulsa <Ionicons name="headset" size={11} color={colors.copper} /> para generar el guion premium
         </Text>
       )}
-      <ScrollView style={{ marginTop: 12 }} showsVerticalScrollIndicator={false}>
+      <ScrollView style={{ marginTop: 12, flex: 1 }} showsVerticalScrollIndicator={false}>
         <Text style={styles.summaryText}>{text}</Text>
       </ScrollView>
+
+      {/* Chat con el autor */}
+      <TouchableOpacity
+        style={[styles.chatBtn, !isPremium && styles.chatBtnLocked]}
+        onPress={onAuthorChat}
+        testID="btn-author-chat"
+        activeOpacity={0.85}
+      >
+        <Ionicons
+          name={isPremium ? "chatbubbles" : "lock-closed"}
+          size={16}
+          color={isPremium ? colors.bgBase : colors.gold}
+        />
+        <Text style={[styles.chatBtnText, !isPremium && styles.chatBtnTextLocked]}>
+          {isPremium ? `Habla con ${book.author.split(" ").slice(-1)[0]}` : `Chat con ${book.author.split(" ").slice(-1)[0]} (Premium)`}
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -699,6 +754,29 @@ const styles = StyleSheet.create({
     marginTop: 6,
     opacity: 0.85,
   },
+  chatBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: colors.gold,
+    paddingVertical: 11,
+    borderRadius: 999,
+    marginTop: 10,
+    shadowColor: colors.gold,
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 6,
+  },
+  chatBtnText: { color: colors.bgBase, fontWeight: "900", fontSize: 13, letterSpacing: 0.5 },
+  chatBtnLocked: {
+    backgroundColor: "transparent",
+    borderWidth: 1.5,
+    borderColor: colors.gold,
+    shadowOpacity: 0.2,
+  },
+  chatBtnTextLocked: { color: colors.gold },
   stampLike: {
     position: "absolute",
     top: 28,

@@ -102,9 +102,75 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: "Test new premium summary endpoint GET /api/books/{book_id}/premium-summary?lang=es|en with caching, plus regression on /api/auth/guest, /api/books/feed, /api/tts, /api/books/interact."
+user_problem_statement: "Test premium/monetization endpoints (/api/me/usage, /api/config/pricing, /api/me/upgrade, /api/me/downgrade, new /api/tts with book_id/lang caching and daily free limit, /api/books/{id}/author-chat premium gate) and affiliate URL behavior, plus regression on pre-existing endpoints."
 
 backend:
+  - task: "Usage endpoint (GET /api/me/usage)"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "New guest returns {is_premium:false, plays_today:0, limit:3, remaining:3, premium_until:null}. After 3 TTS calls returns plays_today=3, remaining=0. After /me/upgrade returns is_premium=true, remaining=null."
+  - task: "Pricing config (GET /api/config/pricing)"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "Public endpoint (no auth). Returns all required fields: monthly_regular, monthly_launch, yearly_regular, yearly_launch, launch_promo_active=true, launch_promo_label, free_daily_audio_limit=3."
+  - task: "Upgrade/downgrade dev endpoints (POST /api/me/upgrade, /api/me/downgrade)"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "upgrade sets is_premium=true with premium_until +30d; downgrade reverts to is_premium=false. Both require auth."
+  - task: "TTS with caching + daily limit (POST /api/tts with book_id/lang)"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "Flow verified end-to-end: call#1 cached=false plays_today=1 with OpenAI-generated audio (~114KB base64). call#2 same book_id+voice+lang returns cached=true plays_today=2, SAME audio (no new OpenAI call). call#3 plays_today=3. call#4 returns 402 with detail.error='daily_limit_reached', plays_today=3, limit=3. After upgrade, call returns 200 with is_premium=true, plays_today=0 (not tracked). Cache field pattern audio_{voice}_{lang} working correctly."
+  - task: "Author chat premium endpoint (POST /api/books/{book_id}/author-chat)"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "Free user receives 402 with detail.error='premium_required'. After /me/upgrade, returns 200 with {reply} in Spanish first person, clearly in character as the author (e.g. Arthur C. Clarke reply: 'La semilla de esta historia fue un relato temprano titulado Ángel Guardian, pero mi verdadera motivación fue explorar esa sensación de sobrecogimiento...'). Uses Gemini via emergentintegrations."
+  - task: "Affiliate URLs in /api/books/feed"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "With no AFFILIATE_AMAZON_TAG in env, amazon_url is plain search URL: https://www.amazon.com/s?k=...&i=stripbooks with no &tag= parameter appended. build_store_urls conditional is working as specified."
   - task: "Premium Summary endpoint (GET /api/books/{book_id}/premium-summary)"
     implemented: true
     working: true
@@ -175,4 +241,6 @@ test_plan:
 
 agent_communication:
     - agent: "testing"
-      message: "Ran /app/backend_test.py against the public backend URL. All 14 assertions pass (premium-summary ES/EN first+cached, 404, 401, plain-text/no-markdown/no-section-label validation, word count 150-220, plus regressions on auth/guest, auth/me, books/feed, books/interact, tts). No issues found. Premium summary endpoint is working as designed including the per-lang caching (premium_summary_es / premium_summary_en fields on book documents)."
+      message: "Ran /app/backend_test.py against the public backend URL. All 19 assertions pass (premium-summary ES/EN first+cached, 404, 401, plain-text/no-markdown/no-section-label validation, word count 150-220, plus regressions on auth/guest, auth/me, books/feed, books/interact, tts). No issues found. Premium summary endpoint is working as designed including the per-lang caching (premium_summary_es / premium_summary_en fields on book documents)."
+    - agent: "testing"
+      message: "Ran updated /app/backend_test.py covering premium/monetization flow end-to-end against https://book-swipe-1.preview.emergentagent.com/api. All 19 tests pass: /me/usage defaults + after limit + after upgrade, /config/pricing public (all required fields), /me/upgrade + /me/downgrade, /tts caching pattern (call#1 cached=false plays=1 with OpenAI gen, call#2+3 cached=true plays increments even when cached, call#4 -> 402 daily_limit_reached), premium bypasses limit and plays_today=0, author-chat 402 premium_required for free users and returns first-person Spanish reply in character for premium (verified via Arthur C. Clarke response). Affiliate: amazon_url contains no &tag= when AFFILIATE_AMAZON_TAG not set. Regression: auth/me, books/interact, premium-summary still working. No issues found."

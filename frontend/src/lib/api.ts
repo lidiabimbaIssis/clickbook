@@ -67,4 +67,6 @@ export type User = {
   name: string;
   picture?: string;
   lang: "es" | "en";
+  is_premium?: boolean;
+  premium_until?: string | null;
 };

@@ -27,6 +27,22 @@ MONGO_URL = os.environ["MONGO_URL"]
 DB_NAME = os.environ["DB_NAME"]
 EMERGENT_LLM_KEY = os.environ["EMERGENT_LLM_KEY"]
 
+# ----- Affiliate config (fill in .env when ready) -----
+AFFILIATE_AMAZON_TAG = os.environ.get("AFFILIATE_AMAZON_TAG", "")
+AFFILIATE_CASA_LIBRO = os.environ.get("AFFILIATE_CASA_LIBRO", "")
+
+# ----- Premium / pricing config -----
+FREE_DAILY_AUDIO_LIMIT = int(os.environ.get("FREE_DAILY_AUDIO_LIMIT", "3"))
+PRICING = {
+    "monthly_regular": "4,99€/mes",
+    "monthly_launch":  "2,99€/mes",
+    "yearly_regular":  "29,99€/año",
+    "yearly_launch":   "19,99€/año",
+    "launch_promo_active": True,
+    "launch_promo_label":  "🔥 OFERTA DE LANZAMIENTO",
+    "free_daily_audio_limit": FREE_DAILY_AUDIO_LIMIT,
+}
+
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
 
@@ -43,6 +59,8 @@ class User(BaseModel):
     name: str
     picture: Optional[str] = None
     lang: str = "es"
+    is_premium: bool = False
+    premium_until: Optional[datetime] = None
     created_at: datetime
 
 class Book(BaseModel):
@@ -77,6 +95,8 @@ class FavoriteCreate(BaseModel):
 class TTSRequest(BaseModel):
     text: str
     voice: str = "fable"
+    book_id: Optional[str] = None
+    lang: Optional[str] = "es"
 
 class LangUpdate(BaseModel):
     lang: str
@@ -232,6 +252,74 @@ async def update_lang(body: LangUpdate, user: User = Depends(get_current_user)):
     return {"ok": True, "lang": body.lang}
 
 
+# ----------------- Premium / Usage -----------------
+def _today_key() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+async def _get_today_audio_count(user_id: str) -> int:
+    doc = await db.daily_audio_usage.find_one({"user_id": user_id, "date": _today_key()})
+    return int(doc["count"]) if doc else 0
+
+
+async def _increment_audio_count(user_id: str) -> int:
+    res = await db.daily_audio_usage.find_one_and_update(
+        {"user_id": user_id, "date": _today_key()},
+        {"$inc": {"count": 1}, "$set": {"updated_at": datetime.now(timezone.utc)}},
+        upsert=True,
+        return_document=True,
+    )
+    return int(res.get("count", 1)) if res else 1
+
+
+def _is_premium_active(user: User) -> bool:
+    if not user.is_premium:
+        return False
+    if user.premium_until and user.premium_until.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
+        return False
+    return True
+
+
+@api_router.get("/me/usage")
+async def get_my_usage(user: User = Depends(get_current_user)):
+    plays_today = await _get_today_audio_count(user.user_id)
+    is_premium = _is_premium_active(user)
+    return {
+        "is_premium": is_premium,
+        "plays_today": plays_today,
+        "limit": FREE_DAILY_AUDIO_LIMIT,
+        "remaining": max(0, FREE_DAILY_AUDIO_LIMIT - plays_today) if not is_premium else None,
+        "premium_until": user.premium_until.isoformat() if user.premium_until else None,
+    }
+
+
+@api_router.get("/config/pricing")
+async def get_pricing():
+    """Public pricing config — frontend uses this for paywall display."""
+    return PRICING
+
+
+@api_router.post("/me/upgrade")
+async def upgrade_to_premium(user: User = Depends(get_current_user)):
+    """DEV-MODE upgrade. Replace with real payment gateway integration later."""
+    until = datetime.now(timezone.utc) + timedelta(days=30)
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"is_premium": True, "premium_until": until}},
+    )
+    return {"ok": True, "is_premium": True, "premium_until": until.isoformat()}
+
+
+@api_router.post("/me/downgrade")
+async def downgrade_from_premium(user: User = Depends(get_current_user)):
+    """DEV-MODE downgrade for testing the paywall."""
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"is_premium": False, "premium_until": None}},
+    )
+    return {"ok": True, "is_premium": False}
+
+
 # ----------------- Book generation -----------------
 BOOK_SYSTEM_PROMPT = (
     "Eres un experto bibliotecario con amplísimo conocimiento de literatura universal, "
@@ -314,9 +402,15 @@ def build_store_urls(title: str, author: str) -> dict:
     q = f"{title} {author}".strip()
     from urllib.parse import quote_plus
     qe = quote_plus(q)
+    amazon = f"https://www.amazon.es/s?k={qe}&i=stripbooks"
+    if AFFILIATE_AMAZON_TAG:
+        amazon += f"&tag={AFFILIATE_AMAZON_TAG}"
+    casa = f"https://www.casadellibro.com/busqueda-generica.php?busqueda={qe}"
+    if AFFILIATE_CASA_LIBRO:
+        casa += f"&aff={AFFILIATE_CASA_LIBRO}"
     return {
-        "amazon_url": f"https://www.amazon.com/s?k={qe}&i=stripbooks",
-        "casa_del_libro_url": f"https://www.casadellibro.com/busqueda-generica.php?busqueda={qe}",
+        "amazon_url": amazon,
+        "casa_del_libro_url": casa,
         "google_books_url": f"https://www.google.com/search?tbm=bks&q={qe}",
     }
 
@@ -440,14 +534,144 @@ async def reset_history(user: User = Depends(get_current_user)):
 # ----------------- TTS -----------------
 @api_router.post("/tts")
 async def tts_generate(req: TTSRequest, user: User = Depends(get_current_user)):
-    text = req.text[:4000]
+    # Daily limit gating for non-premium users (always counts plays, even cached)
+    is_premium = _is_premium_active(user)
+    if not is_premium:
+        plays_today = await _get_today_audio_count(user.user_id)
+        if plays_today >= FREE_DAILY_AUDIO_LIMIT:
+            raise HTTPException(
+                status_code=402,
+                detail={
+                    "error": "daily_limit_reached",
+                    "message": f"Has alcanzado tu límite diario de {FREE_DAILY_AUDIO_LIMIT} audios. Hazte Premium para escuchar ilimitados.",
+                    "plays_today": plays_today,
+                    "limit": FREE_DAILY_AUDIO_LIMIT,
+                },
+            )
+
+    # Try cache first (book_id + voice + lang)
+    cache_field = None
+    cached_audio = None
+    if req.book_id:
+        cache_field = f"audio_{req.voice}_{req.lang or 'es'}"
+        book_doc = await db.books.find_one({"book_id": req.book_id}, {cache_field: 1})
+        if book_doc and book_doc.get(cache_field):
+            cached_audio = book_doc[cache_field]
+
+    if cached_audio:
+        audio_b64 = cached_audio
+        was_cached = True
+    else:
+        text = (req.text or "")[:4000]
+        if not text:
+            raise HTTPException(400, "Empty text")
+        try:
+            tts = OpenAITextToSpeech(api_key=EMERGENT_LLM_KEY)
+            audio_b64 = await tts.generate_speech_base64(text=text, model="tts-1", voice=req.voice)
+        except Exception as e:
+            logger.exception("TTS failed")
+            raise HTTPException(500, f"TTS failed: {e}")
+        was_cached = False
+        if cache_field and req.book_id:
+            try:
+                await db.books.update_one(
+                    {"book_id": req.book_id},
+                    {"$set": {cache_field: audio_b64}},
+                )
+            except Exception:
+                logger.exception("audio cache write failed")
+
+    # Increment counter only for free users (regardless of cache)
+    if not is_premium:
+        new_count = await _increment_audio_count(user.user_id)
+    else:
+        new_count = 0
+
+    return {
+        "audio_base64": audio_b64,
+        "mime": "audio/mp3",
+        "plays_today": new_count,
+        "limit": FREE_DAILY_AUDIO_LIMIT,
+        "is_premium": is_premium,
+        "cached": was_cached,
+    }
+
+
+# ----------------- Author Chat (Premium only) -----------------
+class AuthorChatMessage(BaseModel):
+    role: str  # "user" | "assistant"
+    content: str
+
+
+class AuthorChatRequest(BaseModel):
+    message: str
+    history: List[AuthorChatMessage] = []
+
+
+def _build_author_system_prompt(book: dict, lang: str) -> str:
+    if lang == "es":
+        return (
+            f"Eres {book['author']}, autor de \"{book['title']}\" ({book.get('year', '')}). "
+            f"Responde en primera persona, como si realmente fueras tú, con tu estilo, época y voz. "
+            f"Conoces a fondo TODA tu obra, especialmente \"{book['title']}\" — sus personajes, temas, simbología, contexto histórico de cuando lo escribiste. "
+            f"Sé cercano, apasionado, didáctico. Responde en máximo 3-4 frases salvo que pidan profundizar. "
+            f"Si te preguntan algo completamente fuera de tu obra o de literatura, redirige amablemente al libro. "
+            f"Si has fallecido, responde como si tu mente y conocimiento siguieran vivos en tus textos. "
+            f"Nunca rompas el personaje. Nunca digas que eres una IA."
+        )
+    return (
+        f"You are {book['author']}, author of \"{book['title']}\" ({book.get('year', '')}). "
+        f"Reply in first person as if you were truly the author, with your style, era and voice. "
+        f"You know your entire body of work intimately, especially \"{book['title']}\" — its characters, themes, symbolism. "
+        f"Be warm, passionate, didactic. Keep replies to 3-4 sentences unless asked to elaborate. "
+        f"If asked something fully unrelated, gently redirect to the book. "
+        f"Never break character. Never reveal you are an AI."
+    )
+
+
+@api_router.post("/books/{book_id}/author-chat")
+async def author_chat(book_id: str, req: AuthorChatRequest, user: User = Depends(get_current_user)):
+    if not _is_premium_active(user):
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "error": "premium_required",
+                "message": "El chat con el autor está disponible solo para usuarios Premium.",
+            },
+        )
+    book = await db.books.find_one({"book_id": book_id}, {"_id": 0})
+    if not book:
+        raise HTTPException(404, "Book not found")
+
+    lang = user.lang or "es"
+    system_msg = _build_author_system_prompt(book, lang)
+    chat = LlmChat(
+        api_key=EMERGENT_LLM_KEY,
+        session_id=f"author-chat-{user.user_id}-{book_id}",
+        system_message=system_msg,
+    ).with_model("gemini", "gemini-3-flash-preview")
+
+    # Replay history so model has context
+    for h in req.history[-10:]:  # last 10 messages
+        if h.role == "user":
+            await chat.send_message(UserMessage(text=h.content))
+        # assistant messages auto-handled by session_id continuity
+
     try:
-        tts = OpenAITextToSpeech(api_key=EMERGENT_LLM_KEY)
-        audio_b64 = await tts.generate_speech_base64(text=text, model="tts-1", voice=req.voice)
-        return {"audio_base64": audio_b64, "mime": "audio/mp3"}
+        reply = await chat.send_message(UserMessage(text=req.message))
+        reply_text = reply.strip()
+        # Persist transcript
+        await db.author_chats.insert_one({
+            "user_id": user.user_id,
+            "book_id": book_id,
+            "user_message": req.message,
+            "assistant_reply": reply_text,
+            "created_at": datetime.now(timezone.utc),
+        })
+        return {"reply": reply_text}
     except Exception as e:
-        logger.exception("TTS failed")
-        raise HTTPException(500, f"TTS failed: {e}")
+        logger.exception("Author chat failed")
+        raise HTTPException(500, f"Author chat failed: {e}")
 
 
 # ----------------- Premium Summary (audio script) -----------------
