@@ -37,6 +37,7 @@ export default function Discover() {
   const [mode, setMode] = useState<Mode>("cover");
   const [audioLoading, setAudioLoading] = useState(false);
   const [playing, setPlaying] = useState(false);
+  const [premiumSummaries, setPremiumSummaries] = useState<Record<string, string>>({});
   const playerRef = useRef<any>(null);
 
   const pan = useRef(new Animated.ValueXY()).current;
@@ -141,7 +142,16 @@ export default function Discover() {
     }
     setAudioLoading(true);
     try {
-      const text = lang === "es" ? current.summary_es : current.summary_en;
+      // 1) Get premium summary (Gemini with curated prompt, cached on backend)
+      let text = premiumSummaries[current.book_id];
+      if (!text) {
+        const sumRes = await api<{ summary: string; lang: string; cached: boolean }>(
+          `/books/${current.book_id}/premium-summary?lang=${lang}`
+        );
+        text = sumRes.summary;
+        setPremiumSummaries((prev) => ({ ...prev, [current.book_id]: text! }));
+      }
+      // 2) TTS the premium summary
       const res = await api<{ audio_base64: string; mime: string }>("/tts", {
         method: "POST",
         body: JSON.stringify({ text, voice: "fable" }),
@@ -240,6 +250,7 @@ export default function Discover() {
             <SummaryView
               book={current}
               lang={lang}
+              premiumText={premiumSummaries[current.book_id]}
               playing={playing}
               audioLoading={audioLoading}
               onPlay={playAudio}
@@ -345,21 +356,27 @@ function FichaView({ book }: { book: Book }) {
 function SummaryView({
   book,
   lang,
+  premiumText,
   playing,
   audioLoading,
   onPlay,
 }: {
   book: Book;
   lang: "es" | "en";
+  premiumText?: string;
   playing: boolean;
   audioLoading: boolean;
   onPlay: () => void;
 }) {
-  const text = lang === "es" ? book.summary_es : book.summary_en;
+  const fallback = lang === "es" ? book.summary_es : book.summary_en;
+  const text = premiumText || fallback;
+  const isPremium = !!premiumText;
   return (
     <View style={styles.parchment} testID="summary-view">
       <View style={styles.summaryHeader}>
-        <Text style={styles.parchmentHeader}>// RESUMEN · 1 MIN</Text>
+        <Text style={styles.parchmentHeader}>
+          // RESUMEN · 1 MIN {isPremium ? "★" : ""}
+        </Text>
         <TouchableOpacity
           testID="btn-play-audio"
           onPress={onPlay}
@@ -375,6 +392,11 @@ function SummaryView({
       </View>
       <View style={styles.divider2} />
       <Text style={styles.parchmentTitle}>{book.title}</Text>
+      {!isPremium && !audioLoading && (
+        <Text style={styles.summaryHint}>
+          Pulsa <Ionicons name="headset" size={11} color={colors.copper} /> para generar el guion premium
+        </Text>
+      )}
       <ScrollView style={{ marginTop: 12 }} showsVerticalScrollIndicator={false}>
         <Text style={styles.summaryText}>{text}</Text>
       </ScrollView>
@@ -670,6 +692,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bgBase,
   },
   summaryText: { color: colors.textOnDark, fontSize: 15, lineHeight: 23 },
+  summaryHint: {
+    color: colors.copper,
+    fontSize: 11,
+    fontStyle: "italic",
+    marginTop: 6,
+    opacity: 0.85,
+  },
   stampLike: {
     position: "absolute",
     top: 28,

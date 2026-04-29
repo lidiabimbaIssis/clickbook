@@ -101,3 +101,78 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: "Test new premium summary endpoint GET /api/books/{book_id}/premium-summary?lang=es|en with caching, plus regression on /api/auth/guest, /api/books/feed, /api/tts, /api/books/interact."
+
+backend:
+  - task: "Premium Summary endpoint (GET /api/books/{book_id}/premium-summary)"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "All 7 scenarios pass against https://book-swipe-1.preview.emergentagent.com/api: (1) ES first call returns cached=false with valid plain-text summary (188 words, no markdown, no quotes, no section labels). (2) ES second call returns cached=true with identical summary. (3) EN call returns cached=false (different lang cache field) with 171-word plain summary. (4) Invalid book_id returns 404. (5) Missing auth returns 401. Summary is plain prose, starts strong (no 'This book is about...'), no section headers leaked. Caching via premium_summary_es/premium_summary_en fields on books collection works correctly."
+  - task: "Auth guest login (POST /api/auth/guest)"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "Returns 200 with user object and session_token. Token works as Bearer auth on subsequent calls. /api/auth/me also verified."
+  - task: "Books feed (GET /api/books/feed)"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "Regression check: feed returns 3 books with valid metadata when count=3 is requested with Bearer auth."
+  - task: "TTS (POST /api/tts)"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "Regression check: returns base64 audio with mime=audio/mp3 (48k base64 chars) for short Spanish text."
+  - task: "Books interact (POST /api/books/interact)"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "Regression check: like action persisted, returns {ok: true}."
+
+metadata:
+  created_by: "testing_agent"
+  version: "1.0"
+  test_sequence: 1
+  run_ui: false
+
+test_plan:
+  current_focus: []
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+    - agent: "testing"
+      message: "Ran /app/backend_test.py against the public backend URL. All 14 assertions pass (premium-summary ES/EN first+cached, 404, 401, plain-text/no-markdown/no-section-label validation, word count 150-220, plus regressions on auth/guest, auth/me, books/feed, books/interact, tts). No issues found. Premium summary endpoint is working as designed including the per-lang caching (premium_summary_es / premium_summary_en fields on book documents)."
