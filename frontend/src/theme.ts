@@ -14,6 +14,8 @@ export const colors = {
   iron: "#FF2E78",            // neon pink (discard)
   border: "#2A1656",
   brassSoft: "rgba(0,240,255,0.35)",
+  gold: "#FFD23F",            // neon yellow (compras)
+  goldSoft: "rgba(255,210,63,0.35)",
 };
 
 export const fonts = {

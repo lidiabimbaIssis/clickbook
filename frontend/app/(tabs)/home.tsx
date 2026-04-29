@@ -19,54 +19,56 @@ export default function Home() {
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: colors.bgBase }}>
-      <View style={[styles.container, { paddingTop: insets.top + 24 }]} testID="home-screen">
-        <View style={styles.logoBox}>
-          <Logo size="lg" />
-        </View>
-        <Text style={styles.tagline}>UN CLICK · UNA HISTORIA</Text>
+      <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom + 12 }]} testID="home-screen">
+        <View style={styles.content}>
+          <View style={styles.logoBox}>
+            <Logo size="lg" />
+          </View>
+          <Text style={styles.tagline}>UN CLICK · UNA HISTORIA</Text>
 
-        <View style={styles.searchBox}>
-          <Ionicons name="search" size={18} color={colors.brass} />
-          <TextInput
-            testID="input-search"
-            value={q}
-            onChangeText={setQ}
-            placeholder="Título, autor o género…"
-            placeholderTextColor={colors.textOnDarkMuted}
-            style={styles.input}
-            returnKeyType="search"
-            onSubmitEditing={() => go(q)}
-          />
-          {q.length > 0 && (
-            <TouchableOpacity onPress={() => setQ("")}>
-              <Ionicons name="close-circle" size={18} color={colors.textOnDarkMuted} />
-            </TouchableOpacity>
-          )}
-        </View>
+          <View style={styles.searchBox}>
+            <Ionicons name="search" size={18} color={colors.brass} />
+            <TextInput
+              testID="input-search"
+              value={q}
+              onChangeText={setQ}
+              placeholder="Título, autor o género…"
+              placeholderTextColor={colors.textOnDarkMuted}
+              style={styles.input}
+              returnKeyType="search"
+              onSubmitEditing={() => go(q)}
+            />
+            {q.length > 0 && (
+              <TouchableOpacity onPress={() => setQ("")}>
+                <Ionicons name="close-circle" size={18} color={colors.textOnDarkMuted} />
+              </TouchableOpacity>
+            )}
+          </View>
 
-        <TouchableOpacity testID="btn-search" style={styles.primaryBtn} onPress={() => go(q)} activeOpacity={0.85}>
-          <Ionicons name="search" size={18} color={colors.bgBase} />
-          <Text style={styles.primaryText}>BUSCAR</Text>
-        </TouchableOpacity>
+          <TouchableOpacity testID="btn-search" style={styles.primaryBtn} onPress={() => go(q)} activeOpacity={0.85}>
+            <Ionicons name="search" size={18} color={colors.bgBase} />
+            <Text style={styles.primaryText}>BUSCAR</Text>
+          </TouchableOpacity>
 
-        <View style={styles.divider}>
-          <View style={styles.line} />
-          <Text style={styles.dividerText}>O BIEN</Text>
-          <View style={styles.line} />
-        </View>
+          <View style={styles.divider}>
+            <View style={styles.line} />
+            <Text style={styles.dividerText}>O BIEN</Text>
+            <View style={styles.line} />
+          </View>
 
-        <TouchableOpacity testID="btn-lucky" style={styles.luckyBtn} onPress={() => go()} activeOpacity={0.85}>
-          <Ionicons name="sparkles" size={18} color={colors.copper} />
-          <Text style={styles.luckyText}>VOY A TENER SUERTE</Text>
-          <Ionicons name="sparkles" size={18} color={colors.copper} />
-        </TouchableOpacity>
+          <TouchableOpacity testID="btn-lucky" style={styles.luckyBtn} onPress={() => go()} activeOpacity={0.85}>
+            <Ionicons name="sparkles" size={18} color={colors.copper} />
+            <Text style={styles.luckyText}>VOY A TENER SUERTE</Text>
+            <Ionicons name="sparkles" size={18} color={colors.copper} />
+          </TouchableOpacity>
 
-        <View style={styles.chipsRow}>
-          {["Ciencia ficción", "Novela negra", "Fantasía", "Ensayo", "Biografía", "Poesía"].map((g) => (
-            <TouchableOpacity key={g} style={styles.chip} onPress={() => go(g)} testID={`chip-${g}`}>
-              <Text style={styles.chipText}>{g}</Text>
-            </TouchableOpacity>
-          ))}
+          <View style={styles.chipsRow}>
+            {["Ciencia ficción", "Novela negra", "Fantasía", "Ensayo", "Biografía", "Poesía"].map((g) => (
+              <TouchableOpacity key={g} style={styles.chip} onPress={() => go(g)} testID={`chip-${g}`}>
+                <Text style={styles.chipText}>{g}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -74,7 +76,8 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 22, alignItems: "stretch", gap: 18 },
+  container: { flex: 1, paddingHorizontal: 22 },
+  content: { flex: 1, justifyContent: "center", gap: 18 },
   logoBox: {
     alignItems: "center",
     justifyContent: "center",

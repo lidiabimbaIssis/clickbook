@@ -19,6 +19,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { api, Book } from "../../src/lib/api";
 import { useAuth } from "../../src/providers/AuthProvider";
 import { colors } from "../../src/theme";
+import Logo from "../../src/components/Logo";
 
 const SWIPE_THRESHOLD = 110;
 
@@ -202,7 +203,7 @@ export default function Discover() {
         <TouchableOpacity onPress={() => router.push("/home")} style={styles.backBtn} testID="btn-back-home">
           <Ionicons name="chevron-back" size={20} color={colors.brass} />
         </TouchableOpacity>
-        <Text style={styles.brand}>CLICKBOOK</Text>
+        <Logo size="sm" />
         <View style={{ width: 36 }} />
       </View>
 
@@ -465,7 +466,7 @@ function BuyBtn({
 }) {
   return (
     <TouchableOpacity testID={testID} style={styles.buyBtn} onPress={onPress} activeOpacity={0.85}>
-      <Ionicons name={icon} size={16} color={colors.brass} />
+      <Ionicons name={icon} size={16} color={colors.gold} />
       <Text style={styles.buyText}>{label}</Text>
     </TouchableOpacity>
   );
@@ -709,15 +710,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    borderWidth: 1,
-    borderColor: colors.brassSoft,
+    borderWidth: 1.5,
+    borderColor: colors.goldSoft,
     paddingHorizontal: 8,
     paddingVertical: 12,
     borderRadius: 12,
-    backgroundColor: colors.bgSurface,
+    backgroundColor: "rgba(255,210,63,0.06)",
+    shadowColor: colors.gold,
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 6,
   },
   buyText: {
-    color: colors.brass,
+    color: colors.gold,
     fontSize: 12,
     fontWeight: "800",
     letterSpacing: 0.5,
