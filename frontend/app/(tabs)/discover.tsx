@@ -203,7 +203,10 @@ export default function Discover() {
         <TouchableOpacity onPress={() => router.push("/home")} style={styles.backBtn} testID="btn-back-home">
           <Ionicons name="chevron-back" size={20} color={colors.brass} />
         </TouchableOpacity>
-        <Logo size="sm" />
+        <View style={styles.brandRow}>
+          <Text style={styles.brandCyan}>Click</Text>
+          <Text style={styles.brandPurple}>Book</Text>
+        </View>
         <View style={{ width: 36 }} />
       </View>
 
@@ -529,6 +532,22 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     fontSize: 16,
     letterSpacing: 6,
+  },
+  brandRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  brandCyan: {
+    color: colors.brass,
+    fontWeight: "900",
+    fontSize: 18,
+    letterSpacing: 1,
+  },
+  brandPurple: {
+    color: colors.copper,
+    fontWeight: "900",
+    fontSize: 18,
+    letterSpacing: 1,
   },
   queryHint: {
     color: colors.copper,
