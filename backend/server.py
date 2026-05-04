@@ -26,6 +26,7 @@ load_dotenv(ROOT_DIR / ".env")
 MONGO_URL = os.environ["MONGO_URL"]
 DB_NAME = os.environ["DB_NAME"]
 EMERGENT_LLM_KEY = os.environ["EMERGENT_LLM_KEY"]
+GOOGLE_TTS_API_KEY = os.environ.get("GOOGLE_TTS_API_KEY", "")
 
 # ----- Affiliate config (fill in .env when ready) -----
 AFFILIATE_AMAZON_TAG = os.environ.get("AFFILIATE_AMAZON_TAG", "")
@@ -532,6 +533,71 @@ async def reset_history(user: User = Depends(get_current_user)):
 
 
 # ----------------- TTS -----------------
+# Google Cloud TTS — voces es-ES Neural2 nativas peninsulares
+GOOGLE_TTS_URL = "https://texttospeech.googleapis.com/v1/text:synthesize"
+VOICE_FEMENINA = "es-ES-Neural2-F"
+VOICE_MASCULINA = "es-ES-Neural2-B"
+
+
+def select_voice_for_genre(genre: str | None) -> str:
+    """Voz femenina por defecto (ficción, novela, autoayuda, salud, biografías).
+    Voz masculina para negocios/finanzas/historia/ciencia/tecnología."""
+    g = (genre or "").lower()
+    fiction_keywords = [
+        "ficción", "ficcion", "novela", "fantas", "thriller", "misterio",
+        "romance", "poes", "drama", "literatura",
+    ]
+    female_keywords = [
+        "autoayuda", "crecimiento personal", "salud", "bienestar",
+        "biograf", "memorias", "espiritual", "psicolog",
+    ]
+    male_keywords = [
+        "negocio", "finanz", "histor", "cienc", "tecnolog",
+        "econom", "invers", "emprend", "lider", "ensayo", "polít", "polit",
+    ]
+    if any(k in g for k in fiction_keywords) or any(k in g for k in female_keywords):
+        return VOICE_FEMENINA
+    if any(k in g for k in male_keywords):
+        # ciencia ficción siempre cuenta como femenina (ficción)
+        if "ficción" in g or "ficcion" in g:
+            return VOICE_FEMENINA
+        return VOICE_MASCULINA
+    return VOICE_FEMENINA  # default
+
+
+async def google_tts_synthesize(text: str, voice_name: str, lang: str = "es-ES") -> str:
+    """Calls Google Cloud TTS REST API. Returns base64 MP3 string."""
+    if not GOOGLE_TTS_API_KEY:
+        raise HTTPException(500, "GOOGLE_TTS_API_KEY not configured")
+    payload = {
+        "input": {"text": text},
+        "voice": {"languageCode": lang, "name": voice_name},
+        "audioConfig": {
+            "audioEncoding": "MP3",
+            "speakingRate": 1.05,
+            "pitch": 0.0,
+        },
+    }
+    async with httpx.AsyncClient(timeout=60) as client:
+        r = await client.post(
+            f"{GOOGLE_TTS_URL}?key={GOOGLE_TTS_API_KEY}",
+            json=payload,
+            headers={"Content-Type": "application/json"},
+        )
+    if r.status_code != 200:
+        logger.error(f"Google TTS error {r.status_code}: {r.text[:300]}")
+        raise HTTPException(500, f"Google TTS failed: HTTP {r.status_code}")
+    data = r.json()
+    audio_b64 = data.get("audioContent")
+    if not audio_b64:
+        raise HTTPException(500, "Google TTS returned no audio")
+    return audio_b64
+
+
+def _safe_voice_field(voice: str) -> str:
+    return re.sub(r"[^a-zA-Z0-9]", "_", voice)
+
+
 @api_router.post("/tts")
 async def tts_generate(req: TTSRequest, user: User = Depends(get_current_user)):
     # Daily limit gating for non-premium users (always counts plays, even cached)
@@ -549,34 +615,42 @@ async def tts_generate(req: TTSRequest, user: User = Depends(get_current_user)):
                 },
             )
 
-    # Try cache first (book_id + voice + lang)
+    # Resolve voice: explicit > genre-based > default femenina
+    book_genre = None
+    if req.book_id:
+        book_doc = await db.books.find_one({"book_id": req.book_id}, {"genre": 1, "title": 1})
+        if book_doc:
+            book_genre = book_doc.get("genre")
+
+    explicit_voice = req.voice and req.voice not in ("fable", "alloy", "echo", "onyx", "nova", "shimmer")
+    if explicit_voice:
+        voice_name = req.voice
+    else:
+        voice_name = select_voice_for_genre(book_genre)
+
+    # Cache key: book_id + sanitized voice + lang
     cache_field = None
     cached_audio = None
     if req.book_id:
-        cache_field = f"audio_{req.voice}_{req.lang or 'es'}"
-        book_doc = await db.books.find_one({"book_id": req.book_id}, {cache_field: 1})
-        if book_doc and book_doc.get(cache_field):
-            cached_audio = book_doc[cache_field]
+        cache_field = f"audio_{_safe_voice_field(voice_name)}_{req.lang or 'es'}"
+        book_doc2 = await db.books.find_one({"book_id": req.book_id}, {cache_field: 1})
+        if book_doc2 and book_doc2.get(cache_field):
+            cached_audio = book_doc2[cache_field]
 
     if cached_audio:
         audio_b64 = cached_audio
         was_cached = True
     else:
-        text = (req.text or "")[:4000]
+        text = (req.text or "")[:4500]
         if not text:
             raise HTTPException(400, "Empty text")
-        try:
-            tts = OpenAITextToSpeech(api_key=EMERGENT_LLM_KEY)
-            audio_b64 = await tts.generate_speech_base64(text=text, model="tts-1", voice=req.voice)
-        except Exception as e:
-            logger.exception("TTS failed")
-            raise HTTPException(500, f"TTS failed: {e}")
+        audio_b64 = await google_tts_synthesize(text=text, voice_name=voice_name)
         was_cached = False
         if cache_field and req.book_id:
             try:
                 await db.books.update_one(
                     {"book_id": req.book_id},
-                    {"$set": {cache_field: audio_b64}},
+                    {"$set": {cache_field: audio_b64, "voice_used": voice_name}},
                 )
             except Exception:
                 logger.exception("audio cache write failed")
@@ -594,6 +668,7 @@ async def tts_generate(req: TTSRequest, user: User = Depends(get_current_user)):
         "limit": FREE_DAILY_AUDIO_LIMIT,
         "is_premium": is_premium,
         "cached": was_cached,
+        "voice": voice_name,
     }
 
 
@@ -758,6 +833,17 @@ async def premium_summary(book_id: str, lang: str = "es", user: User = Depends(g
 
 
 # ----------------- Health -----------------
+from fastapi.responses import FileResponse
+
+
+@api_router.get("/dev/sample/{name}")
+async def dev_sample(name: str):
+    """Serves dev TTS samples from /tmp for user audition."""
+    safe = re.sub(r"[^a-zA-Z0-9_]", "", name)
+    path = f"/tmp/sample_es_{safe}.mp3"
+    if not os.path.exists(path):
+        raise HTTPException(404, "Sample not found")
+    return FileResponse(path, media_type="audio/mpeg", filename=f"sample_{safe}.mp3")
 @api_router.get("/")
 async def root():
     return {"status": "ok", "app": "Steampunk Books"}
