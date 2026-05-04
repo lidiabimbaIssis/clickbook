@@ -840,10 +840,16 @@ from fastapi.responses import FileResponse
 async def dev_sample(name: str):
     """Serves dev TTS samples from /tmp for user audition."""
     safe = re.sub(r"[^a-zA-Z0-9_]", "", name)
-    path = f"/tmp/sample_es_{safe}.mp3"
-    if not os.path.exists(path):
-        raise HTTPException(404, "Sample not found")
-    return FileResponse(path, media_type="audio/mpeg", filename=f"sample_{safe}.mp3")
+    # Try multiple naming conventions: Neural2 letter, named samples, etc.
+    candidates = [
+        f"/tmp/sample_es_neural2_{safe.upper()}.mp3",
+        f"/tmp/sample_es_{safe}.mp3",
+        f"/tmp/sample_{safe}.mp3",
+    ]
+    for path in candidates:
+        if os.path.exists(path):
+            return FileResponse(path, media_type="audio/mpeg", filename=os.path.basename(path))
+    raise HTTPException(404, "Sample not found")
 @api_router.get("/")
 async def root():
     return {"status": "ok", "app": "Steampunk Books"}
