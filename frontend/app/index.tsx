@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "../src/providers/AuthProvider";
 import { api, setToken } from "../src/lib/api";
 import { colors } from "../src/theme";
@@ -20,6 +21,21 @@ export default function LoginScreen() {
   const { user, loading, refresh } = useAuth();
   const router = useRouter();
   const [processing, setProcessing] = useState(false);
+  const [onboardingChecked, setOnboardingChecked] = useState(false);
+
+  // Check onboarding on first load (only redirect if NOT logged in)
+  useEffect(() => {
+    (async () => {
+      try {
+        const done = await AsyncStorage.getItem("clickbook_onboarding_done");
+        if (!done && !user && !loading) {
+          router.replace("/onboarding");
+          return;
+        }
+      } catch {}
+      setOnboardingChecked(true);
+    })();
+  }, [user, loading, router]);
 
   // Handle OAuth callback hash (session_id) on web
   useEffect(() => {

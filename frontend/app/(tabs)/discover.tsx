@@ -20,6 +20,7 @@ import { api, Book } from "../../src/lib/api";
 import { useAuth } from "../../src/providers/AuthProvider";
 import { colors } from "../../src/theme";
 import PaywallModal from "../../src/components/PaywallModal";
+import { shareContent } from "../../src/lib/share";
 import Logo from "../../src/components/Logo";
 
 const SWIPE_THRESHOLD = 110;
@@ -240,7 +241,9 @@ export default function Discover() {
           <Text style={styles.brandCyan}>Click</Text>
           <Text style={styles.brandPurple}>Book</Text>
         </View>
-        <View style={{ width: 36 }} />
+        <TouchableOpacity onPress={shareBook} style={styles.backBtn} testID="btn-share-book">
+          <Ionicons name="share-social" size={18} color={colors.copper} />
+        </TouchableOpacity>
       </View>
 
       {query ? (
@@ -325,16 +328,10 @@ export default function Discover() {
           testID="btn-buy-amazon"
         />
         <BuyBtn
-          label="Casa Libro"
+          label="Casa del Libro"
           icon="book"
           onPress={() => openStore(current.casa_del_libro_url)}
           testID="btn-buy-casa"
-        />
-        <BuyBtn
-          label="Google"
-          icon="logo-google"
-          onPress={() => openStore(current.google_books_url)}
-          testID="btn-buy-google"
         />
       </View>
 

@@ -69,6 +69,28 @@ export default function Home() {
               </TouchableOpacity>
             ))}
           </View>
+
+          <Text style={styles.moodLabel}>¿CÓMO ME SIENTO?</Text>
+          <View style={styles.moodRow}>
+            {[
+              { label: "Para reflexionar", emoji: "🤔", q: "libros que invitan a la reflexión profunda" },
+              { label: "Ligero", emoji: "☁️", q: "libros ligeros y entretenidos para desconectar" },
+              { label: "Intenso", emoji: "🔥", q: "libros intensos y trepidantes que enganchan" },
+              { label: "Romántico", emoji: "💜", q: "novelas románticas envolventes" },
+              { label: "Para llorar", emoji: "💧", q: "libros emotivos que conmueven" },
+              { label: "Aprender", emoji: "🎯", q: "libros para aprender y crecer" },
+            ].map((m) => (
+              <TouchableOpacity
+                key={m.label}
+                style={styles.moodChip}
+                onPress={() => go(m.q)}
+                testID={`mood-${m.label}`}
+              >
+                <Text style={styles.moodEmoji}>{m.emoji}</Text>
+                <Text style={styles.moodText}>{m.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -152,4 +174,32 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,240,255,0.08)",
   },
   chipText: { color: colors.brass, fontSize: 12, fontWeight: "700" },
+  moodLabel: {
+    color: colors.copper,
+    fontSize: 11,
+    letterSpacing: 3,
+    fontWeight: "900",
+    textAlign: "center",
+    marginTop: 6,
+  },
+  moodRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    justifyContent: "center",
+    marginTop: 4,
+  },
+  moodChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderWidth: 1,
+    borderColor: "rgba(176,38,255,0.4)",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: "rgba(176,38,255,0.07)",
+  },
+  moodEmoji: { fontSize: 14 },
+  moodText: { color: colors.textOnDark, fontSize: 12, fontWeight: "700" },
 });
