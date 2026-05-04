@@ -535,7 +535,7 @@ async def reset_history(user: User = Depends(get_current_user)):
 # ----------------- TTS -----------------
 # Google Cloud TTS — voces es-ES Neural2 nativas peninsulares
 GOOGLE_TTS_URL = "https://texttospeech.googleapis.com/v1/text:synthesize"
-VOICE_FEMENINA = "es-ES-Neural2-F"
+VOICE_FEMENINA = "es-ES-Neural2-C"
 VOICE_MASCULINA = "es-ES-Neural2-B"
 
 
