@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Platform, Keyboard, KeyboardAvoidingView } from "react-native";
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Platform, Keyboard, KeyboardAvoidingView, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -19,7 +19,13 @@ export default function Home() {
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: colors.bgBase }}>
-      <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom + 12 }]} testID="home-screen">
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={[styles.container, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 24 }]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        testID="home-screen"
+      >
         <View style={styles.content}>
           <View style={styles.logoBox}>
             <Logo size="lg" />
@@ -62,22 +68,23 @@ export default function Home() {
             <Ionicons name="sparkles" size={18} color={colors.copper} />
           </TouchableOpacity>
 
+          <Text style={styles.sectionLabel}>POR GÉNERO</Text>
           <View style={styles.chipsRow}>
-            {["Ciencia ficción", "Novela negra", "Fantasía", "Ensayo", "Biografía", "Poesía"].map((g) => (
+            {["Ficción", "Novela negra", "Fantasía", "Ensayo", "Biografía", "Poesía"].map((g) => (
               <TouchableOpacity key={g} style={styles.chip} onPress={() => go(g)} testID={`chip-${g}`}>
                 <Text style={styles.chipText}>{g}</Text>
               </TouchableOpacity>
             ))}
           </View>
 
-          <Text style={styles.moodLabel}>¿CÓMO ME SIENTO?</Text>
+          <Text style={styles.sectionLabel}>SEGÚN TU MOOD</Text>
           <View style={styles.moodRow}>
             {[
-              { label: "Para reflexionar", emoji: "🤔", q: "libros que invitan a la reflexión profunda" },
+              { label: "Reflexionar", emoji: "🤔", q: "libros que invitan a la reflexión profunda" },
               { label: "Ligero", emoji: "☁️", q: "libros ligeros y entretenidos para desconectar" },
               { label: "Intenso", emoji: "🔥", q: "libros intensos y trepidantes que enganchan" },
               { label: "Romántico", emoji: "💜", q: "novelas románticas envolventes" },
-              { label: "Para llorar", emoji: "💧", q: "libros emotivos que conmueven" },
+              { label: "Llorar", emoji: "💧", q: "libros emotivos que conmueven" },
               { label: "Aprender", emoji: "🎯", q: "libros para aprender y crecer" },
             ].map((m) => (
               <TouchableOpacity
@@ -92,7 +99,7 @@ export default function Home() {
             ))}
           </View>
         </View>
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -182,24 +189,33 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 6,
   },
+  sectionLabel: {
+    color: colors.textOnDarkMuted,
+    fontSize: 10,
+    letterSpacing: 3,
+    fontWeight: "800",
+    textAlign: "center",
+    marginTop: 8,
+    marginBottom: -4,
+  },
   moodRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
+    gap: 6,
     justifyContent: "center",
     marginTop: 4,
   },
   moodChip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 4,
     borderWidth: 1,
     borderColor: "rgba(176,38,255,0.4)",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 999,
     backgroundColor: "rgba(176,38,255,0.07)",
   },
-  moodEmoji: { fontSize: 14 },
-  moodText: { color: colors.textOnDark, fontSize: 12, fontWeight: "700" },
+  moodEmoji: { fontSize: 13 },
+  moodText: { color: colors.textOnDark, fontSize: 11, fontWeight: "700" },
 });

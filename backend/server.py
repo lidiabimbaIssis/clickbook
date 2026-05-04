@@ -833,23 +833,10 @@ async def premium_summary(book_id: str, lang: str = "es", user: User = Depends(g
 
 
 # ----------------- Health -----------------
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse  # noqa: E402  (kept for potential future use)
 
 
-@api_router.get("/dev/sample/{name}")
-async def dev_sample(name: str):
-    """Serves dev TTS samples from /tmp for user audition."""
-    safe = re.sub(r"[^a-zA-Z0-9_]", "", name)
-    # Try multiple naming conventions: Neural2 letter, named samples, etc.
-    candidates = [
-        f"/tmp/sample_es_neural2_{safe.upper()}.mp3",
-        f"/tmp/sample_es_{safe}.mp3",
-        f"/tmp/sample_{safe}.mp3",
-    ]
-    for path in candidates:
-        if os.path.exists(path):
-            return FileResponse(path, media_type="audio/mpeg", filename=os.path.basename(path))
-    raise HTTPException(404, "Sample not found")
+# (Endpoint /api/dev/sample/* eliminado: era solo para audicionar voces durante el desarrollo)
 @api_router.get("/")
 async def root():
     return {"status": "ok", "app": "Steampunk Books"}

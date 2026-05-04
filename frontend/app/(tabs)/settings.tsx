@@ -141,7 +141,7 @@ export default function Settings() {
           }}
         >
           <Ionicons name="refresh" size={18} color={colors.brass} />
-          <Text style={styles.rowText}>Reiniciar historial de descartes</Text>
+          <Text style={styles.rowText}>Reiniciar libros descartados</Text>
         </TouchableOpacity>
       </View>
 

@@ -66,17 +66,22 @@ export default function Discover() {
       const res = await api<{ books: Book[] }>(`/books/feed?count=5${qp}`);
       setBooks((prev) => {
         const existingIds = new Set(prev.map((b) => b.book_id));
-        const incoming = res.books.filter((b) => !existingIds.has(b.book_id));
+        const incoming = (res?.books || []).filter((b) => !existingIds.has(b.book_id));
         return [...prev, ...incoming];
       });
     } catch (e) {
       console.warn("feed error", e);
+      // Show empty state instead of crashing
+      setBooks([]);
     } finally {
       setLoading(false);
     }
   }, [query]);
 
   useEffect(() => {
+    // Reset books cuando cambia la query (busqueda nueva o mood)
+    setBooks([]);
+    setMode("cover");
     fetchBooks();
     return () => stopAudio();
   }, [fetchBooks, stopAudio]);
