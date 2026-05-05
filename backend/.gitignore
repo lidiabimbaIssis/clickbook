@@ -1,0 +1,11 @@
+# Backend deployment ignore list
+__pycache__/
+*.pyc
+*.pyo
+.env
+.venv/
+venv/
+.pytest_cache/
+.coverage
+*.log
+node_modules/
