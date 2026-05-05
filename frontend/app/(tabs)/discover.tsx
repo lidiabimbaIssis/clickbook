@@ -202,6 +202,22 @@ export default function Discover() {
     });
   };
 
+  const shareBook = async () => {
+    if (!current) return;
+    try {
+      const fallback = lang === "es" ? current.summary_es : current.summary_en;
+      const hookText = (premiumSummaries[current.book_id] || fallback || "").split(/\.\s/)[0];
+      const text = `📖 "${current.title}" — ${current.author}\n\n${hookText}.\n\n⚡ Descúbrelo en ClickBook · una historia en 60 segundos.`;
+      const url =
+        typeof window !== "undefined" && (window as any).location
+          ? `${(window as any).location.origin}/discover?q=${encodeURIComponent(current.title)}`
+          : "https://clickbook.app";
+      await shareContent({ title: current.title, text, url });
+    } catch (e) {
+      console.warn("share book failed", e);
+    }
+  };
+
   const openStore = (url: string) => {
     if (Platform.OS === "web" && typeof window !== "undefined") window.open(url, "_blank");
     else Linking.openURL(url);
