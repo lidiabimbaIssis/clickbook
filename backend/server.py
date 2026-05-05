@@ -839,7 +839,12 @@ from fastapi.responses import FileResponse  # noqa: E402  (kept for potential fu
 # (Endpoint /api/dev/sample/* eliminado: era solo para audicionar voces durante el desarrollo)
 @api_router.get("/")
 async def root():
-    return {"status": "ok", "app": "Steampunk Books"}
+    return {"status": "ok", "app": "ClickBook"}
+
+
+@api_router.get("/health")
+async def health():
+    return {"status": "ok", "service": "clickbook-backend"}
 
 
 # ----------------- App wiring -----------------
