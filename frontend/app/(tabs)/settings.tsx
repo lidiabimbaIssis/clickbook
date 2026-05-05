@@ -25,15 +25,6 @@ export default function Settings() {
   const isPremium = !!user?.is_premium;
   const [paywallOpen, setPaywallOpen] = useState(false);
 
-  const setLang = async (l: "es" | "en") => {
-    try {
-      await api("/auth/lang", { method: "PATCH", body: JSON.stringify({ lang: l }) });
-      await refresh();
-    } catch (e) {
-      console.warn(e);
-    }
-  };
-
   const doSignOut = async () => {
     const confirm = () => {
       signOut().then(() => router.replace("/"));
@@ -119,14 +110,6 @@ export default function Settings() {
           <Ionicons name="chevron-forward" size={20} color={colors.gold} />
         </TouchableOpacity>
       )}
-
-      <View style={styles.section}>
-        <Text style={styles.sectionLabel}>IDIOMA DE LOS RESÚMENES</Text>
-        <View style={styles.langRow}>
-          <LangBtn label="Español" active={lang === "es"} onPress={() => setLang("es")} testID="btn-lang-es" />
-          <LangBtn label="English" active={lang === "en"} onPress={() => setLang("en")} testID="btn-lang-en" />
-        </View>
-      </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>MAZO</Text>

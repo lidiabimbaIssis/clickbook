@@ -96,6 +96,7 @@ export default function Discover() {
       pan.setValue({ x: 0, y: 0 });
       setMode("cover");
       stopAudio();
+      isAnimatingRef.current = false;
     });
     try {
       await api("/books/interact", {
@@ -121,21 +122,45 @@ export default function Discover() {
         useNativeDriver: false,
         friction: 7,
         tension: 40,
-      }).start();
+      }).start(() => {
+        isAnimatingRef.current = false;
+      });
     });
   };
 
+  // Latest-ref pattern: PanResponder is created ONCE but always calls the latest handlers
+  const handleSwipeRef = useRef(handleSwipe);
+  const handleVerticalSwipeRef = useRef(handleVerticalSwipe);
+  const isAnimatingRef = useRef(false);
+  handleSwipeRef.current = handleSwipe;
+  handleVerticalSwipeRef.current = handleVerticalSwipe;
+
   const panResponder = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 8 || Math.abs(g.dy) > 8,
+      onStartShouldSetPanResponder: () => !isAnimatingRef.current,
+      onMoveShouldSetPanResponder: (_, g) =>
+        !isAnimatingRef.current && (Math.abs(g.dx) > 8 || Math.abs(g.dy) > 8),
+      onPanResponderTerminationRequest: () => false,
       onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], { useNativeDriver: false }),
       onPanResponderRelease: (_, g) => {
-        if (g.dx > SWIPE_THRESHOLD) handleSwipe("right");
-        else if (g.dx < -SWIPE_THRESHOLD) handleSwipe("left");
-        else if (g.dy < -SWIPE_THRESHOLD) handleVerticalSwipe("up");
-        else if (g.dy > SWIPE_THRESHOLD) handleVerticalSwipe("down");
-        else resetPan();
+        if (isAnimatingRef.current) return;
+        if (g.dx > SWIPE_THRESHOLD) {
+          isAnimatingRef.current = true;
+          handleSwipeRef.current("right");
+        } else if (g.dx < -SWIPE_THRESHOLD) {
+          isAnimatingRef.current = true;
+          handleSwipeRef.current("left");
+        } else if (g.dy < -SWIPE_THRESHOLD) {
+          isAnimatingRef.current = true;
+          handleVerticalSwipeRef.current("up");
+        } else if (g.dy > SWIPE_THRESHOLD) {
+          isAnimatingRef.current = true;
+          handleVerticalSwipeRef.current("down");
+        } else {
+          resetPan();
+        }
       },
+      onPanResponderTerminate: () => resetPan(),
     })
   ).current;
 
