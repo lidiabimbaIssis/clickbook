@@ -107,12 +107,12 @@ const styles = StyleSheet.create({
   tagline: {
     textAlign: "center",
     color: colors.brass,
-    letterSpacing: 6,
-    fontSize: 11,
-    fontWeight: "800",
-    marginTop: -10,
+    letterSpacing: 4,
+    fontSize: 10,
+    fontWeight: "400",
+    marginTop: -4,
     textShadowColor: colors.brass,
-    textShadowRadius: 10,
+    textShadowRadius: 6,
   },
   searchBox: {
     flexDirection: "row",

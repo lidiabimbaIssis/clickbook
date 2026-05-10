@@ -6,9 +6,9 @@ import { colors } from "../theme";
 type Size = "sm" | "md" | "lg";
 
 const sizeMap: Record<Size, { font: number; icon: number; gap: number; glow: number }> = {
-  sm: { font: 18, icon: 18, gap: 4, glow: 6 },
-  md: { font: 30, icon: 28, gap: 6, glow: 12 },
-  lg: { font: 46, icon: 42, gap: 8, glow: 18 },
+  sm: { font: 18, icon: 18, gap: 0, glow: 6 },
+  md: { font: 30, icon: 28, gap: 0, glow: 12 },
+  lg: { font: 46, icon: 42, gap: 0, glow: 18 },
 };
 
 export default function Logo({ size = "md" }: { size?: Size }) {

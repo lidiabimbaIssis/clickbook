@@ -368,36 +368,38 @@ export default function Discover() {
 function BookSlide({ book }: { book: Book }) {
   const insets = useSafeAreaInsets();
   const mood = useMemo(() => inferMood(book), [book]);
-  const stars = renderStars(book.rating);
+
+  // Cover takes ~92% width, height proportional (2:3 ratio)
+  const coverW = SCREEN_W * 0.88;
+  const coverH = Math.min(coverW * 1.5, SCREEN_H - insets.top - insets.bottom - 240);
 
   return (
     <View style={[styles.slide, { width: SCREEN_W, height: SCREEN_H }]}>
-      {/* Mood badge centered (below top bar) */}
-      <View style={[styles.moodBadge, { top: insets.top + 64 }]}>
-        <Text style={[styles.moodIcon]}>{mood.icon}</Text>
-        <Text style={[styles.moodLabel, { color: mood.color }]}>{mood.label}</Text>
-      </View>
+      <View style={{ position: "relative", width: coverW, alignItems: "center", marginTop: insets.top + 60 }}>
+        {/* Top badges overlapping top of cover */}
+        <View style={styles.topBadgesRow} pointerEvents="box-none">
+          <View style={styles.moodPill}>
+            <Text style={styles.moodPillIcon}>{mood.icon}</Text>
+            <Text style={[styles.moodPillLabel, { color: mood.color }]} numberOfLines={1}>{mood.label}</Text>
+          </View>
+          <View style={styles.ratingPill}>
+            {renderStarsCompact(book.rating)}
+            <Text style={styles.ratingValue}>{book.rating.toFixed(1)}</Text>
+          </View>
+        </View>
 
-      {/* Cover — square, centered, slightly higher */}
-      <View style={styles.coverArea}>
+        {/* Cover — large */}
         <Image
           source={{ uri: book.cover_url }}
-          style={styles.cover}
-          resizeMode="contain"
+          style={{ width: coverW, height: coverH, borderRadius: 14 }}
+          resizeMode="cover"
         />
-      </View>
-
-      {/* Title + author + stars (below cover) */}
-      <View style={[styles.infoArea, { paddingBottom: insets.bottom + 130 }]}>
-        <Text style={styles.title} numberOfLines={2}>{book.title}</Text>
-        <Text style={styles.author} numberOfLines={1}>{book.author}</Text>
-        <View style={styles.starsRow}>{stars}</View>
       </View>
     </View>
   );
 }
 
-function renderStars(rating: number) {
+function renderStarsCompact(rating: number) {
   const r = Math.max(0, Math.min(5, rating));
   const full = Math.floor(r);
   const half = r - full >= 0.5;
@@ -406,9 +408,9 @@ function renderStars(rating: number) {
     let icon: any = "star-outline";
     if (i < full) icon = "star";
     else if (i === full && half) icon = "star-half";
-    arr.push(<Ionicons key={i} name={icon} size={16} color={colors.gold} style={{ marginHorizontal: 1 }} />);
+    arr.push(<Ionicons key={i} name={icon} size={11} color={colors.gold} style={{ marginHorizontal: 0.5 }} />);
   }
-  return arr;
+  return <View style={{ flexDirection: "row" }}>{arr}</View>;
 }
 
 /* ---------- Side button ---------- */
@@ -418,9 +420,8 @@ function SideButton({ icon, color, label, onPress, loading, testID }: {
   return (
     <TouchableOpacity testID={testID} onPress={onPress} activeOpacity={0.7} style={styles.sideBtnWrap}>
       <View style={[styles.sideBtn, { borderColor: color, shadowColor: color }]}>
-        {loading ? <ActivityIndicator size="small" color={color} /> : <Ionicons name={icon} size={26} color={color} />}
+        {loading ? <ActivityIndicator size="small" color={color} /> : <Ionicons name={icon} size={22} color={color} />}
       </View>
-      <Text style={[styles.sideLabel, { color }]}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -561,16 +562,14 @@ const styles = StyleSheet.create({
   reloadText: { color: colors.brass, letterSpacing: 2, fontWeight: "700" },
 
   // Slide layout
-  slide: { backgroundColor: colors.bgBase, alignItems: "center", justifyContent: "center" },
-  moodBadge: { position: "absolute", flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "center", left: 0, right: 0, justifyContent: "center" },
-  moodIcon: { fontSize: 22 },
-  moodLabel: { fontSize: 18, fontWeight: "900", letterSpacing: 1.5 },
-  coverArea: { width: SCREEN_W * 0.72, height: SCREEN_W * 0.72, alignItems: "center", justifyContent: "center", marginBottom: 26, marginTop: -50 },
-  cover: { width: "100%", height: "100%" },
-  infoArea: { position: "absolute", bottom: 0, left: 0, right: 0, alignItems: "center", paddingHorizontal: 70 },
-  title: { color: colors.textOnDark, fontSize: 24, fontWeight: "900", textAlign: "center", letterSpacing: 0.5 },
-  author: { color: colors.brass, fontSize: 14, fontWeight: "600", marginTop: 6, letterSpacing: 1 },
-  starsRow: { flexDirection: "row", marginTop: 8 },
+  slide: { backgroundColor: colors.bgBase, alignItems: "center" },
+  // Top badges row (overlapping top of cover)
+  topBadgesRow: { position: "absolute", top: -22, left: 0, right: 0, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 4, zIndex: 8 },
+  moodPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: colors.brassSoft, backgroundColor: "rgba(6,1,15,0.85)" },
+  moodPillIcon: { fontSize: 14 },
+  moodPillLabel: { fontSize: 11, fontWeight: "800", letterSpacing: 1 },
+  ratingPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1.5, borderColor: colors.copper, backgroundColor: "rgba(6,1,15,0.85)" },
+  ratingValue: { color: colors.copper, fontSize: 12, fontWeight: "900", letterSpacing: 0.5 },
 
   // Top bar (fixed overlay)
   topBar: { position: "absolute", top: 0, left: 0, right: 0, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, zIndex: 10 },
@@ -581,16 +580,16 @@ const styles = StyleSheet.create({
   queryWrap: { position: "absolute", left: 0, right: 0, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 5 },
   queryHint: { color: colors.copper, fontSize: 12, fontWeight: "600", letterSpacing: 1, maxWidth: 240 },
 
-  // Side buttons (fixed overlay, right)
-  sideButtons: { position: "absolute", right: 12, top: SCREEN_H * 0.42, gap: 18, alignItems: "center", zIndex: 10 },
-  sideBtnWrap: { alignItems: "center", gap: 4 },
+  // Side buttons (fixed overlay, right, vertically centered, small)
+  sideButtons: { position: "absolute", right: 10, top: "50%", marginTop: -90, gap: 16, alignItems: "center", zIndex: 10 },
+  sideBtnWrap: { alignItems: "center" },
   sideBtn: {
-    width: 50, height: 50, borderRadius: 25, borderWidth: 2,
+    width: 42, height: 42, borderRadius: 21, borderWidth: 1.5,
     alignItems: "center", justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.5)",
-    shadowOpacity: 0.6, shadowRadius: 12, shadowOffset: { width: 0, height: 0 }, elevation: 6,
+    backgroundColor: "rgba(6,1,15,0.6)",
+    shadowOpacity: 0.7, shadowRadius: 8, shadowOffset: { width: 0, height: 0 }, elevation: 5,
   },
-  sideLabel: { fontSize: 10, fontWeight: "700", letterSpacing: 0.5 },
+  sideLabel: { display: "none" },
 
   // Buy buttons (fixed overlay, bottom)
   buyRow: { position: "absolute", bottom: 70, left: 0, right: 0, flexDirection: "row", justifyContent: "space-between", gap: 8, paddingHorizontal: 12, zIndex: 10 },
