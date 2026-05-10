@@ -124,10 +124,10 @@ export default function LoginScreen() {
       </View>
 
       <View style={styles.features}>
-        <Feature icon="heart" label="Desliza → Favoritos" />
-        <Feature icon="close" label="Desliza ← Descartar" />
-        <Feature icon="arrow-up" label="↑ Ficha técnica" />
-        <Feature icon="arrow-down" label="↓ Resumen 1 min" />
+        <Feature icon="albums" label="Desliza ↑ para explorar" />
+        <Feature icon="information-circle" label="Pulsa Info para ver la ficha" />
+        <Feature icon="heart" label="Pulsa el corazón para guardar" />
+        <Feature icon="headset" label="Resumen en audio · 1 min" />
       </View>
 
       <TouchableOpacity

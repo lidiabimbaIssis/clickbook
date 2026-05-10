@@ -1,16 +1,17 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   Image,
-  Animated,
-  PanResponder,
+  Dimensions,
   ActivityIndicator,
   Platform,
   Linking,
   ScrollView,
+  Modal,
+  FlatList,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -21,11 +22,26 @@ import { useAuth } from "../../src/providers/AuthProvider";
 import { colors } from "../../src/theme";
 import PaywallModal from "../../src/components/PaywallModal";
 import { shareContent } from "../../src/lib/share";
-import Logo from "../../src/components/Logo";
 
-const SWIPE_THRESHOLD = 110;
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 
-type Mode = "cover" | "ficha" | "summary";
+// Mood inferring (purely visual labels). Maps genre keywords to moods.
+const MOOD_MAP: Array<{ kw: RegExp; label: string; icon: string; color: string }> = [
+  { kw: /(thriller|terror|negra|policial|crimen|suspense|misterio)/i, label: "Intenso", icon: "🔥", color: colors.iron },
+  { kw: /(romance|romántic|amor)/i, label: "Romántico", icon: "💜", color: colors.copper },
+  { kw: /(fantas|magia|épic|aventur)/i, label: "Épico", icon: "⚡", color: colors.brass },
+  { kw: /(filosof|ensay|psicolog|ciencia|divulgac|histor)/i, label: "Reflexionar", icon: "🤔", color: colors.copper },
+  { kw: /(infantil|juvenil|ligero|humor|cómic)/i, label: "Ligero", icon: "☁️", color: colors.brass },
+  { kw: /(biograf|memoria|autobiograf)/i, label: "Inspirador", icon: "✨", color: colors.gold },
+  { kw: /(poesi|liric)/i, label: "Llorar", icon: "💧", color: colors.brass },
+  { kw: /(autoayuda|desarrollo|negocio)/i, label: "Aprender", icon: "🎯", color: colors.verdigris },
+];
+
+function inferMood(book: Book): { label: string; icon: string; color: string } {
+  const text = `${book.genre || ""}`;
+  for (const m of MOOD_MAP) if (m.kw.test(text)) return { label: m.label, icon: m.icon, color: m.color };
+  return { label: "Descubre", icon: "📖", color: colors.brass };
+}
 
 export default function Discover() {
   const { user, refresh: refreshAuth } = useAuth();
@@ -34,21 +50,21 @@ export default function Discover() {
   const router = useRouter();
   const params = useLocalSearchParams<{ q?: string }>();
   const query = (params.q || "").toString();
+
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
-  const [mode, setMode] = useState<Mode>("cover");
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [favBookIds, setFavBookIds] = useState<Set<string>>(new Set());
+
+  const [infoOpen, setInfoOpen] = useState(false);
+  const [audioOpen, setAudioOpen] = useState(false);
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  const [paywallReason, setPaywallReason] = useState<"limit" | "chat" | "general">("limit");
   const [audioLoading, setAudioLoading] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [premiumSummaries, setPremiumSummaries] = useState<Record<string, string>>({});
-  const [paywallOpen, setPaywallOpen] = useState(false);
-  const [paywallReason, setPaywallReason] = useState<"limit" | "chat" | "general">("limit");
   const playerRef = useRef<any>(null);
-
-  const pan = useRef(new Animated.ValueXY()).current;
-
-  const resetPan = () => {
-    Animated.spring(pan, { toValue: { x: 0, y: 0 }, useNativeDriver: false, friction: 6 }).start();
-  };
+  const listRef = useRef<FlatList<Book>>(null);
 
   const stopAudio = useCallback(() => {
     try {
@@ -59,114 +75,81 @@ export default function Discover() {
     setPlaying(false);
   }, []);
 
-  const fetchBooks = useCallback(async () => {
-    setLoading(true);
+  const fetchBooks = useCallback(
+    async (initial: boolean) => {
+      if (initial) setLoading(true);
+      try {
+        const targetCount = query ? 30 : 10;
+        const qp = query ? `&query=${encodeURIComponent(query)}` : "";
+        const res = await api<{ books: Book[] }>(`/books/feed?count=${targetCount}${qp}`);
+        setBooks((prev) => {
+          const existingIds = new Set(prev.map((b) => b.book_id));
+          const incoming = (res?.books || []).filter((b) => !existingIds.has(b.book_id));
+          return [...prev, ...incoming];
+        });
+      } catch (e) {
+        console.warn("feed error", e);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [query]
+  );
+
+  const loadFavorites = useCallback(async () => {
     try {
-      const qp = query ? `&query=${encodeURIComponent(query)}` : "";
-      const res = await api<{ books: Book[] }>(`/books/feed?count=5${qp}`);
-      setBooks((prev) => {
-        const existingIds = new Set(prev.map((b) => b.book_id));
-        const incoming = (res?.books || []).filter((b) => !existingIds.has(b.book_id));
-        return [...prev, ...incoming];
-      });
-    } catch (e) {
-      console.warn("feed error", e);
-      // Show empty state instead of crashing
-      setBooks([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [query]);
+      const res = await api<{ books: Book[] }>("/favorites");
+      setFavBookIds(new Set(res.books.map((b) => b.book_id)));
+    } catch {}
+  }, []);
 
   useEffect(() => {
-    // Reset books cuando cambia la query (busqueda nueva o mood)
     setBooks([]);
-    setMode("cover");
-    fetchBooks();
+    setCurrentIndex(0);
+    fetchBooks(true);
+    loadFavorites();
     return () => stopAudio();
-  }, [fetchBooks, stopAudio]);
+  }, [fetchBooks, loadFavorites, stopAudio]);
 
-  const current = books[0];
+  const current = books[currentIndex];
+  const isFav = current ? favBookIds.has(current.book_id) : false;
 
-  const handleSwipe = async (dir: "left" | "right") => {
+  const onMomentumScrollEnd = useCallback(
+    (e: any) => {
+      const y = e.nativeEvent.contentOffset.y;
+      const idx = Math.round(y / SCREEN_H);
+      if (idx !== currentIndex) {
+        setCurrentIndex(idx);
+        stopAudio();
+        // Prefetch more when nearing end
+        if (idx >= books.length - 3) fetchBooks(false);
+      }
+    },
+    [currentIndex, books.length, fetchBooks, stopAudio]
+  );
+
+  const toggleFavorite = async () => {
     if (!current) return;
-    const toValue = { x: dir === "right" ? 600 : -600, y: 0 };
-    Animated.timing(pan, { toValue, duration: 260, useNativeDriver: false }).start(() => {
-      setBooks((prev) => prev.slice(1));
-      pan.setValue({ x: 0, y: 0 });
-      setMode("cover");
-      stopAudio();
-      isAnimatingRef.current = false;
-    });
-    try {
-      await api("/books/interact", {
-        method: "POST",
-        body: JSON.stringify({ book_id: current.book_id, action: dir === "right" ? "like" : "dislike" }),
+    const id = current.book_id;
+    if (isFav) {
+      setFavBookIds((s) => {
+        const next = new Set(s);
+        next.delete(id);
+        return next;
       });
-    } catch {}
-    if (books.length <= 2) fetchBooks();
+      try {
+        await api(`/favorites/${id}`, { method: "DELETE" });
+      } catch {}
+    } else {
+      setFavBookIds((s) => new Set(s).add(id));
+      try {
+        await api("/books/interact", {
+          method: "POST",
+          body: JSON.stringify({ book_id: id, action: "like" }),
+        });
+      } catch {}
+    }
   };
-
-  const handleVerticalSwipe = (dir: "up" | "down") => {
-    const nextMode: Mode = dir === "up" ? (mode === "ficha" ? "cover" : "ficha") : mode === "summary" ? "cover" : "summary";
-    const exitY = dir === "up" ? -800 : 800;
-    Animated.timing(pan, {
-      toValue: { x: 0, y: exitY },
-      duration: 260,
-      useNativeDriver: false,
-    }).start(() => {
-      setMode(nextMode);
-      pan.setValue({ x: 0, y: -exitY });
-      Animated.spring(pan, {
-        toValue: { x: 0, y: 0 },
-        useNativeDriver: false,
-        friction: 7,
-        tension: 40,
-      }).start(() => {
-        isAnimatingRef.current = false;
-      });
-    });
-  };
-
-  // Latest-ref pattern: PanResponder is created ONCE but always calls the latest handlers
-  const handleSwipeRef = useRef(handleSwipe);
-  const handleVerticalSwipeRef = useRef(handleVerticalSwipe);
-  const isAnimatingRef = useRef(false);
-  handleSwipeRef.current = handleSwipe;
-  handleVerticalSwipeRef.current = handleVerticalSwipe;
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => !isAnimatingRef.current,
-      onMoveShouldSetPanResponder: (_, g) =>
-        !isAnimatingRef.current && (Math.abs(g.dx) > 8 || Math.abs(g.dy) > 8),
-      onPanResponderTerminationRequest: () => false,
-      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], { useNativeDriver: false }),
-      onPanResponderRelease: (_, g) => {
-        if (isAnimatingRef.current) return;
-        if (g.dx > SWIPE_THRESHOLD) {
-          isAnimatingRef.current = true;
-          handleSwipeRef.current("right");
-        } else if (g.dx < -SWIPE_THRESHOLD) {
-          isAnimatingRef.current = true;
-          handleSwipeRef.current("left");
-        } else if (g.dy < -SWIPE_THRESHOLD) {
-          isAnimatingRef.current = true;
-          handleVerticalSwipeRef.current("up");
-        } else if (g.dy > SWIPE_THRESHOLD) {
-          isAnimatingRef.current = true;
-          handleVerticalSwipeRef.current("down");
-        } else {
-          resetPan();
-        }
-      },
-      onPanResponderTerminate: () => resetPan(),
-    })
-  ).current;
-
-  const rotate = pan.x.interpolate({ inputRange: [-400, 0, 400], outputRange: ["-14deg", "0deg", "14deg"] });
-  const likeOpacity = pan.x.interpolate({ inputRange: [0, 120], outputRange: [0, 1], extrapolate: "clamp" });
-  const nopeOpacity = pan.x.interpolate({ inputRange: [-120, 0], outputRange: [1, 0], extrapolate: "clamp" });
 
   const playAudio = async () => {
     if (!current) return;
@@ -176,16 +159,14 @@ export default function Discover() {
     }
     setAudioLoading(true);
     try {
-      // 1) Get premium summary (Gemini with curated prompt, cached on backend)
       let text = premiumSummaries[current.book_id];
       if (!text) {
-        const sumRes = await api<{ summary: string; lang: string; cached: boolean }>(
+        const sumRes = await api<{ summary: string }>(
           `/books/${current.book_id}/premium-summary?lang=${lang}`
         );
         text = sumRes.summary;
         setPremiumSummaries((prev) => ({ ...prev, [current.book_id]: text! }));
       }
-      // 2) TTS the premium summary (cached in DB by book_id+voice+lang)
       const res = await api<{ audio_base64: string; mime: string }>("/tts", {
         method: "POST",
         body: JSON.stringify({ text, voice: "fable", book_id: current.book_id, lang }),
@@ -194,20 +175,15 @@ export default function Discover() {
       const p = createAudioPlayer({ uri });
       playerRef.current = p;
       p.addListener("playbackStatusUpdate", (st: any) => {
-        if (st.didJustFinish) {
-          stopAudio();
-        }
+        if (st.didJustFinish) stopAudio();
       });
       p.play();
       setPlaying(true);
     } catch (e: any) {
-      // 402 = daily limit reached → open paywall
       const msg = String(e?.message || "");
       if (msg.includes("402") || msg.includes("daily_limit_reached")) {
         setPaywallReason("limit");
         setPaywallOpen(true);
-      } else {
-        console.warn("audio error", e);
       }
     } finally {
       setAudioLoading(false);
@@ -219,8 +195,10 @@ export default function Discover() {
     if (!user?.is_premium) {
       setPaywallReason("chat");
       setPaywallOpen(true);
+      setInfoOpen(false);
       return;
     }
+    setInfoOpen(false);
     router.push({
       pathname: "/author-chat",
       params: { book_id: current.book_id, title: current.title, author: current.author },
@@ -233,26 +211,26 @@ export default function Discover() {
       const fallback = lang === "es" ? current.summary_es : current.summary_en;
       const hookText = (premiumSummaries[current.book_id] || fallback || "").split(/\.\s/)[0];
       const text = `📖 "${current.title}" — ${current.author}\n\n${hookText}.\n\n⚡ Descúbrelo en ClickBook · una historia en 60 segundos.`;
-      const url =
-        typeof window !== "undefined" && (window as any).location
-          ? `${(window as any).location.origin}/discover?q=${encodeURIComponent(current.title)}`
-          : "https://clickbook.app";
-      await shareContent({ title: current.title, text, url });
+      await shareContent({ title: current.title, text, url: "https://clickbook.app" });
     } catch (e) {
       console.warn("share book failed", e);
     }
   };
 
   const openStore = (url: string) => {
-    if (Platform.OS === "web" && typeof window !== "undefined") window.open(url, "_blank");
-    else Linking.openURL(url);
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      window.open(url, "_blank");
+    } else {
+      // Force OS-level browser to bypass any 403 from in-app webview
+      Linking.openURL(url).catch((e) => console.warn("open url", e));
+    }
   };
 
   if (loading && books.length === 0) {
     return (
       <View style={styles.center} testID="discover-loading">
         <ActivityIndicator size="large" color={colors.brass} />
-        <Text style={styles.loadingText}>Conectando al ciberespacio…</Text>
+        <Text style={styles.loadingText}>Conectando…</Text>
       </View>
     );
   }
@@ -261,25 +239,41 @@ export default function Discover() {
     return (
       <View style={styles.center} testID="discover-empty">
         <Ionicons name="sparkles-outline" size={64} color={colors.copper} />
-        <Text style={styles.emptyTitle}>No quedan libros por descubrir</Text>
+        <Text style={styles.emptyTitle}>No hay libros</Text>
         <TouchableOpacity
           style={styles.reloadBtn}
           testID="btn-reload-feed"
-          onPress={async () => {
-            await api("/books/reset", { method: "POST" });
-            fetchBooks();
-          }}
+          onPress={() => fetchBooks(true)}
         >
-          <Text style={styles.reloadText}>Reiniciar mazo</Text>
+          <Text style={styles.reloadText}>Reintentar</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 6 }]} testID="discover-screen">
-      {/* Top bar compacto */}
-      <View style={styles.topBar}>
+    <View style={styles.container} testID="discover-screen">
+      {/* Vertical snap feed — fills entire screen */}
+      <FlatList
+        ref={listRef}
+        data={books}
+        keyExtractor={(b) => b.book_id}
+        showsVerticalScrollIndicator={false}
+        pagingEnabled
+        snapToInterval={SCREEN_H}
+        snapToAlignment="start"
+        decelerationRate="fast"
+        onMomentumScrollEnd={onMomentumScrollEnd}
+        getItemLayout={(_, index) => ({ length: SCREEN_H, offset: SCREEN_H * index, index })}
+        windowSize={3}
+        maxToRenderPerBatch={2}
+        initialNumToRender={1}
+        renderItem={({ item }) => <BookSlide book={item} />}
+        testID="vertical-feed"
+      />
+
+      {/* Top bar — fixed overlay */}
+      <View style={[styles.topBar, { paddingTop: insets.top + 8 }]} pointerEvents="box-none">
         <TouchableOpacity onPress={() => router.push("/home")} style={styles.backBtn} testID="btn-back-home">
           <Ionicons name="chevron-back" size={20} color={colors.brass} />
         </TouchableOpacity>
@@ -292,301 +286,146 @@ export default function Discover() {
         </TouchableOpacity>
       </View>
 
+      {/* Search hint */}
       {query ? (
-        <Text style={styles.queryHint} numberOfLines={1}>
-          <Ionicons name="search" size={11} color={colors.copper} /> {query}
-        </Text>
+        <View style={[styles.queryWrap, { top: insets.top + 56 }]} pointerEvents="none">
+          <Ionicons name="search" size={11} color={colors.copper} />
+          <Text style={styles.queryHint} numberOfLines={1}>{query}</Text>
+        </View>
       ) : null}
 
-      {/* Zona de carta: ocupa casi toda la pantalla */}
-      <View style={styles.cardZone}>
-        {books[1] && <StaticCard book={books[1]} depth={1} />}
-        <Animated.View
-          testID="swipe-card"
-          style={[
-            styles.card,
-            { transform: [{ translateX: pan.x }, { translateY: pan.y }, { rotate }] },
-          ]}
-          {...panResponder.panHandlers}
-        >
-          <Animated.View style={[styles.stampLike, { opacity: likeOpacity }]}>
-            <Text style={styles.stampLikeText}>FAV</Text>
-          </Animated.View>
-          <Animated.View style={[styles.stampNope, { opacity: nopeOpacity }]}>
-            <Text style={styles.stampNopeText}>NOPE</Text>
-          </Animated.View>
-
-          {mode === "cover" && <CoverView book={current} lang={lang} />}
-          {mode === "ficha" && <FichaView book={current} />}
-          {mode === "summary" && (
-            <SummaryView
-              book={current}
-              lang={lang}
-              premiumText={premiumSummaries[current.book_id]}
-              playing={playing}
-              audioLoading={audioLoading}
-              onPlay={playAudio}
-              onAuthorChat={openAuthorChat}
-              isPremium={!!user?.is_premium}
-            />
-          )}
-        </Animated.View>
-
-        {/* Botones flotantes alrededor de la carta */}
-        <FloatingBtn
-          icon={mode === "ficha" ? "close" : "information-circle"}
-          color={colors.copper}
-          onPress={() => handleVerticalSwipe("up")}
-          position="top"
-          testID="btn-ficha"
-        />
-        <FloatingBtn
-          icon={mode === "summary" ? "close" : "headset"}
-          color={colors.copper}
-          onPress={() => handleVerticalSwipe("down")}
-          position="bottom"
-          testID="btn-summary"
-        />
-        <FloatingBtn
-          icon="close"
-          color={colors.iron}
-          onPress={() => handleSwipe("left")}
-          position="left"
-          big
-          testID="btn-discard"
-        />
-        <FloatingBtn
-          icon="heart"
+      {/* Right side action buttons — fixed overlay */}
+      <View style={styles.sideButtons} pointerEvents="box-none">
+        <SideButton
+          icon="information-circle"
           color={colors.verdigris}
-          onPress={() => handleSwipe("right")}
-          position="right"
-          big
-          testID="btn-like"
+          label="Info"
+          onPress={() => setInfoOpen(true)}
+          testID="btn-info"
+        />
+        <SideButton
+          icon={isFav ? "heart" : "heart-outline"}
+          color={colors.iron}
+          label={isFav ? "Guardado" : "Favorito"}
+          onPress={toggleFavorite}
+          testID="btn-favorite"
+        />
+        <SideButton
+          icon={playing ? "pause" : "headset"}
+          color={colors.brass}
+          label="Audio"
+          onPress={() => {
+            setAudioOpen(true);
+            playAudio();
+          }}
+          loading={audioLoading}
+          testID="btn-audio"
         />
       </View>
 
-      {/* Botones de compra al mismo nivel */}
-      <View style={[styles.buyRow, { paddingBottom: insets.bottom + 6 }]}>
-        <BuyBtn
-          label="Amazon"
-          icon="logo-amazon"
-          onPress={() => openStore(current.amazon_url)}
-          testID="btn-buy-amazon"
-        />
-        <BuyBtn
-          label="Casa del Libro"
-          icon="book"
-          onPress={() => openStore(current.casa_del_libro_url)}
-          testID="btn-buy-casa"
-        />
+      {/* Buy buttons — fixed overlay */}
+      <View style={[styles.buyRow, { paddingBottom: insets.bottom + 6 }]} pointerEvents="box-none">
+        <BuyBtn label="Amazon" icon="logo-amazon" onPress={() => openStore(current.amazon_url)} testID="btn-buy-amazon" />
+        <BuyBtn label="Casa del Libro" icon="book" onPress={() => openStore(current.casa_del_libro_url)} testID="btn-buy-casa" />
       </View>
+
+      {/* Info Modal — Flash Card */}
+      <FlashCardModal
+        visible={infoOpen}
+        book={current}
+        lang={lang}
+        onClose={() => setInfoOpen(false)}
+        onAuthorChat={openAuthorChat}
+        isPremium={!!user?.is_premium}
+      />
+
+      {/* Audio Modal */}
+      <AudioModal
+        visible={audioOpen}
+        book={current}
+        lang={lang}
+        playing={playing}
+        loading={audioLoading}
+        text={premiumSummaries[current.book_id]}
+        onPlay={playAudio}
+        onClose={() => {
+          setAudioOpen(false);
+          stopAudio();
+        }}
+      />
 
       <PaywallModal
         visible={paywallOpen}
         onClose={() => setPaywallOpen(false)}
         reason={paywallReason}
-        onUpgraded={async () => {
-          await refreshAuth();
-        }}
+        onUpgraded={async () => { await refreshAuth(); }}
       />
     </View>
   );
 }
 
-function CoverView({ book, lang }: { book: Book; lang: "es" | "en" }) {
-  const synopsis = lang === "es" ? book.synopsis_es : book.synopsis_en;
-  return (
-    <View style={styles.coverWrap}>
-      <Image source={{ uri: book.cover_url }} style={styles.cover} resizeMode="cover" />
-      <View style={styles.coverOverlay} />
-      <View style={styles.coverInfo}>
-        <Text style={styles.bookTitle} numberOfLines={2}>{book.title}</Text>
-        <Text style={styles.bookAuthor}>{book.author} · {book.year}</Text>
-        <View style={styles.chips}>
-          <Chip label={book.genre} />
-          <Chip label={`${book.pages} pág.`} />
-          <Chip label={`★ ${book.rating.toFixed(1)}`} />
-        </View>
-        <Text style={styles.synopsis} numberOfLines={4}>{synopsis}</Text>
-      </View>
-    </View>
-  );
-}
+/* ---------- BookSlide (full-screen item) ---------- */
+function BookSlide({ book }: { book: Book }) {
+  const insets = useSafeAreaInsets();
+  const mood = useMemo(() => inferMood(book), [book]);
+  const stars = renderStars(book.rating);
 
-function FichaView({ book }: { book: Book }) {
   return (
-    <View style={styles.parchment} testID="ficha-view">
-      <Text style={styles.parchmentHeader}>// FICHA TÉCNICA</Text>
-      <View style={styles.divider2} />
-      <Text style={styles.parchmentTitle}>{book.title}</Text>
-      <Text style={styles.parchmentAuthor}>por {book.author}</Text>
-      <View style={styles.fichaGrid}>
-        <FichaRow label="AÑO" value={String(book.year)} />
-        <FichaRow label="GÉNERO" value={book.genre} />
-        <FichaRow label="PÁGINAS" value={String(book.pages)} />
-        <FichaRow label="VALORACIÓN" value={`★ ${book.rating.toFixed(1)} / 5`} />
+    <View style={[styles.slide, { width: SCREEN_W, height: SCREEN_H }]}>
+      {/* Mood badge centered (below top bar) */}
+      <View style={[styles.moodBadge, { top: insets.top + 64 }]}>
+        <Text style={[styles.moodIcon]}>{mood.icon}</Text>
+        <Text style={[styles.moodLabel, { color: mood.color }]}>{mood.label}</Text>
       </View>
-    </View>
-  );
-}
 
-function SummaryView({
-  book,
-  lang,
-  premiumText,
-  playing,
-  audioLoading,
-  onPlay,
-  onAuthorChat,
-  isPremium,
-}: {
-  book: Book;
-  lang: "es" | "en";
-  premiumText?: string;
-  playing: boolean;
-  audioLoading: boolean;
-  onPlay: () => void;
-  onAuthorChat: () => void;
-  isPremium: boolean;
-}) {
-  const fallback = lang === "es" ? book.summary_es : book.summary_en;
-  const text = premiumText || fallback;
-  const hasPremium = !!premiumText;
-  return (
-    <View style={styles.parchment} testID="summary-view">
-      <View style={styles.summaryHeader}>
-        <Text style={styles.parchmentHeader}>
-          // RESUMEN · 1 MIN {hasPremium ? "★" : ""}
-        </Text>
-        <TouchableOpacity
-          testID="btn-play-audio"
-          onPress={onPlay}
-          style={styles.playBtn}
-          disabled={audioLoading}
-        >
-          {audioLoading ? (
-            <ActivityIndicator size="small" color={colors.brass} />
-          ) : (
-            <Ionicons name={playing ? "pause" : "play"} size={20} color={colors.brass} />
-          )}
-        </TouchableOpacity>
-      </View>
-      <View style={styles.divider2} />
-      <Text style={styles.parchmentTitle}>{book.title}</Text>
-      {!hasPremium && !audioLoading && (
-        <Text style={styles.summaryHint}>
-          Pulsa <Ionicons name="headset" size={11} color={colors.copper} /> para generar el guion premium
-        </Text>
-      )}
-      <ScrollView style={{ marginTop: 12, flex: 1 }} showsVerticalScrollIndicator={false}>
-        <Text style={styles.summaryText}>{text}</Text>
-      </ScrollView>
-
-      {/* Chat con el autor */}
-      <TouchableOpacity
-        style={[styles.chatBtn, !isPremium && styles.chatBtnLocked]}
-        onPress={onAuthorChat}
-        testID="btn-author-chat"
-        activeOpacity={0.85}
-      >
-        <Ionicons
-          name={isPremium ? "chatbubbles" : "lock-closed"}
-          size={16}
-          color={isPremium ? colors.bgBase : colors.gold}
+      {/* Cover — square, centered, slightly higher */}
+      <View style={styles.coverArea}>
+        <Image
+          source={{ uri: book.cover_url }}
+          style={styles.cover}
+          resizeMode="contain"
         />
-        <Text style={[styles.chatBtnText, !isPremium && styles.chatBtnTextLocked]}>
-          {isPremium ? `Habla con ${book.author.split(" ").slice(-1)[0]}` : `Chat con ${book.author.split(" ").slice(-1)[0]} (Premium)`}
-        </Text>
-      </TouchableOpacity>
+      </View>
+
+      {/* Title + author + stars (below cover) */}
+      <View style={[styles.infoArea, { paddingBottom: insets.bottom + 130 }]}>
+        <Text style={styles.title} numberOfLines={2}>{book.title}</Text>
+        <Text style={styles.author} numberOfLines={1}>{book.author}</Text>
+        <View style={styles.starsRow}>{stars}</View>
+      </View>
     </View>
   );
 }
 
-function FichaRow({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.fichaRow}>
-      <Text style={styles.fichaLabel}>{label}</Text>
-      <Text style={styles.fichaValue}>{value}</Text>
-    </View>
-  );
-}
-
-function Chip({ label }: { label: string }) {
-  return (
-    <View style={styles.chip}>
-      <Text style={styles.chipText}>{label}</Text>
-    </View>
-  );
-}
-
-function FloatingBtn({
-  icon,
-  color,
-  onPress,
-  position,
-  big,
-  testID,
-}: {
-  icon: any;
-  color: string;
-  onPress: () => void;
-  position: "top" | "bottom" | "left" | "right";
-  big?: boolean;
-  testID?: string;
-}) {
-  const size = big ? 56 : 44;
-  // cardZone padding: vertical 32, horizontal 38. Card edges at those positions.
-  const pos: any = { position: "absolute", zIndex: 20 };
-  if (position === "top") {
-    pos.top = 32 - size / 2;
-    pos.left = "50%";
-    pos.marginLeft = -size / 2;
-  } else if (position === "bottom") {
-    pos.bottom = 32 - size / 2;
-    pos.left = "50%";
-    pos.marginLeft = -size / 2;
-  } else if (position === "left") {
-    pos.left = 38 - size / 2;
-    pos.top = "50%";
-    pos.marginTop = -size / 2;
-  } else if (position === "right") {
-    pos.right = 38 - size / 2;
-    pos.top = "50%";
-    pos.marginTop = -size / 2;
+function renderStars(rating: number) {
+  const r = Math.max(0, Math.min(5, rating));
+  const full = Math.floor(r);
+  const half = r - full >= 0.5;
+  const arr: React.ReactElement[] = [];
+  for (let i = 0; i < 5; i++) {
+    let icon: any = "star-outline";
+    if (i < full) icon = "star";
+    else if (i === full && half) icon = "star-half";
+    arr.push(<Ionicons key={i} name={icon} size={16} color={colors.gold} style={{ marginHorizontal: 1 }} />);
   }
+  return arr;
+}
+
+/* ---------- Side button ---------- */
+function SideButton({ icon, color, label, onPress, loading, testID }: {
+  icon: any; color: string; label: string; onPress: () => void; loading?: boolean; testID?: string;
+}) {
   return (
-    <TouchableOpacity
-      testID={testID}
-      onPress={onPress}
-      activeOpacity={0.85}
-      style={[
-        styles.floatingBtn,
-        {
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          borderColor: color,
-          shadowColor: color,
-        },
-        pos,
-      ]}
-    >
-      <Ionicons name={icon} size={big ? 28 : 22} color={color} />
+    <TouchableOpacity testID={testID} onPress={onPress} activeOpacity={0.7} style={styles.sideBtnWrap}>
+      <View style={[styles.sideBtn, { borderColor: color, shadowColor: color }]}>
+        {loading ? <ActivityIndicator size="small" color={color} /> : <Ionicons name={icon} size={26} color={color} />}
+      </View>
+      <Text style={[styles.sideLabel, { color }]}>{label}</Text>
     </TouchableOpacity>
   );
 }
 
-function BuyBtn({
-  label,
-  icon,
-  onPress,
-  testID,
-}: {
-  label: string;
-  icon: any;
-  onPress: () => void;
-  testID?: string;
-}) {
+function BuyBtn({ label, icon, onPress, testID }: { label: string; icon: any; onPress: () => void; testID?: string }) {
   return (
     <TouchableOpacity testID={testID} style={styles.buyBtn} onPress={onPress} activeOpacity={0.85}>
       <Ionicons name={icon} size={16} color={colors.gold} />
@@ -595,306 +434,196 @@ function BuyBtn({
   );
 }
 
-function StaticCard({ book, depth }: { book: Book; depth: number }) {
+/* ---------- Flash Card Modal ---------- */
+function FlashCardModal({ visible, book, lang, onClose, onAuthorChat, isPremium }: {
+  visible: boolean; book: Book; lang: "es" | "en"; onClose: () => void; onAuthorChat: () => void; isPremium: boolean;
+}) {
+  const insets = useSafeAreaInsets();
+  const synopsis = lang === "es" ? book.synopsis_es : book.synopsis_en;
+  const ext = (book as any) || {};
   return (
-    <View
-      style={[
-        styles.card,
-        styles.cardBehind,
-        { transform: [{ scale: 1 - depth * 0.04 }, { translateY: depth * 10 }] },
-      ]}
-    >
-      <Image source={{ uri: book.cover_url }} style={styles.cover} resizeMode="cover" />
-      <View style={styles.coverOverlay} />
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <View style={[styles.flashCard, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}>
+          <TouchableOpacity onPress={onClose} style={styles.flashClose} testID="btn-close-flash">
+            <Ionicons name="close" size={22} color={colors.textOnDarkMuted} />
+          </TouchableOpacity>
+
+          <ScrollView showsVerticalScrollIndicator={false}>
+            <Text style={styles.flashTitle} numberOfLines={3}>{book.title}</Text>
+            <Text style={styles.flashAuthor}>{book.author}</Text>
+
+            {/* Top mini-stats */}
+            <View style={styles.statRow}>
+              <StatBox icon="calendar" label="AÑO" value={String(book.year)} />
+              <StatBox icon="book" label="PÁGINAS" value={String(book.pages)} />
+              <StatBox icon="rocket" label="GÉNERO" value={book.genre.split("/")[0].trim()} small />
+            </View>
+
+            <View style={styles.flashLabel}>
+              <Text style={styles.flashLabelText}>— FLASH CARD —</Text>
+            </View>
+
+            {/* Detailed grid */}
+            <View style={styles.detailGrid}>
+              <DetailItem label="TEMA" value={ext.tema || "—"} color={colors.iron} />
+              <DetailItem label="TONO" value={ext.tono || "—"} color={colors.brass} />
+              <DetailItem label="TROPE" value={ext.trope || "—"} color={colors.iron} />
+              <DetailItem label="COMPLEJIDAD" value={ext.complejidad || "Media"} color={colors.brass} />
+              <DetailItem label="¿ES SAGA?" value={ext.es_saga || "No"} color={colors.iron} />
+              <DetailItem label="CONT. SENSIBLE" value={ext.contenido_sensible || "—"} color={colors.brass} />
+              <DetailItem label="PÚBLICO" value={ext.publico || "General"} color={colors.iron} />
+              <DetailItem label="EDAD" value={ext.edad || "+12"} color={colors.brass} />
+            </View>
+
+            {/* Synopsis */}
+            <Text style={styles.synopsisLabel}>SINOPSIS</Text>
+            <Text style={styles.synopsisText}>{synopsis}</Text>
+
+            {/* Author IA button */}
+            <TouchableOpacity
+              style={[styles.iaBtn, !isPremium && styles.iaBtnLocked]}
+              onPress={onAuthorChat}
+              activeOpacity={0.85}
+              testID="btn-flash-author-chat"
+            >
+              <Ionicons name={isPremium ? "chatbubbles" : "lock-closed"} size={16} color={isPremium ? colors.bgBase : colors.gold} />
+              <Text style={[styles.iaBtnText, !isPremium && styles.iaBtnTextLocked]}>
+                IA con el Autor {!isPremium && "(Premium)"}
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function StatBox({ icon, label, value, small }: { icon: any; label: string; value: string; small?: boolean }) {
+  return (
+    <View style={styles.statBox}>
+      <Ionicons name={icon} size={20} color={colors.brass} />
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={[styles.statValue, small && { fontSize: 13 }]} numberOfLines={1}>{value}</Text>
     </View>
   );
 }
 
+function DetailItem({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <View style={styles.detailItem}>
+      <View style={styles.detailHeader}>
+        <Ionicons name="star" size={10} color={color} />
+        <Text style={[styles.detailLabel, { color }]}>{label}</Text>
+      </View>
+      <Text style={styles.detailValue}>{value}</Text>
+    </View>
+  );
+}
+
+/* ---------- Audio modal ---------- */
+function AudioModal({ visible, book, lang, playing, loading, text, onPlay, onClose }: {
+  visible: boolean; book: Book; lang: "es" | "en"; playing: boolean; loading: boolean; text?: string; onPlay: () => void; onClose: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const fallback = lang === "es" ? book.summary_es : book.summary_en;
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <View style={[styles.flashCard, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}>
+          <TouchableOpacity onPress={onClose} style={styles.flashClose} testID="btn-close-audio">
+            <Ionicons name="close" size={22} color={colors.textOnDarkMuted} />
+          </TouchableOpacity>
+
+          <View style={styles.audioHeader}>
+            <Text style={styles.audioBadge}>// RESUMEN · 1 MIN</Text>
+            <TouchableOpacity onPress={onPlay} style={styles.audioPlayBtn} disabled={loading} testID="btn-audio-play">
+              {loading ? <ActivityIndicator color={colors.brass} /> : <Ionicons name={playing ? "pause" : "play"} size={26} color={colors.brass} />}
+            </TouchableOpacity>
+          </View>
+          <View style={styles.dividerLine} />
+          <Text style={styles.flashTitle}>{book.title}</Text>
+          <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 10 }}>
+            <Text style={styles.synopsisText}>{text || fallback}</Text>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bgBase, paddingHorizontal: 12 },
-  center: {
-    flex: 1,
-    backgroundColor: colors.bgBase,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 24,
-  },
+  container: { flex: 1, backgroundColor: colors.bgBase },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bgBase, padding: 24 },
   loadingText: { color: colors.textOnDarkMuted, marginTop: 14, letterSpacing: 1 },
   emptyTitle: { color: colors.textOnDark, fontSize: 18, marginTop: 12, textAlign: "center" },
-  reloadBtn: {
-    marginTop: 24,
-    borderWidth: 1,
-    borderColor: colors.brass,
-    paddingHorizontal: 22,
-    paddingVertical: 12,
-    borderRadius: 999,
-  },
+  reloadBtn: { marginTop: 24, borderWidth: 1, borderColor: colors.brass, paddingHorizontal: 22, paddingVertical: 12, borderRadius: 999 },
   reloadText: { color: colors.brass, letterSpacing: 2, fontWeight: "700" },
-  topBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 6,
-    paddingHorizontal: 4,
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.brassSoft,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.bgSurface,
-  },
-  brand: {
-    color: colors.brass,
-    fontWeight: "900",
-    fontSize: 16,
-    letterSpacing: 6,
-  },
-  brandRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  brandCyan: {
-    color: colors.brass,
-    fontWeight: "900",
-    fontSize: 18,
-    letterSpacing: 1,
-  },
-  brandPurple: {
-    color: colors.copper,
-    fontWeight: "900",
-    fontSize: 18,
-    letterSpacing: 1,
-  },
-  queryHint: {
-    color: colors.copper,
-    fontSize: 11,
-    letterSpacing: 1,
-    textAlign: "center",
-    marginBottom: 4,
-  },
-  cardZone: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 38,
-    paddingVertical: 32,
-    position: "relative",
-  },
-  card: {
-    borderRadius: 22,
-    backgroundColor: colors.bgSurface,
-    borderWidth: 2,
-    borderColor: colors.brassSoft,
-    overflow: "hidden",
-    shadowColor: colors.brass,
-    shadowOpacity: 0.35,
-    shadowRadius: 22,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 14,
-    position: "absolute",
-    top: 32,
-    bottom: 32,
-    left: 38,
-    right: 38,
-  },
-  cardBehind: { opacity: 0.5 },
-  coverWrap: { flex: 1 },
+
+  // Slide layout
+  slide: { backgroundColor: colors.bgBase, alignItems: "center", justifyContent: "center" },
+  moodBadge: { position: "absolute", flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "center", left: 0, right: 0, justifyContent: "center" },
+  moodIcon: { fontSize: 22 },
+  moodLabel: { fontSize: 18, fontWeight: "900", letterSpacing: 1.5 },
+  coverArea: { width: SCREEN_W * 0.72, height: SCREEN_W * 0.72, alignItems: "center", justifyContent: "center", marginBottom: 26, marginTop: -50 },
   cover: { width: "100%", height: "100%" },
-  coverOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(6,1,15,0.55)",
+  infoArea: { position: "absolute", bottom: 0, left: 0, right: 0, alignItems: "center", paddingHorizontal: 70 },
+  title: { color: colors.textOnDark, fontSize: 24, fontWeight: "900", textAlign: "center", letterSpacing: 0.5 },
+  author: { color: colors.brass, fontSize: 14, fontWeight: "600", marginTop: 6, letterSpacing: 1 },
+  starsRow: { flexDirection: "row", marginTop: 8 },
+
+  // Top bar (fixed overlay)
+  topBar: { position: "absolute", top: 0, left: 0, right: 0, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, zIndex: 10 },
+  backBtn: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, borderColor: colors.brassSoft, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.4)" },
+  brandRow: { flexDirection: "row" },
+  brandCyan: { color: colors.brass, fontWeight: "900", fontSize: 18 },
+  brandPurple: { color: colors.copper, fontWeight: "900", fontSize: 18 },
+  queryWrap: { position: "absolute", left: 0, right: 0, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 5 },
+  queryHint: { color: colors.copper, fontSize: 12, fontWeight: "600", letterSpacing: 1, maxWidth: 240 },
+
+  // Side buttons (fixed overlay, right)
+  sideButtons: { position: "absolute", right: 12, top: SCREEN_H * 0.42, gap: 18, alignItems: "center", zIndex: 10 },
+  sideBtnWrap: { alignItems: "center", gap: 4 },
+  sideBtn: {
+    width: 50, height: 50, borderRadius: 25, borderWidth: 2,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.5)",
+    shadowOpacity: 0.6, shadowRadius: 12, shadowOffset: { width: 0, height: 0 }, elevation: 6,
   },
-  coverInfo: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 20, gap: 8 },
-  bookTitle: {
-    color: colors.textOnDark,
-    fontSize: 26,
-    fontWeight: "900",
-  },
-  bookAuthor: { color: colors.brass, fontSize: 14, letterSpacing: 1, fontWeight: "700" },
-  chips: { flexDirection: "row", gap: 6, flexWrap: "wrap", marginTop: 4 },
-  chip: {
-    backgroundColor: "rgba(0,240,255,0.10)",
-    borderWidth: 1,
-    borderColor: colors.brassSoft,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-  },
-  chipText: { color: colors.brass, fontSize: 11, fontWeight: "700", letterSpacing: 0.8 },
-  synopsis: {
-    color: colors.textOnDark,
-    fontSize: 13,
-    lineHeight: 19,
-    marginTop: 8,
-    opacity: 0.92,
-  },
-  parchment: {
-    flex: 1,
-    backgroundColor: colors.parchmentSurface,
-    padding: 22,
-  },
-  parchmentHeader: {
-    color: colors.copper,
-    letterSpacing: 3,
-    fontSize: 12,
-    fontWeight: "900",
-  },
-  divider2: { height: 1, backgroundColor: colors.copper, opacity: 0.4, marginVertical: 10 },
-  parchmentTitle: {
-    color: colors.textOnDark,
-    fontSize: 22,
-    fontWeight: "900",
-  },
-  parchmentAuthor: {
-    color: colors.textOnDarkMuted,
-    fontSize: 14,
-    marginTop: 4,
-    fontStyle: "italic",
-  },
-  fichaGrid: { marginTop: 20, gap: 10 },
-  fichaRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(176,38,255,0.25)",
-    paddingVertical: 10,
-  },
-  fichaLabel: {
-    color: colors.copper,
-    letterSpacing: 2,
-    fontSize: 11,
-    fontWeight: "800",
-  },
-  fichaValue: {
-    color: colors.textOnDark,
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  summaryHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  playBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: colors.brass,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.bgBase,
-  },
-  summaryText: { color: colors.textOnDark, fontSize: 15, lineHeight: 23 },
-  summaryHint: {
-    color: colors.copper,
-    fontSize: 11,
-    fontStyle: "italic",
-    marginTop: 6,
-    opacity: 0.85,
-  },
-  chatBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    backgroundColor: colors.gold,
-    paddingVertical: 11,
-    borderRadius: 999,
-    marginTop: 10,
-    shadowColor: colors.gold,
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 6,
-  },
-  chatBtnText: { color: colors.bgBase, fontWeight: "900", fontSize: 13, letterSpacing: 0.5 },
-  chatBtnLocked: {
-    backgroundColor: "transparent",
-    borderWidth: 1.5,
-    borderColor: colors.gold,
-    shadowOpacity: 0.2,
-  },
-  chatBtnTextLocked: { color: colors.gold },
-  stampLike: {
-    position: "absolute",
-    top: 28,
-    left: 20,
-    transform: [{ rotate: "-12deg" }],
-    borderWidth: 3,
-    borderColor: colors.verdigris,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    zIndex: 5,
-    borderRadius: 6,
-  },
-  stampLikeText: {
-    color: colors.verdigris,
-    fontWeight: "900",
-    fontSize: 22,
-    letterSpacing: 4,
-  },
-  stampNope: {
-    position: "absolute",
-    top: 28,
-    right: 20,
-    transform: [{ rotate: "12deg" }],
-    borderWidth: 3,
-    borderColor: colors.iron,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    zIndex: 5,
-    borderRadius: 6,
-  },
-  stampNopeText: {
-    color: colors.iron,
-    fontWeight: "900",
-    fontSize: 22,
-    letterSpacing: 4,
-  },
-  floatingBtn: {
-    borderWidth: 2,
-    backgroundColor: colors.bgSurface,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowOpacity: 0.8,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 12,
-  },
-  buyRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 8,
-    paddingTop: 8,
-    paddingHorizontal: 4,
-  },
-  buyBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    borderWidth: 1.5,
-    borderColor: colors.goldSoft,
-    paddingHorizontal: 8,
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: "rgba(255,210,63,0.06)",
-    shadowColor: colors.gold,
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 6,
-  },
-  buyText: {
-    color: colors.gold,
-    fontSize: 12,
-    fontWeight: "800",
-    letterSpacing: 0.5,
-  },
+  sideLabel: { fontSize: 10, fontWeight: "700", letterSpacing: 0.5 },
+
+  // Buy buttons (fixed overlay, bottom)
+  buyRow: { position: "absolute", bottom: 70, left: 0, right: 0, flexDirection: "row", justifyContent: "space-between", gap: 8, paddingHorizontal: 12, zIndex: 10 },
+  buyBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1.5, borderColor: colors.goldSoft, paddingHorizontal: 8, paddingVertical: 11, borderRadius: 12, backgroundColor: "rgba(0,0,0,0.6)" },
+  buyText: { color: colors.gold, fontSize: 12, fontWeight: "800", letterSpacing: 0.5 },
+
+  // Modals
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.85)", justifyContent: "flex-end" },
+  flashCard: { backgroundColor: colors.bgSurface, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderTopWidth: 2, borderColor: colors.copper, paddingHorizontal: 22, maxHeight: SCREEN_H * 0.92 },
+  flashClose: { position: "absolute", top: 12, right: 12, padding: 8, zIndex: 5 },
+  flashTitle: { color: colors.textOnDark, fontSize: 22, fontWeight: "900" },
+  flashAuthor: { color: colors.brass, fontSize: 14, marginTop: 4, fontStyle: "italic" },
+  statRow: { flexDirection: "row", gap: 10, marginTop: 18 },
+  statBox: { flex: 1, borderWidth: 1, borderColor: colors.brassSoft, borderRadius: 12, padding: 10, alignItems: "center", backgroundColor: "rgba(0,240,255,0.04)" },
+  statLabel: { color: colors.textOnDark, fontSize: 9, fontWeight: "800", letterSpacing: 1.5, marginTop: 4 },
+  statValue: { color: colors.brass, fontSize: 15, fontWeight: "900", marginTop: 2 },
+  flashLabel: { alignItems: "center", marginTop: 18 },
+  flashLabelText: { color: colors.copper, fontSize: 10, letterSpacing: 4, fontWeight: "800" },
+  detailGrid: { flexDirection: "row", flexWrap: "wrap", borderWidth: 1, borderColor: colors.brassSoft, borderRadius: 12, padding: 14, marginTop: 10 },
+  detailItem: { width: "50%", paddingVertical: 8, paddingRight: 8 },
+  detailHeader: { flexDirection: "row", alignItems: "center", gap: 4 },
+  detailLabel: { fontSize: 10, fontWeight: "900", letterSpacing: 1 },
+  detailValue: { color: colors.textOnDark, fontSize: 13, marginTop: 3 },
+  synopsisLabel: { color: colors.copper, fontSize: 10, letterSpacing: 3, fontWeight: "900", marginTop: 18 },
+  synopsisText: { color: colors.textOnDark, fontSize: 14, lineHeight: 21, marginTop: 8 },
+  iaBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: colors.gold, paddingVertical: 13, borderRadius: 999, marginTop: 18 },
+  iaBtnText: { color: colors.bgBase, fontWeight: "900", fontSize: 13, letterSpacing: 0.5 },
+  iaBtnLocked: { backgroundColor: "transparent", borderWidth: 1.5, borderColor: colors.gold },
+  iaBtnTextLocked: { color: colors.gold },
+
+  // Audio modal extras
+  audioHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 16 },
+  audioBadge: { color: colors.copper, fontSize: 12, letterSpacing: 3, fontWeight: "900" },
+  audioPlayBtn: { width: 50, height: 50, borderRadius: 25, borderWidth: 2, borderColor: colors.brass, alignItems: "center", justifyContent: "center", backgroundColor: colors.bgBase },
+  dividerLine: { height: 1, backgroundColor: colors.copper, opacity: 0.4, marginTop: 10, marginBottom: 12 },
 });

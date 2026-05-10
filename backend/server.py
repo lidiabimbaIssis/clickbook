@@ -4,6 +4,7 @@ import uuid
 import base64
 import logging
 import re
+import asyncio
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import List, Optional
@@ -80,6 +81,15 @@ class Book(BaseModel):
     amazon_url: str
     casa_del_libro_url: str
     google_books_url: str
+    # Flash Card extended fields (optional for backward compatibility)
+    tema: Optional[str] = None
+    tono: Optional[str] = None
+    trope: Optional[str] = None
+    complejidad: Optional[str] = None
+    es_saga: Optional[str] = None
+    contenido_sensible: Optional[str] = None
+    publico: Optional[str] = None
+    edad: Optional[str] = None
     created_at: datetime
 
 class SessionExchangeRequest(BaseModel):
@@ -352,6 +362,14 @@ Devuelve un array JSON puro. Cada objeto debe tener EXACTAMENTE estos campos:
 - synopsis_en (string, 80-120 words, synopsis in English)
 - summary_es (string, 180-220 palabras, resumen real del contenido del libro en español que se pueda leer en ~1 minuto, con spoilers)
 - summary_en (string, 180-220 words, actual summary of the book contents in English, ~1 minute read, with spoilers)
+- tema (string, 1-3 palabras: ej "Redención", "Identidad", "Poder", "Amor")
+- tono (string, 1-2 palabras: ej "Sombrío", "Optimista", "Melancólico", "Épico")
+- trope (string, 2-4 palabras: ej "Enemies to Lovers", "Hero's Journey", "Found Family", "—" si no aplica)
+- complejidad (string: una de "Ligera", "Media", "Densa")
+- es_saga (string: "No" o "Sí (Trilogía)" o "Sí (Bilogía)" o "Sí (Saga de N libros)")
+- contenido_sensible (string, breve: ej "Lenguaje explícito, contenido adulto" o "Ninguno")
+- publico (string: una de "Infantil", "Juvenil", "Young Adult", "New Adult", "Adulto", "General")
+- edad (string: ej "+12", "+14", "+16", "+18")
 
 IMPORTANTE: Solo JSON array válido, sin backticks ni texto adicional."""
 
@@ -383,7 +401,7 @@ IMPORTANTE: Solo JSON array válido, sin backticks ni texto adicional."""
 
 async def lookup_cover(title: str, author: str) -> Optional[str]:
     try:
-        async with httpx.AsyncClient(timeout=8.0) as http_client:
+        async with httpx.AsyncClient(timeout=4.0) as http_client:
             r = await http_client.get(
                 "https://openlibrary.org/search.json",
                 params={"title": title, "author": author, "limit": 1},
@@ -417,6 +435,8 @@ def build_store_urls(title: str, author: str) -> dict:
 
 
 async def persist_books(raw_books: List[dict]) -> List[Book]:
+    # Step 1: Filter unique titles + check existing in DB
+    candidates: List[dict] = []
     saved: List[Book] = []
     for rb in raw_books:
         try:
@@ -426,11 +446,28 @@ async def persist_books(raw_books: List[dict]) -> List[Book]:
             continue
         existing = await db.books.find_one({"title": title, "author": author}, {"_id": 0})
         if existing:
-            saved.append(Book(**existing))
+            try:
+                saved.append(Book(**existing))
+            except Exception:
+                pass
             continue
-        cover = await lookup_cover(title, author)
-        if not cover:
-            cover = f"https://placehold.co/600x900/221A13/C48B47/png?text={title.replace(' ', '+')[:40]}"
+        rb["_title_clean"] = title
+        rb["_author_clean"] = author
+        candidates.append(rb)
+
+    if not candidates:
+        return saved
+
+    # Step 2: Parallel cover lookup (asyncio.gather) — speeds up feed dramatically
+    cover_tasks = [lookup_cover(c["_title_clean"], c["_author_clean"]) for c in candidates]
+    covers = await asyncio.gather(*cover_tasks, return_exceptions=True)
+
+    # Step 3: Build & insert
+    for rb, cover in zip(candidates, covers):
+        title = rb["_title_clean"]
+        author = rb["_author_clean"]
+        if isinstance(cover, Exception) or not cover:
+            cover = f"https://placehold.co/600x900/0A0414/00F0FF/png?text={title.replace(' ', '+')[:40]}"
         store_urls = build_store_urls(title, author)
         book = {
             "book_id": f"bk_{uuid.uuid4().hex[:12]}",
@@ -446,11 +483,22 @@ async def persist_books(raw_books: List[dict]) -> List[Book]:
             "summary_en": str(rb.get("summary_en", "")),
             "cover_url": cover,
             **store_urls,
+            "tema": str(rb.get("tema", "")) or None,
+            "tono": str(rb.get("tono", "")) or None,
+            "trope": str(rb.get("trope", "")) or None,
+            "complejidad": str(rb.get("complejidad", "")) or None,
+            "es_saga": str(rb.get("es_saga", "")) or None,
+            "contenido_sensible": str(rb.get("contenido_sensible", "")) or None,
+            "publico": str(rb.get("publico", "")) or None,
+            "edad": str(rb.get("edad", "")) or None,
             "created_at": datetime.now(timezone.utc),
         }
         await db.books.insert_one(dict(book))
         book.pop("_id", None)
-        saved.append(Book(**book))
+        try:
+            saved.append(Book(**book))
+        except Exception as e:
+            logger.warning(f"Skipping book due to validation: {e}")
     return saved
 
 

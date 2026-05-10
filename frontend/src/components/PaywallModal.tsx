@@ -27,9 +27,11 @@ export default function PaywallModal({
 }) {
   const [pricing, setPricing] = useState<PricingConfig | null>(null);
   const [loading, setLoading] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<"yearly" | "monthly">("yearly");
 
   useEffect(() => {
     if (!visible) return;
+    setSelectedPlan("yearly");
     api<PricingConfig>("/config/pricing").then(setPricing).catch(() => {});
   }, [visible]);
 
@@ -83,13 +85,18 @@ export default function PaywallModal({
 
           {pricing && (
             <View style={styles.plans}>
-              <View style={[styles.plan, styles.planFeatured]}>
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => setSelectedPlan("yearly")}
+                style={[styles.plan, selectedPlan === "yearly" ? styles.planFeatured : styles.planMuted]}
+                testID="plan-yearly"
+              >
                 {pricing.launch_promo_active && (
                   <View style={styles.badge}>
                     <Text style={styles.badgeText}>{pricing.launch_promo_label}</Text>
                   </View>
                 )}
-                <Text style={styles.planName}>ANUAL</Text>
+                <Text style={[styles.planName, selectedPlan === "yearly" && { color: colors.gold }]}>ANUAL</Text>
                 {pricing.launch_promo_active ? (
                   <>
                     <Text style={styles.priceOld}>{pricing.yearly_regular}</Text>
@@ -99,9 +106,14 @@ export default function PaywallModal({
                   <Text style={styles.priceNew}>{pricing.yearly_regular}</Text>
                 )}
                 <Text style={styles.planMeta}>Ahorra ~50%</Text>
-              </View>
-              <View style={styles.plan}>
-                <Text style={styles.planName}>MENSUAL</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => setSelectedPlan("monthly")}
+                style={[styles.plan, selectedPlan === "monthly" ? styles.planFeatured : styles.planMuted]}
+                testID="plan-monthly"
+              >
+                <Text style={[styles.planName, selectedPlan === "monthly" && { color: colors.gold }]}>MENSUAL</Text>
                 {pricing.launch_promo_active ? (
                   <>
                     <Text style={styles.priceOld}>{pricing.monthly_regular}</Text>
@@ -111,7 +123,7 @@ export default function PaywallModal({
                   <Text style={styles.priceNew}>{pricing.monthly_regular}</Text>
                 )}
                 <Text style={styles.planMeta}> </Text>
-              </View>
+              </TouchableOpacity>
             </View>
           )}
 
@@ -199,6 +211,14 @@ const styles = StyleSheet.create({
     borderColor: colors.gold,
     backgroundColor: "rgba(255,210,63,0.08)",
     borderWidth: 2,
+    shadowColor: colors.gold,
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 6,
+  },
+  planMuted: {
+    opacity: 0.55,
   },
   planName: {
     color: colors.textOnDarkMuted,

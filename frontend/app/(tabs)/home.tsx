@@ -68,15 +68,6 @@ export default function Home() {
             <Ionicons name="sparkles" size={18} color={colors.copper} />
           </TouchableOpacity>
 
-          <Text style={styles.sectionLabel}>POR GÉNERO</Text>
-          <View style={styles.chipsRow}>
-            {["Ficción", "Novela negra", "Fantasía", "Ensayo", "Biografía", "Poesía"].map((g) => (
-              <TouchableOpacity key={g} style={styles.chip} onPress={() => go(g)} testID={`chip-${g}`}>
-                <Text style={styles.chipText}>{g}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
           <Text style={styles.sectionLabel}>SEGÚN TU MOOD</Text>
           <View style={styles.moodRow}>
             {[
