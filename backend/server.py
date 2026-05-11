@@ -424,7 +424,7 @@ def build_store_urls(title: str, author: str) -> dict:
     amazon = f"https://www.amazon.es/s?k={qe}&i=stripbooks"
     if AFFILIATE_AMAZON_TAG:
         amazon += f"&tag={AFFILIATE_AMAZON_TAG}"
-    casa = f"https://www.casadellibro.com/busqueda-generica.php?busqueda={qe}"
+    casa = f"https://www.google.com/search?q={qe}+site%3Acasadellibro.com"
     if AFFILIATE_CASA_LIBRO:
         casa += f"&aff={AFFILIATE_CASA_LIBRO}"
     return {
