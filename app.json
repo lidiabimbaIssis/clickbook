@@ -1,23 +1,32 @@
 {
   "expo": {
-    "name": "frontend",
-    "slug": "frontend",
+    "name": "ClickBook",
+    "slug": "clickbook",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "frontend",
-    "userInterfaceStyle": "automatic",
+    "scheme": "clickbook",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.lidiabimba.clickbook",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Save book audios and shareable cards.",
+        "NSMicrophoneUsageDescription": "Used by audio playback features.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
+      "package": "com.lidiabimba.clickbook",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#000"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.lidiabimbaissis.frontend"
+      "permissions": [
+        "INTERNET"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -26,15 +35,6 @@
     },
     "plugins": [
       "expo-router",
-      [
-        "expo-splash-screen",
-        {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#000"
-        }
-      ],
       "expo-web-browser"
     ],
     "experiments": {
@@ -43,7 +43,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "1f580b10-6a09-4df3-b02a-0e92fcc9c843"
+        "projectId": "d6abdbef-0c36-4f67-932d-7365de9111e9"
       }
     },
     "owner": "lidiabimbaissis"

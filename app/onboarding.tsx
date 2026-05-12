@@ -18,7 +18,8 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { colors } from "../src/theme";
 
-const { width } = Dimensions.get("window");
+const { width, height } = Dimensions.get("window");
+const HERO = Math.min(260, height * 0.32);
 
 export default function Onboarding() {
   const insets = useSafeAreaInsets();
@@ -296,19 +297,24 @@ function Legend({ symbol, color, text }: { symbol: string; color: string; text: 
 
 /* ---------- STYLES ---------- */
 
-const HERO = 280;
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgBase },
   skipBtn: { position: "absolute", right: 18, zIndex: 30, padding: 6 },
   skipText: { color: colors.textOnDarkMuted, fontSize: 13, letterSpacing: 1 },
-  slide: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 28 },
+  slide: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 28,
+    paddingTop: 60,
+    paddingBottom: 180,
+  },
   heroWrap: {
     width: HERO,
     height: HERO,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 60,
+    marginBottom: 36,
   },
   textBlock: { alignItems: "center", paddingHorizontal: 12 },
   title: {
