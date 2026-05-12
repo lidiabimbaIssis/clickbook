@@ -12,6 +12,7 @@ import {
   RefreshControl,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { api, Book } from "../../src/lib/api";
 import { useAuth } from "../../src/providers/AuthProvider";
@@ -21,6 +22,7 @@ export default function Favorites() {
   const { user } = useAuth();
   const lang = (user?.lang || "es") as "es" | "en";
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -92,7 +94,13 @@ export default function Favorites() {
           }
           renderItem={({ item }) => (
             <View style={styles.card} testID={`fav-card-${item.book_id}`}>
-              <Image source={{ uri: item.cover_url }} style={styles.cover} />
+              <TouchableOpacity
+                onPress={() => router.push({ pathname: "/discover", params: { book_id: item.book_id } })}
+                activeOpacity={0.8}
+                testID={`fav-open-${item.book_id}`}
+              >
+                <Image source={{ uri: item.cover_url }} style={styles.cover} />
+              </TouchableOpacity>
               <View style={styles.info}>
                 <Text style={styles.bookTitle} numberOfLines={2}>{item.title}</Text>
                 <Text style={styles.bookAuthor}>{item.author} · {item.year}</Text>

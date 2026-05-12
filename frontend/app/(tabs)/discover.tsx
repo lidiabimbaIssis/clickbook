@@ -48,8 +48,9 @@ export default function Discover() {
   const lang = (user?.lang || "es") as "es" | "en";
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const params = useLocalSearchParams<{ q?: string }>();
+  const params = useLocalSearchParams<{ q?: string; book_id?: string }>();
   const query = (params.q || "").toString();
+  const seedBookId = (params.book_id || "").toString();
 
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
@@ -106,10 +107,18 @@ export default function Discover() {
   useEffect(() => {
     setBooks([]);
     setCurrentIndex(0);
-    fetchBooks(true);
+    (async () => {
+      if (seedBookId) {
+        try {
+          const seed = await api<Book>(`/books/${seedBookId}`);
+          if (seed) setBooks([seed]);
+        } catch {}
+      }
+      fetchBooks(true);
+    })();
     loadFavorites();
     return () => stopAudio();
-  }, [fetchBooks, loadFavorites, stopAudio]);
+  }, [fetchBooks, loadFavorites, stopAudio, seedBookId]);
 
   const current = books[currentIndex];
   const isFav = current ? favBookIds.has(current.book_id) : false;
@@ -375,7 +384,7 @@ function BookSlide({ book }: { book: Book }) {
 
   return (
     <View style={[styles.slide, { width: SCREEN_W, height: SCREEN_H }]}>
-      <View style={{ position: "relative", width: coverW, alignItems: "center", marginTop: insets.top + 60 }}>
+      <View style={{ position: "relative", width: coverW, alignItems: "center" }}>
         {/* Top badges overlapping top of cover */}
         <View style={styles.topBadgesRow} pointerEvents="box-none">
           <View style={styles.moodPill}>
@@ -562,7 +571,7 @@ const styles = StyleSheet.create({
   reloadText: { color: colors.brass, letterSpacing: 2, fontWeight: "700" },
 
   // Slide layout
-  slide: { backgroundColor: colors.bgBase, alignItems: "center" },
+  slide: { backgroundColor: colors.bgBase, alignItems: "center", justifyContent: "center" },
   // Top badges row (overlapping top of cover)
   topBadgesRow: { position: "absolute", top: -22, left: 0, right: 0, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 4, zIndex: 8 },
   moodPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: colors.brassSoft, backgroundColor: "rgba(6,1,15,0.85)" },

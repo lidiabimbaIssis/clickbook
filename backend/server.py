@@ -567,6 +567,14 @@ async def get_favorites(user: User = Depends(get_current_user)):
     return {"books": books}
 
 
+@api_router.get("/books/{book_id}")
+async def get_book(book_id: str, user: User = Depends(get_current_user)):
+    book = await db.books.find_one({"book_id": book_id}, {"_id": 0})
+    if not book:
+        raise HTTPException(status_code=404, detail="book_not_found")
+    return book
+
+
 @api_router.delete("/favorites/{book_id}")
 async def remove_favorite(book_id: str, user: User = Depends(get_current_user)):
     await db.user_interactions.delete_one({"user_id": user.user_id, "book_id": book_id, "action": "like"})

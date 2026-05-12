@@ -21,7 +21,7 @@
       "package": "com.lidiabimba.clickbook",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#000"
+        "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
       "permissions": [
@@ -35,7 +35,9 @@
     },
     "plugins": [
       "expo-router",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-audio",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true
