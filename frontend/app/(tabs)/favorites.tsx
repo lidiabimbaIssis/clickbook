@@ -12,7 +12,7 @@ import {
   RefreshControl,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { api, Book } from "../../src/lib/api";
 import { useAuth } from "../../src/providers/AuthProvider";
@@ -42,6 +42,9 @@ export default function Favorites() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Auto-refresh whenever this tab gains focus (fixes "favs not updating" issue)
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const remove = async (id: string) => {
     setBooks((prev) => prev.filter((b) => b.book_id !== id));

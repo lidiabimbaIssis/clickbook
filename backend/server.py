@@ -417,6 +417,79 @@ async def lookup_cover(title: str, author: str) -> Optional[str]:
     return None
 
 
+async def fetch_books_from_google(query: str, count: int = 20, exclude_titles: List[str] = None) -> List[dict]:
+    """Fallback book source via Google Books API. Fast and reliable when Gemini is down."""
+    exclude_titles = exclude_titles or []
+    excl_lower = {t.lower() for t in exclude_titles}
+    q = query or "novela bestseller"
+    try:
+        async with httpx.AsyncClient(timeout=6.0) as http_client:
+            r = await http_client.get(
+                "https://www.googleapis.com/books/v1/volumes",
+                params={
+                    "q": q,
+                    "maxResults": min(40, count * 2),
+                    "langRestrict": "es",
+                    "printType": "books",
+                    "orderBy": "relevance",
+                },
+            )
+        if r.status_code != 200:
+            return []
+        items = r.json().get("items", []) or []
+        results: List[dict] = []
+        for it in items:
+            v = it.get("volumeInfo", {}) or {}
+            title = (v.get("title") or "").strip()
+            authors = v.get("authors") or []
+            author = (authors[0] if authors else "Anónimo").strip()
+            if not title or title.lower() in excl_lower:
+                continue
+            year = 2000
+            pub = v.get("publishedDate", "")
+            if pub:
+                try:
+                    year = int(pub[:4])
+                except Exception:
+                    pass
+            cats = v.get("categories") or []
+            genre = (cats[0] if cats else "Ficción")
+            description = (v.get("description") or "").strip()
+            if len(description) < 30:
+                description = f"Un libro de {author} publicado en {year}."
+            img_links = v.get("imageLinks") or {}
+            cover = (img_links.get("thumbnail") or img_links.get("smallThumbnail") or "").replace("http://", "https://").replace("&edge=curl", "")
+            rating = float(v.get("averageRating") or 4.2)
+            pages = int(v.get("pageCount") or 280)
+            results.append({
+                "title": title,
+                "author": author,
+                "year": year,
+                "genre": genre,
+                "pages": pages,
+                "rating": rating,
+                "synopsis_es": description[:500],
+                "synopsis_en": description[:500],
+                "summary_es": description[:800] or f"Un libro fascinante de {author}.",
+                "summary_en": description[:800] or f"A fascinating book by {author}.",
+                "tema": "—",
+                "tono": "—",
+                "trope": "—",
+                "complejidad": "Media",
+                "es_saga": "No",
+                "contenido_sensible": "—",
+                "publico": "General",
+                "edad": "+12",
+                "_cover_from_google": cover,
+            })
+            if len(results) >= count:
+                break
+        return results
+    except Exception as e:
+        logger.warning(f"Google Books fallback failed: {e}")
+        return []
+
+
 def build_store_urls(title: str, author: str) -> dict:
     q = f"{title} {author}".strip()
     from urllib.parse import quote_plus
@@ -458,8 +531,11 @@ async def persist_books(raw_books: List[dict]) -> List[Book]:
     if not candidates:
         return saved
 
-    # Step 2: Parallel cover lookup (asyncio.gather) — speeds up feed dramatically
-    cover_tasks = [lookup_cover(c["_title_clean"], c["_author_clean"]) for c in candidates]
+    # Step 2: Parallel cover lookup (asyncio.gather) for books WITHOUT a Google Books cover
+    cover_tasks = [
+        lookup_cover(c["_title_clean"], c["_author_clean"]) if not c.get("_cover_from_google") else asyncio.sleep(0, result=c["_cover_from_google"])
+        for c in candidates
+    ]
     covers = await asyncio.gather(*cover_tasks, return_exceptions=True)
 
     # Step 3: Build & insert
@@ -525,15 +601,30 @@ async def books_feed(count: int = 5, genre: Optional[str] = None, query: Optiona
     need = count - len(existing)
     all_titles_docs = await db.books.find({}, {"_id": 0, "title": 1}).to_list(500)
     exclude_titles = [d["title"] for d in all_titles_docs]
+    raw: List[dict] = []
     try:
         raw = await generate_books_via_llm(count=max(need + 2, 5), exclude_titles=exclude_titles, genre=genre, query=query)
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception("Generation failed")
+        logger.warning(f"Gemini generation failed, falling back to Google Books: {e}")
+        raw = []
+
+    # FALLBACK: if Gemini returned nothing OR errored, use Google Books for real books fast
+    if not raw or len(raw) < need:
+        gb_query = query or genre or "novela bestseller en español"
+        gb_books = await fetch_books_from_google(gb_query, count=need + 2, exclude_titles=exclude_titles)
+        # Merge (keep Gemini-generated if any, append Google Books)
+        seen_titles = {b.get("title", "").lower() for b in raw}
+        for gb in gb_books:
+            if gb["title"].lower() not in seen_titles:
+                raw.append(gb)
+
+    if not raw:
+        # Last-resort: return existing if any, otherwise error
         if existing:
             return {"books": existing}
-        raise HTTPException(500, f"Generation failed: {e}")
+        raise HTTPException(503, "No books available right now. Please try again.")
 
     new_books = await persist_books(raw)
     combined = existing + [b.dict() for b in new_books if b.book_id not in seen_ids]
