@@ -7,7 +7,7 @@ import asyncio
 import re
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Set
 
 import httpx
 from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends, Cookie, Header
@@ -407,36 +407,85 @@ async def fetch_books_from_google(query: str, count: int = 20, exclude_titles: L
         logger.warning(f"Google Books fallback failed: {e}")
         return []
         
-async def get_books_feed(query: str = None, genre: str = None, count: int = 10, existing: list = [], seen_ids: set = set()):
-    need = count - len(existing)
-    all_titles_docs = await db.books.find({}, {"_id": 0, "title": 1}).to_list(500)
-    exclude_titles = [d["title"] for d in all_titles_docs]
-    raw: List[dict] = []
-    try:
-        raw = await generate_books_via_llm(count=max(need + 2, 5), exclude_titles=exclude_titles, genre=genre, query=query)
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.warning(f"Gemini generation failed, falling back to Google Books: {e}")
-        raw = []
+async def get_books_feed(
+    query: Optional[str] = None, 
+    genre: Optional[str] = None, 
+    count: int = 10, 
+    existing: Optional[list] = None, 
+    seen_ids: Optional[Set[str]] = None
+):
+    # Inicialización correcta de mutables para proteger el historial de tus usuarios
+    existing = existing or []
+    seen_ids = seen_ids or set()
+    
+    # Títulos que ya tenemos en el feed para no duplicar en esta misma llamada
+    local_excluded_titles = {b.get("title", "").lower() for b in existing}
 
-    # FALLBACK: if Gemini returned nothing OR errored, use Google Books for real books fast
-    if not raw or len(raw) < need:
-        gb_query = query or genre or "novela bestseller en español"
-        gb_books = await fetch_books_from_google(gb_query, count=need + 2, exclude_titles=exclude_titles)
-        seen_titles = {b.get("title", "").lower() for b in raw}
-        for gb in gb_books:
-            if gb["title"].lower() not in seen_titles:
-                raw.append(gb)
+    # Intentos máximos para evitar bucles infinitos si las APIs fallan o van lentas
+    max_attempts = 3  
+    attempt = 0
 
-    if not raw:
-        if existing:
-            return {"books": existing}
-        raise HTTPException(503, "No books available right now. Please try again.")
+    while len(existing) < count and attempt < max_attempts:
+        attempt += 1
+        need = count - len(existing)
+        raw: List[dict] = []
 
-    new_books = await persist_books(raw)
-    combined = existing + [b.dict() for b in new_books if b.book_id not in seen_ids]
-    return {"books": combined[:count]}
+        # 1. PRIMERA OPCIÓN (VÍA DIRECTA Y RÁPIDA): Google Books directo
+        try:
+            gb_query = query or genre or "novela bestseller en español"
+            # Pedimos un exceso generoso para compensar filtros
+            raw = await fetch_books_from_google(
+                gb_query, 
+                count=need + 5, 
+                exclude_titles=list(local_excluded_titles)
+            )
+        except Exception as e:
+            logger.warning(f"Google Books call failed on attempt {attempt}: {e}")
+            raw = []
+
+        # 2. PLAN B (RESPALDO): IA si Google no aportó lo suficiente
+        if len(raw) < need:
+            try:
+                ai_count = max(need + 5, 5)
+                ai_books = await generate_books_via_llm(
+                    count=ai_count, 
+                    exclude_titles=list(local_excluded_titles), 
+                    genre=genre, 
+                    query=query
+                )
+                # Combinar evitando duplicados internos de esta tanda
+                current_raw_titles = {b.get("title", "").lower() for b in raw}
+                for ab in ai_books:
+                    if ab.get("title", "").lower() not in current_raw_titles:
+                        raw.append(ab)
+            except Exception as e:
+                logger.warning(f"Backup AI generation failed on attempt {attempt}: {e}")
+
+        # Si ninguna fuente dio libros en ESTE intento, pasamos al siguiente gracias al 'continue'
+        if not raw:
+            continue
+
+        # 3. Guardar en base de datos y filtrar por historial del usuario (seen_ids)
+        new_books = await persist_books(raw)
+        
+        for b in new_books:
+            b_dict = b.dict()
+            title_lower = b_dict.get("title", "").lower()
+            
+            # Filtramos: que no esté en seen_ids Y que no lo hayamos metido ya en este feed
+            if b.book_id not in seen_ids and title_lower not in local_excluded_titles:
+                existing.append(b_dict)
+                local_excluded_titles.add(title_lower)
+                
+                # Si ya llenamos el feed con los 10 que queríamos, no procesamos más
+                if len(existing) >= count:
+                    break
+
+    # Si después de los intentos no hay nada en absoluto en el feed
+    if not existing:
+        raise HTTPException(503, "No hay libros disponibles en este momento. Por favor, inténtalo de nuevo.")
+
+    return {"books": existing[:count]}
     
 
 async def lookup_cover(title: str, author: str) -> Optional[str]:
