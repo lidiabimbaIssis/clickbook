@@ -1,8 +1,8 @@
-const EXPO_PUBLIC_BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-export const API_BASE = `${EXPO_PUBLIC_BACKEND_URL}/api`;
+export const API_BASE = "https://clickbook-production.up.railway.app/api";
 export const SESSION_KEY = "session_token";
+
 
 async function getToken(): Promise<string | null> {
   try {

@@ -88,7 +88,11 @@ const styles = StyleSheet.create({
   benefitText: { color: colors.textOnDark, fontSize: 13, flex: 1 },
   plans: { flexDirection: "row", gap: 10, marginTop: 18 },
   plan: { flex: 1, borderWidth: 1, borderColor: colors.brassSoft, borderRadius: 14, padding: 12, alignItems: "center", backgroundColor: "rgba(0,240,255,0.05)" },
-  planFeatured: { borderColor: colors.gold, backgroundColor: "rgba(255,210,63,0.08)", borderWidth: 2, shadowColor: colors.gold, shadowOpacity: 0.5, shadowRadius: 10, shadowOffset: { width: 0, height: 0 }, elevation: 6 },
+ planFeatured: {
+    borderColor: colors.gold,
+    backgroundColor: "transparent",
+    borderWidth: 2,
+  },
   planMuted: { opacity: 0.55 },
   planName: { color: colors.textOnDarkMuted, fontSize: 11, fontWeight: "800", letterSpacing: 2 },
   priceOld: { color: colors.textOnDarkMuted, fontSize: 12, textDecorationLine: "line-through", marginTop: 4 },

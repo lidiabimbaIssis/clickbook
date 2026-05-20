@@ -187,12 +187,12 @@ function SlideGestures() {
       titleColor={colors.copper}
       highlight={
         <View style={{ alignItems: "center", gap: 4 }}>
-          <Text style={styles.highlight}>4 gestos. 4 superpoderes.</Text>
+          <Text style={styles.highlight}>Navega entre Libros.</Text>
           <View style={styles.gestureLegend}>
-            <Legend symbol="←" color={colors.iron} text="pasa" />
-            <Legend symbol="→" color={colors.verdigris} text="favorito" />
-            <Legend symbol="↑" color={colors.copper} text="ficha" />
-            <Legend symbol="↓" color={colors.copper} text="resumen" />
+           
+    
+            <Legend symbol="↑" color={colors.copper} text="Siguiente Libro" />
+            <Legend symbol="↓" color={colors.copper} text="Libro Anterior" />
           </View>
         </View>
       }

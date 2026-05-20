@@ -12,7 +12,7 @@ import {
   RefreshControl,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { api, Book } from "../../src/lib/api";
 import { useAuth } from "../../src/providers/AuthProvider";
@@ -42,6 +42,11 @@ export default function Favorites() {
   useEffect(() => {
     load();
   }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
 
   const remove = async (id: string) => {
     setBooks((prev) => prev.filter((b) => b.book_id !== id));
@@ -75,7 +80,7 @@ export default function Favorites() {
         <View style={styles.empty}>
           <Ionicons name="book-outline" size={64} color={colors.brass} />
           <Text style={styles.emptyText}>Aún no has guardado ningún libro.</Text>
-          <Text style={styles.emptyHint}>Desliza a la derecha para guardar favoritos.</Text>
+          <Text style={styles.emptyHint}>Marca el corazón para guardar favoritos.</Text>
         </View>
       ) : (
         <FlatList
