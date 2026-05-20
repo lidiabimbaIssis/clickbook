@@ -524,6 +524,8 @@ def build_store_urls(title: str, author: str) -> dict:
 
 
 async def persist_books(raw_books: List[dict]) -> List[Book]:
+    if not raw_books:
+        return []
     # Step 1: Pre-process and filter existing
     candidates = []
     saved: List[Book] = []
