@@ -524,6 +524,8 @@ def build_store_urls(title: str, author: str) -> dict:
 
 
 async def persist_books(raw_books: List[dict]) -> List[Book]:
+    if not raw_books:
+        return []
     # Step 1: Pre-process and filter existing
     candidates = []
     saved: List[Book] = []
@@ -594,9 +596,10 @@ async def persist_books(raw_books: List[dict]) -> List[Book]:
 
 # ----------------- Book routes -----------------
 @api_router.get("/books/feed")
-async def books_feed(count: int = 5, genre: Optional[str] = None, query: Optional[str] = None, user: User = Depends(get_current_user)):
+async def books_feed(count: int = 5, genre: Optional[str] = None, query: Optional[str] = None):
     # Books user has interacted with
-    interactions = await db.user_interactions.find({"user_id": user.user_id}, {"_id": 0, "book_id": 1}).to_list(10000)
+    user_id = "invitado_temporal"
+    interactions = await db.user_interactions.find({"user_id": user_id}, {"_id": 0, "book_id": 1}).to_list(10000)
     seen_ids = {i["book_id"] for i in interactions}
 
     # If query is provided, try existing matches first
