@@ -1,0 +1,42 @@
+{
+  "summary": "Backend tests for Vapor & Tinta (Steampunk book discovery) — 15/15 pytest tests passing (100%). Verified healthcheck, auth (401 without/with invalid token, 200 with valid Bearer session), language update with validation, Gemini-3-flash book feed (returns exactly 3 books with all required fields including bilingual synopsis/summary, store URLs, cover), like/dislike interactions, favorites GET + DELETE, reset clears only dislikes, OpenAI TTS returns valid base64 mp3, feed pagination excludes already-interacted books, and logout invalidates session.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/books/feed", "issue": "Feed only excludes books that the user explicitly liked/disliked. Books shown but never interacted with can re-appear on next feed call. If business intent is 'never re-show a book once seen', the server must record an impression for every book served. Current behavior is consistent and intentional-looking, just calling it out."},
+      {"endpoint": "POST /api/books/interact", "issue": "Endpoint accepts a raw dict instead of a Pydantic model — minor input-validation hygiene; missing/invalid keys correctly return 400 but a Pydantic model would give clearer errors."},
+      {"endpoint": "POST /api/auth/session", "issue": "Cookie is set with secure=True and samesite='none' which is fine for HTTPS preview; couldn't be tested end-to-end without a real Emergent session_id (expected — uses Google OAuth)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_steampunk_books.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Optional: Decide if 'seen but not interacted' books should also be excluded from future feeds. If yes, persist an impression record on each /books/feed call.",
+    "Optional: Convert /api/books/interact body to a Pydantic model (BookInteractRequest with book_id: str, action: Literal['like','dislike']) for cleaner validation."
+  ],
+  "critical_code_review_comments": [
+    "server.py is ~440 lines — still within limits but approaching the point where splitting into routers (auth, books, tts) is worthwhile.",
+    "Mongo _id is correctly excluded everywhere via projection {'_id': 0}.",
+    "All env vars are read without defaults (MONGO_URL, DB_NAME, EMERGENT_LLM_KEY) — fails fast as expected.",
+    "Auth dependency supports both Authorization: Bearer and cookie; expiration handled with timezone-aware comparison — good.",
+    "Gemini JSON parsing strips markdown fences and uses regex fallback — robust.",
+    "TTS endpoint truncates to 4000 chars — sensible to avoid OpenAI limits."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_steampunk_books.py (created)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "N/A (backend-only request)"},
+  "seed_data_creation": "Test sessions and users are created/torn down in MongoDB per test module via pymongo (prefixed with TEST_). One stray session created during initial smoke check (test_session_1777489036248) — left behind, harmless, will expire in 7 days.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend is healthy. Use /app/backend/tests/test_steampunk_books.py as regression suite. It self-provisions a TEST_ session in Mongo, runs Gemini feed (~25s) and OpenAI TTS (~3s), and cleans up. To re-run: `pytest backend/tests/test_steampunk_books.py -v`. EXPO_PUBLIC_BACKEND_URL is read from env; default falls back to the preview URL.",
+  "rca_of_issue": "N/A — no failing tests after one test-script correction. Initial pagination test failed because it asserted that all 3 books from feed[0] would be excluded from feed[1], but the implementation only excludes books the user has interacted with (like/dislike). Adjusted the test to interact with all 3 books before the second feed call, which correctly excludes them. The backend logic itself is correct as-implemented."
+}
