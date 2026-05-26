@@ -108,18 +108,22 @@ async def get_current_user(
     request: Request,
     authorization: Optional[str] = Header(None),
     session_token: Optional[str] = Cookie(None),
-) -> User:
+) -> Optional[User]: # <--- Ahora puede devolver un usuario o nada
     token = None
     if authorization and authorization.lower().startswith("bearer "):
         token = authorization.split(" ", 1)[1].strip()
     elif session_token:
         token = session_token
+    
+    # CAMBIO 1: Si no hay token, en lugar de error, devolvemos None
     if not token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+        return None 
 
     session = await db.user_sessions.find_one({"session_token": token}, {"_id": 0})
+    
+    # CAMBIO 2: Si la sesión no existe, igual, devolvemos None
     if not session:
-        raise HTTPException(status_code=401, detail="Invalid session")
+        return None 
 
     expires_at = session["expires_at"]
     if isinstance(expires_at, str):
@@ -127,12 +131,10 @@ async def get_current_user(
     if expires_at.tzinfo is None:
         expires_at = expires_at.replace(tzinfo=timezone.utc)
     if expires_at < datetime.now(timezone.utc):
-        raise HTTPException(status_code=401, detail="Session expired")
+        return None # Sesión expirada = invitado
 
     user_doc = await db.users.find_one({"user_id": session["user_id"]}, {"_id": 0})
-    if not user_doc:
-        raise HTTPException(status_code=401, detail="User not found")
-    return User(**user_doc)
+    return User(**user_doc) if user_doc else None
 
 
 # ----------------- Auth routes -----------------
@@ -598,7 +600,7 @@ async def persist_books(raw_books: List[dict]) -> List[Book]:
 @api_router.get("/books/feed")
 async def books_feed(count: int = 5, genre: Optional[str] = None, query: Optional[str] = None):
     # Books user has interacted with
-    user_id = "invitado_temporal"
+    user_id = "invitado_temporal" 
     interactions = await db.user_interactions.find({"user_id": user_id}, {"_id": 0, "book_id": 1}).to_list(10000)
     seen_ids = {i["book_id"] for i in interactions}
 
