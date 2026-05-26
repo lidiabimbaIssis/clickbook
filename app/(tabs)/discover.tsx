@@ -1,14 +1,16 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions, ActivityIndicator, Platform, Linking, ScrollView, Modal, FlatList } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { createAudioPlayer } from "expo-audio";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import{  useLocalSearchParams, useRouter } from "expo-router";
 import { api, Book } from "../../src/lib/api";
 import { useAuth } from "../../src/providers/AuthProvider";
 import { colors } from "../../src/theme";
 import PaywallModal from "../../src/components/PaywallModal";
 import { shareContent } from "../../src/lib/share";
+import ShareCard from "../../src/components/ShareCard";
+import { captureAndShare } from "../../src/lib/share";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 
@@ -52,6 +54,7 @@ export default function Discover() {
   const [premiumSummaries, setPremiumSummaries] = useState<Record<string, string>>({});
   const playerRef = useRef<any>(null);
   const listRef = useRef<FlatList<Book>>(null);
+  const shareCardRef = useRef<View>(null);
 
   const stopAudio = useCallback(() => {
     try { playerRef.current?.pause?.(); playerRef.current?.remove?.(); } catch {}
@@ -59,39 +62,55 @@ export default function Discover() {
     setPlaying(false);
   }, []);
 
-  const fetchBooks = useCallback(async (initial: boolean) => {
-    if (initial) setLoading(true);
-    try {
-      const targetCount = query ? 30 : 10;
-      const qp = query ? `&query=${encodeURIComponent(query)}` : "";
-      const res = await api<{ books: Book[] }>(`/books/feed?count=${targetCount}${qp}`);
-      setBooks((prev) => {
-        const existingIds = new Set(prev.map((b) => b.book_id));
-        const incoming = (res?.books || []).filter((b) => !existingIds.has(b.book_id));
-        return [...prev, ...incoming];
-      });
-    } catch (e) { console.warn("feed error", e); } finally { setLoading(false); }
-  }, [query]);
+const fetchBooks = useCallback(async (initial: boolean) => {
+  if (initial) setLoading(true);
+  try {
+    const targetCount = 30;
+    
+    // CAMBIO AQUÍ: Si hay búsqueda, usamos /books/search, si no, /books/feed
+    const endpoint = query ? `/books/search?query=${encodeURIComponent(query)}` : `/books/feed?count=${targetCount}`;
+    
+    const res = await api<{ books: Book[] }>(endpoint);
+    
+    setBooks((prev) => {
+      const existingIds = new Set(prev.map((b) => b.book_id));
+      const incoming = (res?.books || []).filter((b) => !existingIds.has(b.book_id));
+      return initial ? res?.books || [] : [...prev, ...incoming];
+    });
+  } catch (e) { 
+    console.warn("feed error", e); 
+  } finally { 
+    setLoading(false); 
+  }
+}, [query]); // query es la dependencia que hace que esto se refresque
 
   const loadFavorites = useCallback(async () => {
     try { const res = await api<{ books: Book[] }>("/favorites"); setFavBookIds(new Set(res.books.map((b) => b.book_id))); } catch {}
   }, []);
 
- useEffect(() => {
-    setBooks([]);
-    setCurrentIndex(0);
-    (async () => {
-      if (seedBookId) {
-        try {
-          const seed = await api<Book>(`/books/${seedBookId}`);
-          if (seed) setBooks([seed]);
-        } catch {}
-      }
-      fetchBooks(true);
-    })();
-    loadFavorites();
-    return () => stopAudio();
-  }, [fetchBooks, loadFavorites, stopAudio, seedBookId]);
+useEffect(() => {
+  setBooks([]);
+  setCurrentIndex(0);
+  setLoading(true); // Aseguramos que el estado de carga esté activo
+
+  (async () => {
+    try {
+      // 1. Cargamos primero los libros (si hay búsqueda, se usará el 'query')
+      await fetchBooks(true);
+      
+      // 2. Solo después, intentamos cargar favoritos. 
+      // Si esto falla (401), NO afectará a los libros que ya cargaron arriba.
+      loadFavorites(); 
+    } catch (e) {
+      console.error("Error crítico en carga inicial:", e);
+      setLoading(false);
+    }
+  })();
+
+  return () => stopAudio();
+  // Eliminamos loadFavorites de las dependencias para que no se re-ejecute
+  // cuando no debe.
+}, [fetchBooks, stopAudio, seedBookId]);
 
   const current = books[currentIndex];
   const isFav = current ? favBookIds.has(current.book_id) : false;
@@ -153,9 +172,11 @@ export default function Discover() {
     try {
       const fallback = lang === "es" ? current.summary_es : current.summary_en;
       const hookText = (premiumSummaries[current.book_id] || fallback || "").split(/\.\s/)[0];
-      const text = `📖 "${current.title}" — ${current.author}\n\n${hookText}.\n\n⚡ Descúbrelo en ClickBook · una historia en 60 segundos.`;
-      await shareContent({ title: current.title, text, url: "https://clickbook.app" });
-    } catch (e) { console.warn("share book failed", e); }
+      await new Promise((r) => setTimeout(r, 100));
+      await captureAndShare(shareCardRef.current, `clickbook-${current.book_id}`);
+    } catch (e) {
+      console.warn("share book failed", e);
+    }
   };
 
   const openStore = (url: string) => {
@@ -228,16 +249,48 @@ export default function Discover() {
         <SideButton icon="information-circle" color={colors.verdigris} onPress={() => setInfoOpen(true)} testID="btn-info" />
         <SideButton icon={isFav ? "heart" : "heart-outline"} color={colors.iron} onPress={toggleFavorite} testID="btn-favorite" />
         <SideButton icon={playing ? "pause" : "headset"} color={colors.brass} onPress={() => { setAudioOpen(true); playAudio(); }} loading={audioLoading} testID="btn-audio" />
+        
+        {/* IA del Autor (Cerebro) — Color Cian Eléctrico con tu lógica Premium */}
+        <SideButtonMC icon="brain" color="#A020F0" onPress={openAuthorChat} testID="btn-author-ia" />
+        
+        {/* Reseñas — Color Rosa Neón / Magenta con la estrella */}
+        <SideButton icon="star" color="#CCFF00"onPress={() => router.push({ pathname: "/reviews", params: { book_id: current.book_id, title: current.title, author: current.author } })} testID="btn-reviews" />
       </View>
 
       <View style={[styles.buyRow, { paddingBottom: insets.bottom + 6 }]} pointerEvents="box-none">
-        <BuyBtn label="Amazon" icon="logo-amazon" onPress={() => openStore(current.amazon_url)} testID="btn-buy-amazon" />
-        <BuyBtn label="Casa del Libro" icon="book" onPress={() => openStore(current.casa_del_libro_url)} testID="btn-buy-casa" />
+        
+        {/* Botón de Amazon: Contenedor dorado/amarillo, Icono y Texto en NARANJA */}
+        <TouchableOpacity testID="btn-buy-amazon" style={styles.buyBtn} onPress={() => openStore(current.amazon_url)} activeOpacity={0.85}>
+          <Ionicons name="logo-amazon" size={16} color="#FF9900" />
+          <Text style={[styles.buyText, { color: "#FF9900" }]}>Amazon</Text>
+        </TouchableOpacity>
+        
+        {/* Botón de Casa del Libro: Contenedor dorado/amarillo, Icono y Texto en VERDE NEÓN */}
+        <TouchableOpacity testID="btn-buy-casa" style={styles.buyBtn} onPress={() => openStore(current.casa_del_libro_url)} activeOpacity={0.85}>
+          <Ionicons name="book" size={16} color="#00FF66" />
+          <Text style={[styles.buyText, { color: "#00FF66" }]}>Casa del Libro</Text>
+        </TouchableOpacity>
+
       </View>
 
       <FlashCardModal visible={infoOpen} book={current} lang={lang} onClose={() => setInfoOpen(false)} onAuthorChat={openAuthorChat} isPremium={!!user?.is_premium} />
       <AudioModal visible={audioOpen} book={current} lang={lang} playing={playing} loading={audioLoading} text={premiumSummaries[current.book_id]} onPlay={playAudio} onClose={() => { setAudioOpen(false); stopAudio(); }} />
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} reason={paywallReason} onUpgraded={async () => { await refreshAuth(); }} />
+    {/* Tarjeta invisible para la captura PNG */}
+      <View style={{ position: "absolute", left: -9999, top: -9999, width: 540, height: 960 }} pointerEvents="none">
+        {current && (
+          <ShareCard
+            ref={shareCardRef}
+            data={{
+              title: current.title,
+              author: current.author,
+              coverUrl: current.cover_url,
+              rating: current.rating,
+              hookText: (premiumSummaries[current.book_id] || (lang === "es" ? current.summary_es : current.summary_en) || "").split(/\.\s/)[0],
+            }}
+          />
+        )}
+      </View>
     </View>
   );
 }
@@ -279,6 +332,15 @@ function renderStarsCompact(rating: number) {
     arr.push(<Ionicons key={i} name={icon} size={11} color={colors.gold} style={{ marginHorizontal: 0.5 }} />);
   }
   return <View style={{ flexDirection: "row" }}>{arr}</View>;
+}
+function SideButtonMC({ icon, color, onPress, testID }: { icon: any; color: string; onPress: () => void; testID?: string; }) {
+  return (
+    <TouchableOpacity testID={testID} onPress={onPress} activeOpacity={0.7} style={styles.sideBtnWrap}>
+      <View style={[styles.sideBtn, { borderColor: color, shadowColor: color, shadowOpacity: 0.6, shadowRadius: 5 }]}>
+        <MaterialCommunityIcons name={icon} size={22} color={color} />
+      </View>
+    </TouchableOpacity>
+  );
 }
 
 function SideButton({ icon, color, onPress, loading, testID }: { icon: any; color: string; onPress: () => void; loading?: boolean; testID?: string; }) {

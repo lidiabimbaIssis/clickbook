@@ -132,6 +132,14 @@ export default function Settings() {
         <Ionicons name="log-out-outline" size={18} color={colors.iron} />
         <Text style={styles.logoutText}>Cerrar sesión</Text>
       </TouchableOpacity>
+      <TouchableOpacity 
+        onPress={() => router.push("/legal")} 
+        style={{ marginTop: 20, alignItems: 'center' }}
+      >
+        <Text style={{ color: 'gray', fontSize: 12, textAlign: 'center' }}>
+          Términos y Condiciones
+        </Text>
+      </TouchableOpacity>
 
       <Text style={styles.footer}>ClickBook · MMXXVI</Text>
 

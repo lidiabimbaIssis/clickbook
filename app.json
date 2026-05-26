@@ -36,10 +36,10 @@
     "plugins": [
       "expo-router",
       "expo-web-browser",
-       "expo-audio",
-       "expo-font"
-     ],
-      
+      "expo-audio",
+      "expo-font",
+      "expo-secure-store"
+    ],
     "experiments": {
       "typedRoutes": true
     },
