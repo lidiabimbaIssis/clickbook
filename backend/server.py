@@ -663,22 +663,37 @@ async def interact(body: dict, user: User = Depends(get_current_user)):
 
 
 @api_router.get("/favorites")
+@api_router.get("/favorites")
 async def get_favorites(user: User = Depends(get_current_user)):
+    # Si el usuario no existe, Depends(get_current_user) ya lanza un 401, 
+    # pero esto asegura que si llegamos aquí, user tiene valor.
+    if not user:
+        raise HTTPException(status_code=401, detail="Usuario no autenticado")
+
     favs = await db.user_interactions.find({"user_id": user.user_id, "action": "like"}, {"_id": 0}).sort("updated_at", -1).to_list(1000)
     book_ids = [f["book_id"] for f in favs]
+    
     if not book_ids:
         return {"books": []}
+    
     books = await db.books.find({"book_id": {"$in": book_ids}}, {"_id": 0}).to_list(1000)
+    
     # Preserve order
     order = {bid: i for i, bid in enumerate(book_ids)}
     books.sort(key=lambda b: order.get(b["book_id"], 9999))
     return {"books": books}
-    
+@api_router.get("/books/{book_id}")
 @api_router.get("/books/{book_id}")
 async def get_book(book_id: str, user: User = Depends(get_current_user)):
+    # Protección: si la autenticación falla, el servidor no explotará
+    if not user:
+        raise HTTPException(status_code=401, detail="Usuario no autenticado")
+    
     book = await db.books.find_one({"book_id": book_id}, {"_id": 0})
     if not book:
-        raise HTTPException(status_code=404, detail="book_not_found")
+        # Esto es lo que causaba tu error 404
+        raise HTTPException(status_code=404, detail=f"Libro con ID {book_id} no encontrado")
+        
     return book
 
 @api_router.delete("/favorites/{book_id}")
