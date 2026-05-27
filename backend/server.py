@@ -574,18 +574,13 @@ async def persist_books(raw_books: List[dict]) -> List[Book]:
 
 
 # ----------------- Book routes -----------------
-@api_router.get("/books/feed")
-async def books_feed(count: int = 10, genre: Optional[str] = None, query: Optional[str] = None):
-    # Esta es la ruta pública, sin seguridad para que puedas entrar
-    try:
-        # Consultamos todos los libros de la colección 'books'
-        # Usamos db.books que ya tienes configurado arriba en tu archivo
-        cursor = db.books.find({}, {"_id": 0}).limit(100)
-        books = await cursor.to_list(length=100)
-        
-        return {"books": books}
-    except Exception as e:
-        return {"books": []}
+@api_router.get("/books/search")
+async def search_books(query: str):
+    # Buscamos libros donde el título coincida con lo que escribes
+    # El '$options': 'i' sirve para que no importe si escribes mayúsculas o minúsculas
+    cursor = db.books.find({"title": {"$regex": query, "$options": "i"}}, {"_id": 0})
+    books = await cursor.to_list(length=100)
+    return {"books": books}
 
 @api_router.post("/books/interact")
 async def interact(body: dict, user: User = Depends(get_current_user)):
