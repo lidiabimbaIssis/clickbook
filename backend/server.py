@@ -363,7 +363,7 @@ async def fetch_books_from_google(query: str, count: int = 20, exclude_titles: L
     try:
         async with httpx.AsyncClient(timeout=6.0) as http_client:
             r = await http_client.get(
-                "https://www.googleapis.com/books/v1/volumes",
+                "https://books.googleapis.com/books/v1/volumes",
                 params={"q": q, "maxResults": min(40, count * 2), "langRestrict": "es", "printType": "books", "orderBy": "relevance"},
             )
         if r.status_code != 200:
@@ -596,42 +596,57 @@ async def persist_books(raw_books: List[dict]) -> List[Book]:
 
 # ----------------- Book routes -----------------
 @api_router.get("/books/feed")
-async def books_feed(count: int = 5, genre: Optional[str] = None, query: Optional[str] = None):
-    # Books user has interacted with
+async def books_feed(count: int = 10, genre: Optional[str] = None, query: Optional[str] = None):
+    # 1. Preparar exclusiones
     user_id = "invitado_temporal"
     interactions = await db.user_interactions.find({"user_id": user_id}, {"_id": 0, "book_id": 1}).to_list(10000)
     seen_ids = {i["book_id"] for i in interactions}
 
-    # If query is provided, try existing matches first
+    # 2. NIVEL 1: CONSULTA A MONGODB (Prioridad absoluta)
+    # Aquí buscamos primero en TUS 3 libros.
     mongo_query: dict = {"book_id": {"$nin": list(seen_ids)}}
     if query:
         q = {"$regex": query, "$options": "i"}
         mongo_query["$or"] = [{"title": q}, {"author": q}, {"genre": q}]
     elif genre:
         mongo_query["genre"] = {"$regex": genre, "$options": "i"}
+    
     existing = await db.books.find(mongo_query, {"_id": 0}).to_list(count)
 
+    # Si encontramos suficientes en tu Mongo, devolvemos eso y paramos.
+    # Así no gasta llamadas a Google ni a la IA.
     if len(existing) >= count:
         return {"books": existing[:count]}
 
-    # Generate more
+    # 3. NIVEL 2 y 3: SOLO SI FALTAN, llamamos al resto
+    # Calculamos cuántos nos faltan para llegar al 'count' deseado
     need = count - len(existing)
     all_titles_docs = await db.books.find({}, {"_id": 0, "title": 1}).to_list(500)
     exclude_titles = [d["title"] for d in all_titles_docs]
-    try:
-        raw = await generate_books_via_llm(count=max(need + 2, 5), exclude_titles=exclude_titles, genre=genre, query=query)
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception("Generation failed")
-        if existing:
-            return {"books": existing}
-        raise HTTPException(500, f"Generation failed: {e}")
+    
+    # Intentamos primero con Google
+    google_raw = await fetch_books_from_google(query or genre or "bestseller", count=need, exclude_titles=exclude_titles)
+    
+    if google_raw:
+        # Esto guarda en Mongo lo nuevo que encuentre y lo añade a 'existing'
+        new_books = await persist_books(google_raw)
+        for b in new_books:
+            if len(existing) < count:
+                existing.append(b.dict())
 
-    new_books = await persist_books(raw)
-    combined = existing + [b.dict() for b in new_books if b.book_id not in seen_ids]
-    return {"books": combined[:count]}
+    # Si todavía faltan, intentamos con la IA
+    if len(existing) < count:
+        need = count - len(existing)
+        try:
+            ai_raw = await generate_books_via_llm(count=need, exclude_titles=exclude_titles, genre=genre, query=query)
+            new_books = await persist_books(ai_raw)
+            for b in new_books:
+                if len(existing) < count:
+                    existing.append(b.dict())
+        except Exception as e:
+            logger.warning(f"La IA no pudo generar más: {e}")
 
+    return {"books": existing[:count]}
 
 @api_router.post("/books/interact")
 async def interact(body: dict, user: User = Depends(get_current_user)):
