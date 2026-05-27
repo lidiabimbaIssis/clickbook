@@ -108,35 +108,16 @@ async def get_current_user(
     request: Request,
     authorization: Optional[str] = Header(None),
     session_token: Optional[str] = Cookie(None),
-) -> Optional[User]: # <--- Ahora puede devolver un usuario o nada
-    token = None
-    if authorization and authorization.lower().startswith("bearer "):
-        token = authorization.split(" ", 1)[1].strip()
-    elif session_token:
-        token = session_token
-    
-    # CAMBIO 1: Si no hay token, en lugar de error, devolvemos None
-    if not token:
-        return None 
-
-    session = await db.user_sessions.find_one({"session_token": token}, {"_id": 0})
-    
-    # CAMBIO 2: Si la sesión no existe, igual, devolvemos None
-    if not session:
-        return None 
-
-    expires_at = session["expires_at"]
-    if isinstance(expires_at, str):
-        expires_at = datetime.fromisoformat(expires_at)
-    if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
-    if expires_at < datetime.now(timezone.utc):
-        return None # Sesión expirada = invitado
-
-    user_doc = await db.users.find_one({"user_id": session["user_id"]}, {"_id": 0})
-    return User(**user_doc) if user_doc else None
-
-
+) -> Optional[User]:
+    # --- MODO DESARROLLO: ESTO TE DA PASO LIBRE ---
+    # Simulamos un usuario administrador que siempre tiene acceso a todo.
+    return User(
+        user_id="admin_dev",
+        email="dev@clickbook.local",
+        name="Desarrolladora",
+        is_premium=True,
+        created_at=datetime.now(timezone.utc)
+    )
 # ----------------- Auth routes -----------------
 @api_router.post("/auth/session")
 async def exchange_session(req: SessionExchangeRequest, response: Response):
