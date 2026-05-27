@@ -104,13 +104,9 @@ class LangUpdate(BaseModel):
     lang: str
 
 # ----------------- Auth helpers -----------------
-async def get_current_user(
-    request: Request,
-    authorization: Optional[str] = Header(None),
-    session_token: Optional[str] = Cookie(None),
-) -> Optional[User]:
-    # --- MODO DESARROLLO: ESTO TE DA PASO LIBRE ---
-    # Simulamos un usuario administrador que siempre tiene acceso a todo.
+async def get_current_user(request: Request) -> User:
+    # --- MODO DESARROLLO: PASO LIBRE TOTAL ---
+    # Ignoramos cualquier token o header, devolvemos este usuario siempre.
     return User(
         user_id="admin_dev",
         email="dev@clickbook.local",
