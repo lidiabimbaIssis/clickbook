@@ -577,8 +577,13 @@ async def persist_books(raw_books: List[dict]) -> List[Book]:
 # --- RUTA DE FEED (ESENCIAL QUE ESTÉ AQUÍ PARA QUE NO DÉ 404) ---
 @api_router.get("/books/feed")
 async def books_feed(count: int = 30):
-    cursor = db.books.find({}, {"_id": 0}).limit(count)
-    books = await cursor.to_list(length=count)
+    # Esto busca TODOS los libros, sin importar el título, género o nada.
+    # Si hay libros ahí, el servidor los encontrará.
+    books = await db.books.find({}, {"_id": 0}).limit(count).to_list(length=count)
+    
+    # Esto nos ayudará a saber si el servidor ve algo
+    print(f"DEBUG: El servidor ha encontrado {len(books)} libros.")
+    
     return {"books": books}
 
 # --- RUTA DE BÚSQUEDA ---
