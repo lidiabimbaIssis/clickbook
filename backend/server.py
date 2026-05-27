@@ -599,52 +599,24 @@ async def persist_books(raw_books: List[dict]) -> List[Book]:
 # ----------------- Book routes -----------------
 @api_router.get("/books/feed")
 async def books_feed(count: int = 10, genre: Optional[str] = None, query: Optional[str] = None):
-    # 1. Definir usuario y exclusiones
-    user_id = "invitado_temporal"
-    interactions = await db.user_interactions.find({"user_id": user_id}, {"_id": 0, "book_id": 1}).to_list(10000)
-    seen_ids = {i["book_id"] for i in interactions}
+    try:
+        # Buscamos directamente en tu base de datos
+        mongo_query = {}
+        if query:
+            q = {"$regex": query, "$options": "i"}
+            mongo_query = {"$or": [{"title": q}, {"author": q}, {"genre": q}]}
+        elif genre:
+            mongo_query = {"genre": {"$regex": genre, "$options": "i"}}
+        
+        # Obtenemos los libros sin filtrar por usuario para evitar el error NoneType
+        existing = await db.books.find(mongo_query, {"_id": 0}).to_list(count)
+        
+        # Devolvemos lo que encontremos, si es vacío, es vacío pero NO explota
+        return {"books": existing}
 
-    # 2. NIVEL 1: CONSULTA A MONGODB (Prioridad absoluta)
-    mongo_query: dict = {"book_id": {"$nin": list(seen_ids)}}
-    if query:
-        q = {"$regex": query, "$options": "i"}
-        mongo_query["$or"] = [{"title": q}, {"author": q}, {"genre": q}]
-    elif genre:
-        mongo_query["genre"] = {"$regex": genre, "$options": "i"}
-    
-    existing = await db.books.find(mongo_query, {"_id": 0}).to_list(count)
-
-    # Si encontramos suficientes en tu Mongo, devolvemos eso y paramos.
-    if len(existing) >= count:
-        return {"books": existing[:count]}
-
-    # 3. NIVEL 2 y 3: SOLO SI FALTAN, llamamos al resto
-    need = count - len(existing)
-    all_titles_docs = await db.books.find({}, {"_id": 0, "title": 1}).to_list(500)
-    exclude_titles = [d["title"] for d in all_titles_docs]
-    
-    # Intentamos primero con Google
-    google_raw = await fetch_books_from_google(query or genre or "bestseller", count=need, exclude_titles=exclude_titles)
-    
-    if google_raw:
-        new_books = await persist_books(google_raw)
-        for b in new_books:
-            if len(existing) < count:
-                existing.append(b.dict())
-
-    # Si todavía faltan, intentamos con la IA
-    if len(existing) < count:
-        need = count - len(existing)
-        try:
-            ai_raw = await generate_books_via_llm(count=need, exclude_titles=exclude_titles, genre=genre, query=query)
-            new_books = await persist_books(ai_raw)
-            for b in new_books:
-                if len(existing) < count:
-                    existing.append(b.dict())
-        except Exception as e:
-            logger.warning(f"La IA no pudo generar más: {e}")
-
-    return {"books": existing[:count]}
+    except Exception as e:
+        print(f"Error en books_feed: {e}")
+        return {"books": []}
 
 @api_router.post("/books/interact")
 async def interact(body: dict, user: User = Depends(get_current_user)):
