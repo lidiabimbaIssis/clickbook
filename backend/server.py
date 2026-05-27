@@ -574,18 +574,25 @@ async def persist_books(raw_books: List[dict]) -> List[Book]:
 
 
 # ----------------- Book routes -----------------
+# --- RUTA DE FEED (ESENCIAL QUE ESTÉ AQUÍ PARA QUE NO DÉ 404) ---
+@api_router.get("/books/feed")
+async def books_feed(count: int = 30):
+    cursor = db.books.find({}, {"_id": 0}).limit(count)
+    books = await cursor.to_list(length=count)
+    return {"books": books}
+
+# --- RUTA DE BÚSQUEDA ---
 @api_router.get("/books/search")
 async def search_books(query: str):
-    # Buscamos libros donde el título coincida con lo que escribes
-    # El '$options': 'i' sirve para que no importe si escribes mayúsculas o minúsculas
     cursor = db.books.find({"title": {"$regex": query, "$options": "i"}}, {"_id": 0})
     books = await cursor.to_list(length=100)
     return {"books": books}
 
+# --- RUTA DE INTERACCIÓN ---
 @api_router.post("/books/interact")
 async def interact(body: dict, user: User = Depends(get_current_user)):
     book_id = body.get("book_id")
-    action = body.get("action")  # 'like', 'dislike'
+    action = body.get("action")
     if not book_id or action not in ("like", "dislike"):
         raise HTTPException(400, "book_id and action (like|dislike) required")
     await db.user_interactions.update_one(
@@ -595,53 +602,40 @@ async def interact(body: dict, user: User = Depends(get_current_user)):
     )
     return {"ok": True}
 
-
-@api_router.get("/favorites")
+# --- RUTA DE FAVORITOS ---
 @api_router.get("/favorites")
 async def get_favorites(user: User = Depends(get_current_user)):
-    # Si el usuario no existe, Depends(get_current_user) ya lanza un 401, 
-    # pero esto asegura que si llegamos aquí, user tiene valor.
     if not user:
         raise HTTPException(status_code=401, detail="Usuario no autenticado")
-
     favs = await db.user_interactions.find({"user_id": user.user_id, "action": "like"}, {"_id": 0}).sort("updated_at", -1).to_list(1000)
     book_ids = [f["book_id"] for f in favs]
-    
     if not book_ids:
         return {"books": []}
-    
     books = await db.books.find({"book_id": {"$in": book_ids}}, {"_id": 0}).to_list(1000)
-    
-    # Preserve order
     order = {bid: i for i, bid in enumerate(book_ids)}
     books.sort(key=lambda b: order.get(b["book_id"], 9999))
     return {"books": books}
-@api_router.get("/books/{book_id}")
+
+# --- RUTA DE LIBRO ESPECÍFICO (VA DEBAJO DEL FEED) ---
 @api_router.get("/books/{book_id}")
 async def get_book(book_id: str, user: User = Depends(get_current_user)):
-    # Protección: si la autenticación falla, el servidor no explotará
     if not user:
         raise HTTPException(status_code=401, detail="Usuario no autenticado")
-    
     book = await db.books.find_one({"book_id": book_id}, {"_id": 0})
     if not book:
-        # Esto es lo que causaba tu error 404
         raise HTTPException(status_code=404, detail=f"Libro con ID {book_id} no encontrado")
-        
     return book
 
+# --- RUTAS DE UTILIDAD ---
 @api_router.delete("/favorites/{book_id}")
 async def remove_favorite(book_id: str, user: User = Depends(get_current_user)):
     await db.user_interactions.delete_one({"user_id": user.user_id, "book_id": book_id, "action": "like"})
     return {"ok": True}
 
-
 @api_router.post("/books/reset")
 async def reset_history(user: User = Depends(get_current_user)):
-    """Clear discard history (keeps favorites)."""
     await db.user_interactions.delete_many({"user_id": user.user_id, "action": "dislike"})
     return {"ok": True}
-
 
 # ----------------- TTS -----------------
 # Google Cloud TTS — voces es-ES Neural2 nativas peninsulares
