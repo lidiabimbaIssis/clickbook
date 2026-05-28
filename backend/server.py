@@ -589,9 +589,39 @@ async def books_feed(count: int = 30):
 # --- RUTA DE BÚSQUEDA ---
 @api_router.get("/books/search")
 async def search_books(query: str):
-    cursor = db.books.find({"title": {"$regex": query, "$options": "i"}}, {"_id": 0})
+    # 1. Buscamos en tus campos reales de MongoDB
+    cursor = db.books.find({
+        "$or": [
+            {"pantalla_principal.titulo": {"$regex": query, "$options": "i"}},
+            {"pantalla_principal.autor": {"$regex": query, "$options": "i"}},
+            {"pantalla_principal.seals.label": {"$regex": query, "$options": "i"}}
+        ]
+    }, {"_id": 0})
+    
     books = await cursor.to_list(length=100)
-    return {"books": books}
+    
+    # 2. Traducimos tus datos al formato que la App sí sabe leer
+    formatted_books = []
+    for b in books:
+        pantalla = b.get("pantalla_principal", {})
+        ficha = b.get("ficha_tecnica", {})
+        vibes = b.get("vibes_data", {})
+        
+        formatted_books.append({
+            "book_id": str(b.get("_id", "")),
+            "title": pantalla.get("titulo"),
+            "author": pantalla.get("autor"),
+            "cover_url": pantalla.get("portada_url"),
+            "mood": pantalla.get("mood"),
+            "genre": pantalla.get("seals", [{}])[0].get("label") if pantalla.get("seals") else "",
+            "rating": vibes.get("rating_general", 0),
+            "summary_es": ficha.get("sinopsis"),
+            "pages": ficha.get("paginas"),
+            "year": ficha.get("ano"),
+            "total_reviews": vibes.get("total_reviews", 0)
+        })
+        
+    return {"books": formatted_books}
 
 # --- RUTA DE INTERACCIÓN ---
 @api_router.post("/books/interact")
