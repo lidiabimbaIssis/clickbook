@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions, ActivityIn
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { createAudioPlayer } from "expo-audio";
-import{  useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { api, Book } from "../../src/lib/api";
 import { useAuth } from "../../src/providers/AuthProvider";
 import { colors } from "../../src/theme";
@@ -63,54 +63,44 @@ export default function Discover() {
   }, []);
 
 const fetchBooks = useCallback(async (initial: boolean) => {
-  if (initial) setLoading(true);
-  try {
-    const targetCount = 30;
-    
-    // CAMBIO AQUÍ: Si hay búsqueda, usamos /books/search, si no, /books/feed
-    const endpoint = query ? `/books/search?query=${encodeURIComponent(query)}` : `/books/feed?count=${targetCount}`;
-    
-    const res = await api<{ books: Book[] }>(endpoint);
-    
-    setBooks((prev) => {
-      const existingIds = new Set(prev.map((b) => b.book_id));
-      const incoming = (res?.books || []).filter((b) => !existingIds.has(b.book_id));
-      return initial ? res?.books || [] : [...prev, ...incoming];
-    });
-  } catch (e) { 
-    console.warn("feed error", e); 
-  } finally { 
-    setLoading(false); 
-  }
-}, [query]); // query es la dependencia que hace que esto se refresque
-
-  const loadFavorites = useCallback(async () => {
-    try { const res = await api<{ books: Book[] }>("/favorites"); setFavBookIds(new Set(res.books.map((b) => b.book_id))); } catch {}
-  }, []);
-
-useEffect(() => {
-  setBooks([]);
-  setCurrentIndex(0);
-  setLoading(true); // Aseguramos que el estado de carga esté activo
-
-  (async () => {
+    if (initial) setLoading(true);
     try {
-      // 1. Cargamos primero los libros (si hay búsqueda, se usará el 'query')
-      await fetchBooks(true);
+      const targetCount = 30;
+      // Definimos la ruta dependiendo de si hay búsqueda o no
+      const endpoint = query 
+        ? `/books/search?query=${encodeURIComponent(query)}` 
+        : `/books/feed?count=${targetCount}`;
       
-      // 2. Solo después, intentamos cargar favoritos. 
-      // Si esto falla (401), NO afectará a los libros que ya cargaron arriba.
-      loadFavorites(); 
-    } catch (e) {
-      console.error("Error crítico en carga inicial:", e);
-      setLoading(false);
+      console.log("DEBUG: Llamando a:", endpoint);
+      const res = await api<{ books: Book[] }>(endpoint);
+      
+      console.log("DEBUG: Libros recibidos:", res?.books?.length || 0);
+      
+      setBooks(res?.books || []);
+    } catch (e) { 
+      console.warn("feed error", e); 
+    } finally { 
+      setLoading(false); 
     }
-  })();
+  }, [query]);
 
-  return () => stopAudio();
-  // Eliminamos loadFavorites de las dependencias para que no se re-ejecute
-  // cuando no debe.
-}, [fetchBooks, stopAudio, seedBookId]);
+  useEffect(() => {
+    // Esto se ejecuta solo una vez al cargar la pantalla
+    fetchBooks(true);
+    
+    // Cargamos favoritos aparte
+    const loadFavs = async () => {
+        try { 
+            const res = await api<{ books: Book[] }>("/favorites"); 
+            setFavBookIds(new Set(res.books.map((b) => b.book_id))); 
+        } catch (e) {
+            console.log("No se pudieron cargar favoritos (normal si no hay login)");
+        }
+    };
+    loadFavs();
+
+    return () => stopAudio();
+  }, []); // <--- El array vacío asegura que solo se ejecute al montar
 
   const current = books[currentIndex];
   const isFav = current ? favBookIds.has(current.book_id) : false;
@@ -167,11 +157,10 @@ useEffect(() => {
     router.push({ pathname: "/author-chat", params: { book_id: current.book_id, title: current.title, author: current.author } });
   };
 
-  const shareBook = async () => {
+ const shareBook = async () => {
     if (!current) return;
     try {
-      const fallback = lang === "es" ? current.summary_es : current.summary_en;
-      const hookText = (premiumSummaries[current.book_id] || fallback || "").split(/\.\s/)[0];
+      // PROTECCIÓN AQUÍ
       await new Promise((r) => setTimeout(r, 100));
       await captureAndShare(shareCardRef.current, `clickbook-${current.book_id}`);
     } catch (e) {
@@ -286,7 +275,8 @@ useEffect(() => {
               author: current.author,
               coverUrl: current.cover_url,
               rating: current.rating,
-              hookText: (premiumSummaries[current.book_id] || (lang === "es" ? current.summary_es : current.summary_en) || "").split(/\.\s/)[0],
+              // PROTECCIÓN AQUÍ: si el texto es undefined o null, devuelve "" vacío
+              hookText: ((premiumSummaries[current.book_id] || (lang === "es" ? current.summary_es : current.summary_en) || "").split(/\.\s/)[0] || ""),
             }}
           />
         )}
