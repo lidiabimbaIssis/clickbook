@@ -104,39 +104,16 @@ class LangUpdate(BaseModel):
     lang: str
 
 # ----------------- Auth helpers -----------------
-async def get_current_user(
-    request: Request,
-    authorization: Optional[str] = Header(None),
-    session_token: Optional[str] = Cookie(None),
-) -> Optional[User]: # <--- Ahora puede devolver un usuario o nada
-    token = None
-    if authorization and authorization.lower().startswith("bearer "):
-        token = authorization.split(" ", 1)[1].strip()
-    elif session_token:
-        token = session_token
-    
-    # CAMBIO 1: Si no hay token, en lugar de error, devolvemos None
-    if not token:
-        return None 
-
-    session = await db.user_sessions.find_one({"session_token": token}, {"_id": 0})
-    
-    # CAMBIO 2: Si la sesión no existe, igual, devolvemos None
-    if not session:
-        return None 
-
-    expires_at = session["expires_at"]
-    if isinstance(expires_at, str):
-        expires_at = datetime.fromisoformat(expires_at)
-    if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
-    if expires_at < datetime.now(timezone.utc):
-        return None # Sesión expirada = invitado
-
-    user_doc = await db.users.find_one({"user_id": session["user_id"]}, {"_id": 0})
-    return User(**user_doc) if user_doc else None
-
-
+async def get_current_user(request: Request) -> User:
+    # --- MODO DESARROLLO: PASO LIBRE TOTAL ---
+    # Ignoramos cualquier token o header, devolvemos este usuario siempre.
+    return User(
+        user_id="admin_dev",
+        email="dev@clickbook.local",
+        name="Desarrolladora",
+        is_premium=True,
+        created_at=datetime.now(timezone.utc)
+    )
 # ----------------- Auth routes -----------------
 @api_router.post("/auth/session")
 async def exchange_session(req: SessionExchangeRequest, response: Response):
@@ -365,7 +342,7 @@ async def fetch_books_from_google(query: str, count: int = 20, exclude_titles: L
     try:
         async with httpx.AsyncClient(timeout=6.0) as http_client:
             r = await http_client.get(
-                "https://www.googleapis.com/books/v1/volumes",
+                "https://books.googleapis.com/books/v1/volumes",
                 params={"q": q, "maxResults": min(40, count * 2), "langRestrict": "es", "printType": "books", "orderBy": "relevance"},
             )
         if r.status_code != 200:
@@ -597,48 +574,54 @@ async def persist_books(raw_books: List[dict]) -> List[Book]:
 
 
 # ----------------- Book routes -----------------
+# --- RUTA DE FEED (ESENCIAL QUE ESTÉ AQUÍ PARA QUE NO DÉ 404) ---
 @api_router.get("/books/feed")
-async def books_feed(count: int = 5, genre: Optional[str] = None, query: Optional[str] = None):
-    # Books user has interacted with
-    user_id = "invitado_temporal" 
-    interactions = await db.user_interactions.find({"user_id": user_id}, {"_id": 0, "book_id": 1}).to_list(10000)
-    seen_ids = {i["book_id"] for i in interactions}
+async def books_feed(count: int = 30):
+    # Esto busca TODOS los libros, sin importar el título, género o nada.
+    # Si hay libros ahí, el servidor los encontrará.
+    books = await db.books.find({}, {"_id": 0}).limit(count).to_list(length=count)
+    
+    # Esto nos ayudará a saber si el servidor ve algo
+    print(f"DEBUG: El servidor ha encontrado {len(books)} libros.")
+    
+    return {"books": books}
 
-    # If query is provided, try existing matches first
-    mongo_query: dict = {"book_id": {"$nin": list(seen_ids)}}
-    if query:
-        q = {"$regex": query, "$options": "i"}
-        mongo_query["$or"] = [{"title": q}, {"author": q}, {"genre": q}]
-    elif genre:
-        mongo_query["genre"] = {"$regex": genre, "$options": "i"}
-    existing = await db.books.find(mongo_query, {"_id": 0}).to_list(count)
+# --- RUTA DE BÚSQUEDA ---
+@api_router.get("/books/search")
+async def search_books(query: str):
+    # Buscamos en 'books' (minúsculas, como acordamos)
+    cursor = db.books.find({
+        "$or": [
+            {"pantalla_principal.titulo": {"$regex": query, "$options": "i"}},
+            {"pantalla_principal.autor": {"$regex": query, "$options": "i"}}
+        ]
+    })
+    
+    books = await cursor.to_list(length=100)
+    
+    formatted_books = []
+    for b in books:
+        pantalla = b.get("pantalla_principal", {})
+        vibes = b.get("vibes_data", {})
+        
+        # Aquí protegemos la App: si algo falta, ponemos un valor por defecto
+        formatted_books.append({
+            "book_id": str(b.get("_id", "")),
+            "title": pantalla.get("titulo", "Sin título"),
+            "author": pantalla.get("autor", "Autor desconocido"),
+            "cover_url": pantalla.get("portada_url", ""),
+            "mood": pantalla.get("mood", "N/A"),
+            # Si el rating falta, enviamos 0.0 para que la App no pete al hacer .toFixed()
+            "rating": float(vibes.get("rating_general", 0.0))
+        })
+        
+    return {"books": formatted_books}
 
-    if len(existing) >= count:
-        return {"books": existing[:count]}
-
-    # Generate more
-    need = count - len(existing)
-    all_titles_docs = await db.books.find({}, {"_id": 0, "title": 1}).to_list(500)
-    exclude_titles = [d["title"] for d in all_titles_docs]
-    try:
-        raw = await generate_books_via_llm(count=max(need + 2, 5), exclude_titles=exclude_titles, genre=genre, query=query)
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception("Generation failed")
-        if existing:
-            return {"books": existing}
-        raise HTTPException(500, f"Generation failed: {e}")
-
-    new_books = await persist_books(raw)
-    combined = existing + [b.dict() for b in new_books if b.book_id not in seen_ids]
-    return {"books": combined[:count]}
-
-
+# --- RUTA DE INTERACCIÓN ---
 @api_router.post("/books/interact")
 async def interact(body: dict, user: User = Depends(get_current_user)):
     book_id = body.get("book_id")
-    action = body.get("action")  # 'like', 'dislike'
+    action = body.get("action")
     if not book_id or action not in ("like", "dislike"):
         raise HTTPException(400, "book_id and action (like|dislike) required")
     await db.user_interactions.update_one(
@@ -648,38 +631,40 @@ async def interact(body: dict, user: User = Depends(get_current_user)):
     )
     return {"ok": True}
 
-
+# --- RUTA DE FAVORITOS ---
 @api_router.get("/favorites")
 async def get_favorites(user: User = Depends(get_current_user)):
+    if not user:
+        raise HTTPException(status_code=401, detail="Usuario no autenticado")
     favs = await db.user_interactions.find({"user_id": user.user_id, "action": "like"}, {"_id": 0}).sort("updated_at", -1).to_list(1000)
     book_ids = [f["book_id"] for f in favs]
     if not book_ids:
         return {"books": []}
     books = await db.books.find({"book_id": {"$in": book_ids}}, {"_id": 0}).to_list(1000)
-    # Preserve order
     order = {bid: i for i, bid in enumerate(book_ids)}
     books.sort(key=lambda b: order.get(b["book_id"], 9999))
     return {"books": books}
-    
+
+# --- RUTA DE LIBRO ESPECÍFICO (VA DEBAJO DEL FEED) ---
 @api_router.get("/books/{book_id}")
 async def get_book(book_id: str, user: User = Depends(get_current_user)):
+    if not user:
+        raise HTTPException(status_code=401, detail="Usuario no autenticado")
     book = await db.books.find_one({"book_id": book_id}, {"_id": 0})
     if not book:
-        raise HTTPException(status_code=404, detail="book_not_found")
+        raise HTTPException(status_code=404, detail=f"Libro con ID {book_id} no encontrado")
     return book
 
+# --- RUTAS DE UTILIDAD ---
 @api_router.delete("/favorites/{book_id}")
 async def remove_favorite(book_id: str, user: User = Depends(get_current_user)):
     await db.user_interactions.delete_one({"user_id": user.user_id, "book_id": book_id, "action": "like"})
     return {"ok": True}
 
-
 @api_router.post("/books/reset")
 async def reset_history(user: User = Depends(get_current_user)):
-    """Clear discard history (keeps favorites)."""
     await db.user_interactions.delete_many({"user_id": user.user_id, "action": "dislike"})
     return {"ok": True}
-
 
 # ----------------- TTS -----------------
 # Google Cloud TTS — voces es-ES Neural2 nativas peninsulares
@@ -903,7 +888,7 @@ PREMIUM_SUMMARY_PROMPT_ES = """Actúa como un crítico de libros experto en stor
 
 Estructura del resumen:
 
-El Gancho (10 seg): Empieza con una pregunta provocadora o el problema principal que resuelve el libro.
+l GaEncho (10 seg): Empieza con una pregunta provoadora o el problema principal que resuelve el libro.
 
 La Trama/Idea Central (30 seg): Explica de qué va sin hacer spoilers, enfocándote en la emoción o el beneficio.
 
