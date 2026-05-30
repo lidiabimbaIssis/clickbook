@@ -233,4 +233,5 @@ const styles = StyleSheet.create({
   compatCard: { width: 120, alignItems: "center" },
   compatCover: { width: 120, height: 180, borderRadius: 10, backgroundColor: colors.bgSurfaceLight, borderWidth: 1, borderColor: colors.brassSoft },
   compatTitle: { color: colors.textOnDark, fontSize: 12, fontWeight: "800", marginTop: 8, textAlign: "center" },
-  compatAuthor: { color: colors.brass, fontSize: 10, marginTop: 2, fontStyle: "italic" },
+  compatAuthor: { color: colors.brass, fontSize: 10, marginTop: 2, fontStyle: "italic" } // Aquí ya no debe haber coma
+});
