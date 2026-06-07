@@ -884,86 +884,44 @@ async def author_chat(book_id: str, req: AuthorChatRequest, user: User = Depends
 
 
 # ----------------- Premium Summary (audio script) -----------------
-PREMIUM_SUMMARY_PROMPT_ES = """Actúa como un crítico de libros experto en storytelling y marketing. Tu objetivo es escribir un guion de 150-180 palabras (exactamente 1 minuto de lectura) para el resumen del libro "{title}" de {author}.
+PREMIUM_SUMMARY_PROMPT_ES = """Actúa como un crítico de libros experto en storytelling. 
+Escribe un guion de 150-180 palabras (1 minuto de lectura) para el libro "{title}" de {author}.
 
-Estructura del resumen:
+DATOS REALES DEL LIBRO (úsalos, no inventes nada):
+- Género: {genre}
+- Tema principal: {tema}
+- Tono: {tono}
+- Público: {publico}
+- Edad recomendada: {edad}
+- Contenido sensible: {contenido_sensible}
+- Emociones que genera: {emociones}
+- Hook del libro: {hook}
 
-l GaEncho (10 seg): Empieza con una pregunta provoadora o el problema principal que resuelve el libro.
+Estructura:
+1. Enganche (10 seg): Empieza con una pregunta provocadora basada en el tema real.
+2. De qué va (30 seg): Explica sin spoilers, enfocándote en la emoción que genera.
+3. Para quién es (20 seg): Define el lector ideal basándote en público y tono.
 
-La Trama/Idea Central (30 seg): Explica de qué va sin hacer spoilers, enfocándote en la emoción o el beneficio.
-
-Por qué es para ti (20 seg): Define el perfil de lector que amará este libro (ej: "Si te gusta el estoicismo práctico...").
-
-Reglas de estilo:
-
-Tono: Dinámico, joven y directo (estilo YouTube/TikTok).
-
-Lenguaje: Usa frases cortas. Evita palabras complejas o "relleno".
-
-Formato: No uses listas, escribe un párrafo fluido porque este texto será leído por una voz sintética.
-
-Prohibido: No empieces con "Este libro trata sobre...". Empieza fuerte.
-
-Devuelve SOLO el guion en texto plano, sin títulos, sin comillas, sin etiquetas de sección, sin introducción."""
-
-PREMIUM_SUMMARY_PROMPT_EN = """Act as a book critic expert in storytelling and marketing. Your goal is to write a 150-180 word script (exactly 1 minute of reading) summarizing the book "{title}" by {author}.
-
-Summary structure:
-
-The Hook (10 sec): Start with a provocative question or the main problem the book solves.
-
-The Plot/Core Idea (30 sec): Explain what it's about without spoilers, focusing on emotion or benefit.
-
-Why It's For You (20 sec): Define the reader profile who will love this book.
-
-Style rules:
-
-Tone: Dynamic, young and direct (YouTube/TikTok style).
-
-Language: Use short sentences. Avoid complex or filler words.
-
-Format: Do NOT use lists, write a flowing paragraph because this text will be read by a synthetic voice.
-
-Forbidden: Don't start with "This book is about...". Start strong.
-
-Return ONLY the plain text script, no titles, no quotes, no section labels, no intro."""
-
+Reglas:
+- Tono dinámico, directo, estilo TikTok
+- Frases cortas, párrafo fluido (será voz sintética)
+- NO empieces con "Este libro trata sobre..."
+- Devuelve SOLO el texto, sin títulos ni etiquetas"""
 
 @api_router.get("/books/{book_id}/premium-summary")
 async def premium_summary(book_id: str, lang: str = "es", user: User = Depends(get_current_user)):
-    """Generate a premium 1-min audio script using the curated prompt. Cached per book+lang."""
     book = await db.books.find_one({"book_id": book_id}, {"_id": 0})
     if not book:
         raise HTTPException(404, "Book not found")
 
-    cache_field = f"premium_summary_{lang}"
-    cached = book.get(cache_field)
-    if cached:
-        return {"summary": cached, "lang": lang, "cached": True}
+    # Lee directamente el resumen escrito por nosotros
+    resumen = book.get("resumen_audio")
+    if resumen:
+        return {"summary": resumen, "lang": lang, "cached": True}
 
-    title = book["title"]
-    author = book["author"]
-    template = PREMIUM_SUMMARY_PROMPT_ES if lang == "es" else PREMIUM_SUMMARY_PROMPT_EN
-    prompt = template.format(title=title, author=author)
-
-    chat = LlmChat(
-        api_key=EMERGENT_LLM_KEY,
-        session_id=f"premium-{book_id}-{lang}",
-        system_message="Eres un crítico literario experto creando guiones de audio para resúmenes de libros, dinámicos y emocionantes.",
-    ).with_model("gemini", "gemini-3-flash-preview")
-
-    try:
-        response_text = await chat.send_message(UserMessage(text=prompt))
-        summary = response_text.strip()
-        # Clean common LLM artifacts
-        summary = re.sub(r"^```(?:\w+)?\s*", "", summary)
-        summary = re.sub(r"\s*```$", "", summary)
-        summary = summary.strip().strip('"').strip("'").strip()
-        await db.books.update_one({"book_id": book_id}, {"$set": {cache_field: summary}})
-        return {"summary": summary, "lang": lang, "cached": False}
-    except Exception as e:
-        logger.exception("Premium summary failed")
-        raise HTTPException(500, f"Premium summary failed: {e}")
+    # Fallback si el libro aún no tiene resumen_audio
+    fallback = book.get("hook", "Resumen no disponible aún.")
+    return {"summary": fallback, "lang": lang, "cached": False}
 
 
 # ----------------- Health -----------------
