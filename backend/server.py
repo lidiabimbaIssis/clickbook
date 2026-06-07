@@ -589,34 +589,17 @@ async def books_feed(count: int = 30):
 # --- RUTA DE BÚSQUEDA ---
 @api_router.get("/books/search")
 async def search_books(query: str):
-    # Buscamos en 'books' (minúsculas, como acordamos)
     cursor = db.books.find({
         "$or": [
-            {"pantalla_principal.titulo": {"$regex": query, "$options": "i"}},
-            {"pantalla_principal.autor": {"$regex": query, "$options": "i"}}
+            {"title": {"$regex": query, "$options": "i"}},
+            {"author": {"$regex": query, "$options": "i"}},
+            {"genre": {"$regex": query, "$options": "i"}},
+            {"tema": {"$regex": query, "$options": "i"}}
         ]
-    })
+    }, {"_id": 0})
     
     books = await cursor.to_list(length=100)
-    
-    formatted_books = []
-    for b in books:
-        pantalla = b.get("pantalla_principal", {})
-        vibes = b.get("vibes_data", {})
-        
-        # Aquí protegemos la App: si algo falta, ponemos un valor por defecto
-        formatted_books.append({
-            "book_id": str(b.get("_id", "")),
-            "title": pantalla.get("titulo", "Sin título"),
-            "author": pantalla.get("autor", "Autor desconocido"),
-            "cover_url": pantalla.get("portada_url", ""),
-            "mood": pantalla.get("mood", "N/A"),
-            # Si el rating falta, enviamos 0.0 para que la App no pete al hacer .toFixed()
-            "rating": float(vibes.get("rating_general", 0.0))
-        })
-        
-    return {"books": formatted_books}
-
+    return {"books": books}
 # --- RUTA DE INTERACCIÓN ---
 @api_router.post("/books/interact")
 async def interact(body: dict, user: User = Depends(get_current_user)):
