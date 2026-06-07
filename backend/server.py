@@ -617,6 +617,19 @@ async def search_books(query: str):
         
     return {"books": formatted_books}
 
+@api_router.get("/books/search")
+async def search_books(query: str, user: User = Depends(get_current_user)):
+    cursor = db.books.find({
+        "$or": [
+            {"title": {"$regex": query, "$options": "i"}},
+            {"author": {"$regex": query, "$options": "i"}},
+            {"genre": {"$regex": query, "$options": "i"}},
+            {"tema": {"$regex": query, "$options": "i"}}
+        ]
+    }, {"_id": 0})
+    books = await cursor.to_list(length=100)
+    return {"books": books}
+
 # --- RUTA DE INTERACCIÓN ---
 @api_router.post("/books/interact")
 async def interact(body: dict, user: User = Depends(get_current_user)):
