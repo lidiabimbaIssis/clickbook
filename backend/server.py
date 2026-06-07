@@ -616,6 +616,19 @@ async def search_books(query: str):
         })
         
     return {"books": formatted_books}
+@api_router.get("/books/search")
+async def search_books(query: str, user: User = Depends(get_current_user)):
+    cursor = db.books.find({
+        "$or": [
+            {"title": {"$regex": query, "$options": "i"}},
+            {"author": {"$regex": query, "$options": "i"}},
+            {"genre": {"$regex": query, "$options": "i"}},
+            {"tema": {"$regex": query, "$options": "i"}}
+        ]
+    }, {"_id": 0})
+    books = await cursor.to_list(length=100)
+    print(f"DEBUG SEARCH: query={query}, encontrados={len(books)}")  # ← AÑADE SOLO ESTA LÍNEA
+    return {"books": books}
 
 @api_router.get("/books/search")
 async def search_books(query: str, user: User = Depends(get_current_user)):
