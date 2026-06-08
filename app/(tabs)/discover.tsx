@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions, ActivityIn
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { createAudioPlayer } from "expo-audio";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import{  useLocalSearchParams, useRouter } from "expo-router";
 import { api, Book } from "../../src/lib/api";
 import { useAuth } from "../../src/providers/AuthProvider";
 import { colors } from "../../src/theme";
@@ -11,6 +11,7 @@ import PaywallModal from "../../src/components/PaywallModal";
 import { shareContent } from "../../src/lib/share";
 import ShareCard from "../../src/components/ShareCard";
 import { captureAndShare } from "../../src/lib/share";
+import { LinearGradient } from 'expo-linear-gradient';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 
@@ -55,6 +56,7 @@ export default function Discover() {
   const playerRef = useRef<any>(null);
   const listRef = useRef<FlatList<Book>>(null);
   const shareCardRef = useRef<View>(null);
+  
 
   const stopAudio = useCallback(() => {
     try { playerRef.current?.pause?.(); playerRef.current?.remove?.(); } catch {}
@@ -63,44 +65,64 @@ export default function Discover() {
   }, []);
 
 const fetchBooks = useCallback(async (initial: boolean) => {
-    if (initial) setLoading(true);
-    try {
-      const targetCount = 30;
-      // Definimos la ruta dependiendo de si hay búsqueda o no
-      const endpoint = query 
-        ? `/books/search?query=${encodeURIComponent(query)}` 
-        : `/books/feed?count=${targetCount}`;
-      
-      console.log("DEBUG: Llamando a:", endpoint);
-      const res = await api<{ books: Book[] }>(endpoint);
-      
-      console.log("DEBUG: Libros recibidos:", res?.books?.length || 0);
-      
-      setBooks(res?.books || []);
-    } catch (e) { 
-      console.warn("feed error", e); 
-    } finally { 
-      setLoading(false); 
-    }
-  }, [query]);
-
-  useEffect(() => {
-    // Esto se ejecuta solo una vez al cargar la pantalla
-    fetchBooks(true);
+  if (initial) setLoading(true);
+  try {
+    const targetCount = 30;
     
-    // Cargamos favoritos aparte
-    const loadFavs = async () => {
-        try { 
-            const res = await api<{ books: Book[] }>("/favorites"); 
-            setFavBookIds(new Set(res.books.map((b) => b.book_id))); 
-        } catch (e) {
-            console.log("No se pudieron cargar favoritos (normal si no hay login)");
-        }
-    };
-    loadFavs();
+    // CAMBIO AQUÍ: Si hay búsqueda, usamos /books/search, si no, /books/feed
+    const endpoint = query ? `/books/search?query=${encodeURIComponent(query)}` : `/books/feed?count=${targetCount}`;
+    
+    const res = await api<{ books: Book[] }>(endpoint);
+    
+    setBooks((prev) => {
+      const existingIds = new Set(prev.map((b) => b.book_id));
+      const incoming = (res?.books || []).filter((b) => !existingIds.has(b.book_id));
+      return initial ? res?.books || [] : [...prev, ...incoming];
+    });
+  } catch (e) { 
+    console.warn("feed error", e); 
+  } finally { 
+    setLoading(false); 
+  }
+}, [query]); // query es la dependencia que hace que esto se refresque
 
-    return () => stopAudio();
-  }, []); // <--- El array vacío asegura que solo se ejecute al montar
+  const loadFavorites = useCallback(async () => {
+    try { const res = await api<{ books: Book[] }>("/favorites"); setFavBookIds(new Set(res.books.map((b) => b.book_id))); } catch {}
+  }, []);
+
+useEffect(() => {
+  setBooks([]);
+  setCurrentIndex(0);
+  setLoading(true); // Aseguramos que el estado de carga esté activo
+
+
+  (async () => {
+    try {
+      // 1. Cargamos primero los libros (si hay búsqueda, se usará el 'query')
+      await fetchBooks(true);
+      
+      // 2. Solo después, intentamos cargar favoritos. 
+      // Si esto falla (401), NO afectará a los libros que ya cargaron arriba.
+      loadFavorites(); 
+    } catch (e) {
+      console.error("Error crítico en carga inicial:", e);
+      setLoading(false);
+    }
+  })();
+
+  return () => stopAudio();
+  // Eliminamos loadFavorites de las dependencias para que no se re-ejecute
+  // cuando no debe.
+}, [fetchBooks, stopAudio, seedBookId]);
+
+useEffect(() => {
+  if (!seedBookId || books.length === 0) return;
+  const idx = books.findIndex((b) => b.book_id === seedBookId);
+  if (idx >= 0 && listRef.current) {
+    listRef.current.scrollToIndex({ index: idx, animated: false });
+    setCurrentIndex(idx);
+  }
+}, [seedBookId, books]);
 
   const current = books[currentIndex];
   const isFav = current ? favBookIds.has(current.book_id) : false;
@@ -152,15 +174,18 @@ const fetchBooks = useCallback(async (initial: boolean) => {
 
   const openAuthorChat = () => {
     if (!current) return;
-    if (!user?.is_premium) { setPaywallReason("chat"); setPaywallOpen(true); setInfoOpen(false); return; }
     setInfoOpen(false);
-    router.push({ pathname: "/author-chat", params: { book_id: current.book_id, title: current.title, author: current.author } });
+    router.push({
+      pathname: "/author-chat",
+      params: { book_id: current.book_id, title: current.title, author: current.author },
+    });
   };
 
- const shareBook = async () => {
+  const shareBook = async () => {
     if (!current) return;
     try {
-      // PROTECCIÓN AQUÍ
+      const fallback = lang === "es" ? current.summary_es : current.summary_en;
+      const hookText = (premiumSummaries[current.book_id] || fallback || "").split(/\.\s/)[0];
       await new Promise((r) => setTimeout(r, 100));
       await captureAndShare(shareCardRef.current, `clickbook-${current.book_id}`);
     } catch (e) {
@@ -227,13 +252,7 @@ const fetchBooks = useCallback(async (initial: boolean) => {
         </TouchableOpacity>
       </View>
 
-      {query ? (
-        <View style={[styles.queryWrap, { top: insets.top + 56 }]} pointerEvents="none">
-          <Ionicons name="search" size={11} color={colors.copper} />
-          <Text style={styles.queryHint} numberOfLines={1}>{query}</Text>
-        </View>
-      ) : null}
-
+  
       <View style={styles.sideButtons} pointerEvents="box-none">
         <SideButton icon="information-circle" color={colors.verdigris} onPress={() => setInfoOpen(true)} testID="btn-info" />
         <SideButton icon={isFav ? "heart" : "heart-outline"} color={colors.iron} onPress={toggleFavorite} testID="btn-favorite" />
@@ -275,8 +294,7 @@ const fetchBooks = useCallback(async (initial: boolean) => {
               author: current.author,
               coverUrl: current.cover_url,
               rating: current.rating,
-              // PROTECCIÓN AQUÍ: si el texto es undefined o null, devuelve "" vacío
-              hookText: ((premiumSummaries[current.book_id] || (lang === "es" ? current.summary_es : current.summary_en) || "").split(/\.\s/)[0] || ""),
+              hookText: (premiumSummaries[current.book_id] || (lang === "es" ? current.summary_es : current.summary_en) || "").split(/\.\s/)[0],
             }}
           />
         )}
@@ -293,7 +311,7 @@ function BookSlide({ book }: { book: Book }) {
 
   return (
     <View style={[styles.slide, { width: SCREEN_W, height: SCREEN_H }]}>
-      <View style={{ position: "relative", width: coverW, alignItems: "center" }}>
+      <View style={{ position: "relative", width: coverW, alignItems: "center", marginTop: 23 }}>
         <View style={styles.topBadgesRow} pointerEvents="box-none">
           <View style={styles.moodPill}>
             <Text style={styles.moodPillIcon}>{mood.icon}</Text>
@@ -304,9 +322,45 @@ function BookSlide({ book }: { book: Book }) {
             <Text style={styles.ratingValue}>{book.rating.toFixed(1)}</Text>
           </View>
         </View>
-        <Image source={{ uri: book.cover_url }} style={{ width: coverW, height: coverH, borderRadius: 14 }} resizeMode="cover" />
+        
+        <Image 
+  source={{ uri: `https://res.cloudinary.com/ddppclcl1/image/upload/v1780422197/${book.book_id}.webp` }} 
+  style={{ 
+    width: coverW, 
+    height: coverH, 
+    borderRadius: 15, 
+    overflow: 'hidden' 
+  }}
+  onError={(e) => console.log("Error cargando imagen:", e.nativeEvent.error)} 
+/><LinearGradient
+    colors={['transparent', 'rgb(0, 0, 0)']}
+    start={{ x: 0.9, y: 0 }}
+    end={{ x: 1, y: 0}}
+    style={{
+      position: 'absolute',
+      top: 0,
+      bottom: 0,
+      right: 0,
+      width: '60%', // Puedes probar con '30%' si quieres que sea más estrecho
+    }}
+  />
+  
+</View>{/* ESTO LO VAMOS A PONER JUSTO DEBAJO DE LA PORTADA */}
+<View style={styles.pillContainer}>
+  {book.vibe_tags?.map((tag, index) => (
+    <React.Fragment key={index}>
+      <Text style={styles.pillText}>
+        {tag.icon} {tag.label}
+      </Text>
+      {/* Separador entre elementos */}
+      {index < (book.vibe_tags?.length || 0) - 1 && (
+        <Text style={styles.separator}>•</Text>
+      )}
+    </React.Fragment>
+  ))}
+</View>
+
       </View>
-    </View>
   );
 }
 
@@ -354,8 +408,8 @@ function BuyBtn({ label, icon, onPress, testID }: { label: string; icon: any; on
 
 function FlashCardModal({ visible, book, lang, onClose, onAuthorChat, isPremium }: { visible: boolean; book: Book; lang: "es" | "en"; onClose: () => void; onAuthorChat: () => void; isPremium: boolean; }) {
   const insets = useSafeAreaInsets();
-  const synopsis = lang === "es" ? book.synopsis_es : book.synopsis_en;
   const ext = (book as any) || {};
+
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.modalBackdrop}>
@@ -377,15 +431,21 @@ function FlashCardModal({ visible, book, lang, onClose, onAuthorChat, isPremium 
             <View style={styles.detailGrid}>
               <DetailItem label="TEMA" value={ext.tema || "—"} color={colors.iron} />
               <DetailItem label="TONO" value={ext.tono || "—"} color={colors.brass} />
-              <DetailItem label="TROPE" value={ext.trope || "—"} color={colors.iron} />
-              <DetailItem label="COMPLEJIDAD" value={ext.complejidad || "Media"} color={colors.brass} />
-              <DetailItem label="¿ES SAGA?" value={ext.es_saga || "No"} color={colors.iron} />
+              <DetailItem label="SUBGÉNERO" value={ext.subgenero || "—"} color={colors.iron} />
+              <DetailItem label="TROPE" value={ext.trope || "—"} color={colors.brass} />
+              <DetailItem label="SAGA" value={ext.saga_info || "Libro independiente"} color={colors.iron} />
               <DetailItem label="CONT. SENSIBLE" value={ext.contenido_sensible || "—"} color={colors.brass} />
-              <DetailItem label="PÚBLICO" value={ext.publico || "General"} color={colors.iron} />
-              <DetailItem label="EDAD" value={ext.edad || "+12"} color={colors.brass} />
+              <DetailItem label="DIFICULTAD" value={ext.ficha_lectura?.dificultad || "—"} color={colors.iron} />
+<             DetailItem label="ESTILO" value={ext.ficha_lectura?.estilo || "—"} color={colors.brass} />
             </View>
-            <Text style={styles.synopsisLabel}>SINOPSIS</Text>
-            <Text style={styles.synopsisText}>{synopsis}</Text>
+
+            {/* Bloque limpio sin título de la frase impactante */}
+            {ext.hook && (
+              <View style={styles.hookContainer}>
+                <Text style={styles.hookText}>"{ext.hook}"</Text>
+              </View>
+            )}
+
             <TouchableOpacity style={[styles.iaBtn, !isPremium && styles.iaBtnLocked]} onPress={onAuthorChat} activeOpacity={0.85} testID="btn-flash-author-chat">
               <Ionicons name={isPremium ? "chatbubbles" : "lock-closed"} size={16} color={isPremium ? colors.bgBase : colors.gold} />
               <Text style={[styles.iaBtnText, !isPremium && styles.iaBtnTextLocked]}>IA con el Autor {!isPremium && "(Premium)"}</Text>
@@ -454,7 +514,7 @@ const styles = StyleSheet.create({
   reloadBtn: { marginTop: 24, borderWidth: 1, borderColor: colors.brass, paddingHorizontal: 22, paddingVertical: 12, borderRadius: 999 },
   reloadText: { color: colors.brass, letterSpacing: 2, fontWeight: "700" },
   slide: { backgroundColor: colors.bgBase, alignItems: "center", justifyContent: "center" },
-  topBadgesRow: { position: "absolute", top: -55, left: 0, right: 0, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 4, zIndex: 8 },
+  topBadgesRow: { position: "absolute", top: -45, left: 0, right: 0, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 4, zIndex: 8 },
   moodPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 15, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: colors.brassSoft, backgroundColor: "rgba(6,1,15,0.85)" },
   moodPillIcon: { fontSize: 14 },
   moodPillLabel: { fontSize: 11, fontWeight: "800", letterSpacing: 1 },
@@ -470,7 +530,7 @@ const styles = StyleSheet.create({
   sideButtons: { position: "absolute", right: 10, top: "50%", marginTop: -90, gap: 16, alignItems: "center", zIndex: 10 },
   sideBtnWrap: { alignItems: "center" },
   sideBtn: { width: 42, height: 42, borderRadius: 21, borderWidth: 1.5, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(6,1,15,0.6)", shadowOpacity: 0.7, shadowRadius: 8, shadowOffset: { width: 0, height: 0 }, elevation: 5 },
-  buyRow: { position: "absolute", bottom: 0, left: 0, right: 0, flexDirection: "row", justifyContent: "space-between", gap: 8, paddingHorizontal: 12, zIndex: 10 },
+  buyRow: { position: "absolute", bottom: -23, left: 0, right: 0, flexDirection: "row", justifyContent: "space-between", gap: 8, paddingHorizontal: 12, zIndex: 10 },
   buyBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1.5, borderColor: colors.goldSoft, paddingHorizontal: 8, paddingVertical: 11, borderRadius: 12, backgroundColor: "rgba(0,0,0,0.6)" },
   buyText: { color: colors.gold, fontSize: 12, fontWeight: "800", letterSpacing: 0.5 },
   modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.85)", justifyContent: "flex-end" },
@@ -499,4 +559,30 @@ const styles = StyleSheet.create({
   audioBadge: { color: colors.copper, fontSize: 12, letterSpacing: 3, fontWeight: "900" },
   audioPlayBtn: { width: 50, height: 50, borderRadius: 25, borderWidth: 2, borderColor: colors.brass, alignItems: "center", justifyContent: "center", backgroundColor: colors.bgBase },
   dividerLine: { height: 1, backgroundColor: colors.copper, opacity: 0.4, marginTop: 10, marginBottom: 12 },
+  // ESTOS DOS SON LOS ÚNICOS QUE REALMENTE ESTAMOS AÑADIENDO:
+  pillContainer: {
+  flexDirection: 'row',
+  justifyContent: 'center',
+  alignItems: 'center',
+  backgroundColor: 'rgba(255, 255, 255, 0.07)', // Un toque muy suave de blanco transparente
+  paddingVertical: 5,
+  paddingHorizontal: 16,
+  borderRadius: 25, // Esto es lo que le da la forma de "pastilla" (pill)
+  borderWidth: 1,
+  borderColor: 'rgba(255, 255, 255, 0.23)',
+  marginTop: 8,
+  marginBottom: 10,
+},
+pillText: {
+  color: '#ffffff',
+  fontSize: 11,
+  marginHorizontal: 8,
+  fontWeight: '500',
+},
+separator: {
+  color: 'rgba(250, 249, 249, 0.64)',
+  fontSize: 12,
+},
+  hookContainer: { marginTop: 24, padding: 16, backgroundColor: 'rgba(255, 255, 255, 0.05)', borderRadius: 16, borderLeftWidth: 3, borderLeftColor: colors.copper },
+  hookText: { color: colors.textOnDark, fontSize: 16, fontStyle: 'italic', textAlign: 'center', lineHeight: 24, fontWeight: '500' },
 });

@@ -100,11 +100,21 @@ export default function Favorites() {
           renderItem={({ item }) => (
             <View style={styles.card} testID={`fav-card-${item.book_id}`}>
               <TouchableOpacity
-              onPress={() => router.push({ pathname: "/discover", params: { book_id: item.book_id } })}
+             onPress={() => router.push({ 
+  pathname: "/discover", 
+  params: { book_id: item.book_id } 
+})}
               activeOpacity={0.8}
               testID={`fav-open-${item.book_id}`}
               >
-                <Image source={{ uri: item.cover_url }} style={styles.cover} />
+                <Image 
+  source={{ 
+    uri: item.cover_url 
+      ? item.cover_url 
+      : `https://res.cloudinary.com/ddppclcl1/image/upload/v1780422197/${item.book_id}.webp` 
+  }} 
+  style={styles.cover} 
+/>
               </TouchableOpacity>
               <View style={styles.info}>
                 <Text style={styles.bookTitle} numberOfLines={2}>{item.title}</Text>
