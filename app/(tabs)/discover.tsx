@@ -268,17 +268,23 @@ useEffect(() => {
 
       <View style={[styles.buyRow, { paddingBottom: insets.bottom + 6 }]} pointerEvents="box-none">
         
-        {/* Botón de Amazon: Contenedor dorado/amarillo, Icono y Texto en NARANJA */}
-        <TouchableOpacity testID="btn-buy-amazon" style={styles.buyBtn} onPress={() => openStore(current.amazon_url)} activeOpacity={0.85}>
-          <Ionicons name="logo-amazon" size={16} color="#FF9900" />
-          <Text style={[styles.buyText, { color: "#FF9900" }]}>Amazon</Text>
-        </TouchableOpacity>
-        
-        {/* Botón de Casa del Libro: Contenedor dorado/amarillo, Icono y Texto en VERDE NEÓN */}
-        <TouchableOpacity testID="btn-buy-casa" style={styles.buyBtn} onPress={() => openStore(current.casa_del_libro_url)} activeOpacity={0.85}>
-          <Ionicons name="book" size={16} color="#00FF66" />
-          <Text style={[styles.buyText, { color: "#00FF66" }]}>Casa del Libro</Text>
-        </TouchableOpacity>
+      {/* Botón de Amazon */}
+<TouchableOpacity testID="btn-buy-amazon" style={styles.buyBtn} onPress={() => {
+  const q = encodeURIComponent(`${current.title} ${current.author}`);
+  openStore(`https://www.amazon.es/s?k=${q}&i=stripbooks`);
+}} activeOpacity={0.85}>
+  <Ionicons name="logo-amazon" size={16} color="#FF9900" />
+  <Text style={[styles.buyText, { color: "#FF9900" }]}>Amazon</Text>
+</TouchableOpacity>
+
+{/* Botón de Casa del Libro */}
+<TouchableOpacity testID="btn-buy-casa" style={styles.buyBtn} onPress={() => {
+  const q = encodeURIComponent(`${current.title} ${current.author}`);
+  openStore(`https://www.casadellibro.com/busqueda-generica?query=${q}`);
+}} activeOpacity={0.85}>
+  <Ionicons name="book" size={16} color="#00FF66" />
+  <Text style={[styles.buyText, { color: "#00FF66" }]}>Casa del Libro</Text>
+</TouchableOpacity>
 
       </View>
 

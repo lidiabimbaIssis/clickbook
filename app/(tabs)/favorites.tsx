@@ -122,7 +122,10 @@ export default function Favorites() {
                 <Text style={styles.meta}>{item.genre} · {item.pages} pág.</Text>
                 <View style={styles.actions}>
                   <TouchableOpacity
-                    onPress={() => openStore(item.amazon_url)}
+                    onPress={() => {
+  const q = encodeURIComponent(`${item.title} ${item.author}`);
+  openStore(`https://www.amazon.es/s?k=${q}&i=stripbooks`);
+}}
                     style={styles.buyBtn}
                     testID={`fav-buy-amazon-${item.book_id}`}
                   >
