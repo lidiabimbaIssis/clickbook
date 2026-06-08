@@ -29,9 +29,8 @@ Nota importante sobre la seguridad: El Proveedor del Servicio desaconseja encare
 
 Ten en cuenta que la Aplicación utiliza servicios de terceros que tienen sus propios Términos y Condiciones. A continuación se muestran los enlaces a los Términos y Condiciones de los terceros proveedores de servicios utilizados por la Aplicación:
 
-Google Play Services
-
-Expo
+- [Google Play Services](https://policies.google.com/terms)
+- [Expo](https://expo.dev/terms)
 
 Limitación de Responsabilidad y Conectividad
 Ten en cuenta que el Proveedor del Servicio no asume la responsabilidad de ciertos aspectos. Algunas funciones de la Aplicación requieren una conexión a internet activa, que puede ser Wi-Fi o proporcionada por tu proveedor de red móvil. El Proveedor del Servicio no se hace responsable si la Aplicación no funciona a su máxima capacidad debido a la falta de acceso a Wi-Fi o si has agotado tu saldo de datos.

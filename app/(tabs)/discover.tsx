@@ -194,6 +194,7 @@ useEffect(() => {
   };
 
   const openStore = (url: string) => {
+    if (!url) return;
     if (Platform.OS === "web" && typeof window !== "undefined") { window.open(url, "_blank"); }
     else { Linking.openURL(url).catch((e) => console.warn("open url", e)); }
   };

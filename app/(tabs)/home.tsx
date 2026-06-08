@@ -46,12 +46,12 @@ export default function Home() {
           <Text style={styles.sectionLabel}>SEGÚN TU MOOD</Text>
           <View style={styles.moodRow}>
             {[
-              { label: "Reflexionar", emoji: "🤔", q: "libros que invitan a la reflexión profunda" },
-              { label: "Ligero", emoji: "☁️", q: "libros ligeros y entretenidos para desconectar" },
-              { label: "Intenso", emoji: "🔥", q: "libros intensos y trepidantes que enganchan" },
-              { label: "Romántico", emoji: "💜", q: "novelas románticas envolventes" },
-              { label: "Llorar", emoji: "💧", q: "libros emotivos que conmueven" },
-              { label: "Aprender", emoji: "🎯", q: "libros para aprender y crecer" },
+             { label: "Reflexionar", emoji: "🤔", q: "Ensayo" },
+             { label: "Ligero", emoji: "☁️", q: "Coming of age" },
+             { label: "Intenso", emoji: "🔥", q: "Thriller" },
+             { label: "Romántico", emoji: "💜", q: "Romance" },
+             { label: "Llorar", emoji: "💧", q: "emotivo" },
+             { label: "Aprender", emoji: "🎯", q: "desarrollo" },
             ].map((m) => (
               <TouchableOpacity key={m.label} style={styles.moodChip} onPress={() => go(m.q)} testID={`mood-${m.label}`}>
                 <Text style={styles.moodEmoji}>{m.emoji}</Text>

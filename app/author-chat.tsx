@@ -5,6 +5,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { api } from "../src/lib/api";
 import { colors } from "../src/theme";
+import { useAuth } from "../src/providers/AuthProvider";
+import PaywallModal from "../src/components/PaywallModal";
 
 type Msg = { role: "user" | "assistant"; content: string };
 const SUGGESTIONS = ["¿En qué te inspiraste?", "¿Por qué este final?", "¿Qué quisiste transmitir?", "¿Tu personaje favorito?"];
@@ -20,6 +22,8 @@ export default function AuthorChat() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+  const { user, refresh } = useAuth();
+  const [paywallOpen, setPaywallOpen] = useState(false);
 
   useEffect(() => {
     setMessages([{ role: "assistant", content: `Hola, soy ${author}. Acabas de conocer "${title}". ¿Qué te gustaría preguntarme?` }]);
@@ -28,16 +32,28 @@ export default function AuthorChat() {
   const send = async (text?: string) => {
     const msg = (text ?? input).trim();
     if (!msg || sending) return;
+
+    // 🔒 Premium gate: bloqueamos el ENVÍO real, no la entrada al chat
+    if (!user?.is_premium) {
+      setPaywallOpen(true);
+      return;
+    }
+
     setInput("");
     const newHistory: Msg[] = [...messages, { role: "user", content: msg }];
     setMessages(newHistory);
     setSending(true);
     try {
-      const res = await api<{ reply: string }>(`/books/${bookId}/author-chat`, { method: "POST", body: JSON.stringify({ message: msg, history: messages }) });
+      const res = await api<{ reply: string }>(`/books/${bookId}/author-chat`, {
+        method: "POST",
+        body: JSON.stringify({ message: msg, history: messages }),
+      });
       setMessages([...newHistory, { role: "assistant", content: res.reply }]);
     } catch (e: any) {
       const errStr = String(e?.message || "");
-      const errMsg = errStr.includes("402") ? "El chat con autor es solo para usuarios Premium." : "No he podido responder. Inténtalo de nuevo.";
+      const errMsg = errStr.includes("402")
+        ? "El chat con autor es solo para usuarios Premium."
+        : "No he podido responder. Inténtalo de nuevo.";
       setMessages([...newHistory, { role: "assistant", content: errMsg }]);
     } finally {
       setSending(false);
@@ -70,10 +86,10 @@ export default function AuthorChat() {
           </View>
         )}
       </ScrollView>
-      {messages.length <= 1 && (
+       {messages.length <= 1 && (
         <View style={styles.suggestions}>
           {SUGGESTIONS.map((s) => (
-            <TouchableOpacity key={s} style={styles.chip} onPress={() => send(s)} testID={`chip-${s}`}>
+            <TouchableOpacity key={s} style={styles.chip} onPress={() => setInput(s)} testID={`chip-${s}`}>
               <Text style={styles.chipText}>{s}</Text>
             </TouchableOpacity>
           ))}
@@ -85,6 +101,12 @@ export default function AuthorChat() {
           <Ionicons name="send" size={18} color={colors.bgBase} />
         </TouchableOpacity>
       </View>
+      <PaywallModal
+        visible={paywallOpen}
+        reason="chat"
+        onClose={() => setPaywallOpen(false)}
+        onUpgraded={async () => { await refresh(); }}
+      />
     </KeyboardAvoidingView>
   );
 }
