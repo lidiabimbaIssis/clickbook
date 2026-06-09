@@ -36,10 +36,9 @@ export default function Home() {
           </TouchableOpacity>
 
           <View style={styles.divider}><View style={styles.line} /><Text style={styles.dividerText}>O BIEN</Text><View style={styles.line} /></View>
-
-          <TouchableOpacity testID="btn-lucky" style={styles.luckyBtn} onPress={() => go()} activeOpacity={0.85}>
+          <TouchableOpacity testID="btn-lucky" style={styles.luckyBtn} onPress={() => router.push({ pathname: "/discover", params: { random: "true" } })} activeOpacity={0.85}>
             <Ionicons name="sparkles" size={18} color={colors.copper} />
-            <Text style={styles.luckyText}>VOY A TENER SUERTE</Text>
+            <Text style={styles.luckyText}>SORPRÉNDEME</Text>
             <Ionicons name="sparkles" size={18} color={colors.copper} />
           </TouchableOpacity>
 

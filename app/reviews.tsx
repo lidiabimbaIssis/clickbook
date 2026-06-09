@@ -179,7 +179,7 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
     {(data as any).leer_si?.map((tag: any, i: number) => (
       <View key={i} style={[styles.topicPill, { borderColor: "#163208"  }]}>
         <Text style={{ fontSize: 14, marginRight: 4 }}>{tag.emoji}</Text>
-        <Text style={[styles.topicLabel, { color: "#ffffff" }]}>{tag.label}</Text>
+      <Text style={[styles.topicLabel, { color: "#ffffff", flexShrink: 1 }]}>{tag.label}</Text>
       </View>
     ))}
   </View>
@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
   ratingNumber: { color: colors.textOnDark, fontSize: 48, fontWeight: "900", letterSpacing: -2 },
   starsRow: { flexDirection: "row", marginTop: 4 },
   totalLabel: { color: colors.textOnDarkMuted, fontSize: 11, marginTop: 8 },
-  topicPill: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderRadius: 999, backgroundColor: "rgba(0,0,0,0.3)" },
+  topicPill: { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderRadius: 999, backgroundColor: "rgba(0,0,0,0.3)", flexShrink: 1 },
   topicLeft: { flexDirection: "row", alignItems: "center", gap: 6, flex: 1 },
   topicLabel: { fontSize: 12, fontWeight: "700" },
   topicPct: { fontSize: 12, fontWeight: "900" },

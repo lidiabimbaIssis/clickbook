@@ -37,10 +37,10 @@ export default function Discover() {
   const lang = (user?.lang || "es") as "es" | "en";
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const params = useLocalSearchParams<{ q?: string; book_id?: string }>();
+  const params = useLocalSearchParams<{ q?: string; book_id?: string; random?: string }>();
   const query = (params.q || "").toString();
   const seedBookId = (params.book_id || "").toString();
-
+  const isRandom = params.random === "true";
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -70,8 +70,11 @@ const fetchBooks = useCallback(async (initial: boolean) => {
     const targetCount = 30;
     
     // CAMBIO AQUÍ: Si hay búsqueda, usamos /books/search, si no, /books/feed
-    const endpoint = query ? `/books/search?query=${encodeURIComponent(query)}` : `/books/feed?count=${targetCount}`;
-    
+const endpoint = isRandom
+  ? `/books/random`
+  : query
+  ? `/books/search?query=${encodeURIComponent(query)}`
+  : `/books/feed?count=${targetCount}`;    
     const res = await api<{ books: Book[] }>(endpoint);
     
     setBooks((prev) => {
@@ -84,8 +87,7 @@ const fetchBooks = useCallback(async (initial: boolean) => {
   } finally { 
     setLoading(false); 
   }
-}, [query]); // query es la dependencia que hace que esto se refresque
-
+}, [query, isRandom]);
   const loadFavorites = useCallback(async () => {
     try { const res = await api<{ books: Book[] }>("/favorites"); setFavBookIds(new Set(res.books.map((b) => b.book_id))); } catch {}
   }, []);
