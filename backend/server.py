@@ -289,6 +289,14 @@ async def get_favorites(user: User = Depends(get_current_user)):
     books.sort(key=lambda b: order.get(b["book_id"], 9999))
     return {"books": books}
 
+@api_router.get("/books/random")
+async def get_random_book(user: User = Depends(get_current_user)):
+    pipeline = [{"$sample": {"size": 1}}]
+    books = await db.books.aggregate(pipeline).to_list(1)
+    if not books:
+        raise HTTPException(status_code=404, detail="No hay libros")
+    books[0]["_id"] = str(books[0]["_id"])
+    return {"books": [books[0]]}
 
 @api_router.get("/books/{book_id}")
 async def get_book(book_id: str, user: User = Depends(get_current_user)):
