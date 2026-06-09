@@ -70,19 +70,24 @@ const fetchBooks = useCallback(async (initial: boolean) => {
     const targetCount = 30;
     
     // CAMBIO AQUÍ: Si hay búsqueda, usamos /books/search, si no, /books/feed
-const endpoint = isRandom
-  ? `/books/random`
-  : query
+const endpoint = query
   ? `/books/search?query=${encodeURIComponent(query)}`
-  : `/books/feed?count=${targetCount}`;    
+  : `/books/feed?count=${targetCount}`;
     const res = await api<{ books: Book[] }>(endpoint);
     
     setBooks((prev) => {
       const existingIds = new Set(prev.map((b) => b.book_id));
       const incoming = (res?.books || []).filter((b) => !existingIds.has(b.book_id));
       return initial ? res?.books || [] : [...prev, ...incoming];
-    });
-  } catch (e) { 
+  });
+    if (initial && isRandom && res?.books?.length > 0) {
+      const randomIdx = Math.floor(Math.random() * res.books.length);
+      setCurrentIndex(randomIdx);
+      setTimeout(() => {
+        listRef.current?.scrollToIndex({ index: randomIdx, animated: false });
+      }, 100);
+    }
+  } catch (e) {
     console.warn("feed error", e); 
   } finally { 
     setLoading(false); 
