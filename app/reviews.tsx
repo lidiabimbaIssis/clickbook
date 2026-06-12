@@ -53,6 +53,8 @@ const iconMap: Record<string, string> = {
   "spark": "sparkles-outline",
   "fire": "flame-outline"
 };
+const capitalize = (str: string) => 
+  str.charAt(0).toUpperCase() + str.slice(1);
 
 export default function VibesScreen() {
   const insets = useSafeAreaInsets();
@@ -138,7 +140,7 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
                     <View key={i} style={[styles.topicPill, { borderColor: t.color }]}>
                       <View style={styles.topicLeft}>
                         <DynamicIcon name={t.icon} size={13} color={t.color} />
-                        <Text style={[styles.topicLabel, { color: t.color }]}>{t.label}</Text>
+                        <Text style={[styles.topicLabel, { color: t.color }]}>{capitalize(t.label)}</Text>
                       </View>
                       <Text style={[styles.topicPct, { color: t.color }]}>{t.percent}%</Text>
                     </View>
@@ -155,7 +157,7 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
                 <View key={i} style={styles.emotionItem}>
                   <DynamicIcon name={e.icon} size={42} color={e.color} />
                   <Text style={[styles.emotionPct, { color: e.color }]}>{e.percent}%</Text>
-                  <Text style={styles.emotionLabel}>{e.label}</Text>
+                  <Text style={styles.emotionLabel}>{capitalize(e.label)}</Text>
                 </View>
               ))}
             </View>
@@ -166,7 +168,7 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
             {data.collective_feelings.map((f: any, i: number) => (
               <View key={i} style={styles.feelRow}>
                 <Text style={styles.feelEmoji}>{f.emoji}</Text>
-                <Text style={styles.feelLabel}>{f.label}</Text>
+                <Text style={styles.feelLabel}>{capitalize(f.label)}</Text>
                 <Text style={styles.feelCount}>{f.count_label}</Text>
               </View>
             ))}
@@ -179,7 +181,7 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
     {(data as any).leer_si?.map((tag: any, i: number) => (
       <View key={i} style={[styles.topicPill, { borderColor: "#163208"  }]}>
         <Text style={{ fontSize: 14, marginRight: 4 }}>{tag.emoji}</Text>
-      <Text style={[styles.topicLabel, { color: "#ffffff", flexShrink: 1 }]}>{tag.label}</Text>
+       <Text style={[styles.topicLabel, { color: "#ffffff", flexShrink: 1 }]}>{capitalize(tag.label)}</Text>
       </View>
     ))}
   </View>

@@ -85,7 +85,7 @@ export default function Settings() {
             <Text style={styles.premiumActiveTitle}>ClickBook Premium</Text>
           </View>
           <Text style={styles.premiumActiveText}>
-            ¡Eres Premium! Audios ilimitados, chat con autor y resúmenes premium activos.
+            ¡Eres Premium! Audios ilimitados, chat IA con autor y resúmenes premium activos.
           </Text>
           <TouchableOpacity style={styles.downgradeBtn} onPress={downgrade} testID="btn-downgrade">
             <Text style={styles.downgradeText}>Cancelar (modo demo)</Text>
@@ -104,7 +104,7 @@ export default function Settings() {
           <View style={{ flex: 1 }}>
             <Text style={styles.premiumCtaTitle}>Hacerse Premium</Text>
             <Text style={styles.premiumCtaSub}>
-              Audios ilimitados · Chat con autor · Sin anuncios
+              Audios ilimitados · Chat IA con autor · Sin anuncios
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color={colors.gold} />

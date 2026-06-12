@@ -56,6 +56,7 @@ export default function Discover() {
   const playerRef = useRef<any>(null);
   const listRef = useRef<FlatList<Book>>(null);
   const shareCardRef = useRef<View>(null);
+  const [coverReady, setCoverReady] = useState(false);
   
 
   const stopAudio = useCallback(() => {
@@ -188,17 +189,21 @@ useEffect(() => {
     });
   };
 
-  const shareBook = async () => {
-    if (!current) return;
-    try {
-      const fallback = lang === "es" ? current.summary_es : current.summary_en;
-      const hookText = (premiumSummaries[current.book_id] || fallback || "").split(/\.\s/)[0];
-      await new Promise((r) => setTimeout(r, 100));
-      await captureAndShare(shareCardRef.current, `clickbook-${current.book_id}`);
-    } catch (e) {
-      console.warn("share book failed", e);
-    }
-  };
+const shareBook = async () => {
+  if (!current) return;
+  try {
+    const fallback = lang === "es" ? current.summary_es : current.summary_en;
+    const hookText = (premiumSummaries[current.book_id] || fallback || "").split(/\.\s/)[0];
+    // Precarga la imagen
+const coverUrl = `https://res.cloudinary.com/ddppclcl1/image/upload/v1780422197/${current.book_id}.webp`;
+await Image.prefetch(coverUrl);
+    // Espera un poco más para que se renderice
+    await new Promise((r) => setTimeout(r, 500));
+    await captureAndShare(shareCardRef.current, `clickbook-${current.book_id}`);
+  } catch (e) {
+    console.warn("share book failed", e);
+  }
+};
 
   const openStore = (url: string) => {
     if (!url) return;
@@ -262,15 +267,13 @@ useEffect(() => {
 
   
       <View style={styles.sideButtons} pointerEvents="box-none">
-        <SideButton icon="information-circle" color={colors.verdigris} onPress={() => setInfoOpen(true)} testID="btn-info" />
-        <SideButton icon={isFav ? "heart" : "heart-outline"} color={colors.iron} onPress={toggleFavorite} testID="btn-favorite" />
-        <SideButton icon={playing ? "pause" : "headset"} color={colors.brass} onPress={() => { setAudioOpen(true); playAudio(); }} loading={audioLoading} testID="btn-audio" />
+<SideButton icon="information-circle" color="#2cbb04" borderColor="#2cbb04" onPress={() => setInfoOpen(true)} testID="btn-info" />
+<SideButton icon={isFav ? "heart" : "heart-outline"} color="#ff01cc" borderColor="#ff01cc" onPress={toggleFavorite} testID="btn-favorite" />
+<SideButton icon={playing ? "pause" : "headset"} color="#04d3fc" borderColor="#04d3fc" onPress={() => { setAudioOpen(true); playAudio(); }} loading={audioLoading} testID="btn-audio" />
+<SideButton icon="chatbubbles" color="#B026FF" borderColor="#B026FF" onPress={openAuthorChat} testID="btn-author-ia" />
+<SideButton icon="star" color="#d0fe00" borderColor="#d0fe00" onPress={() => router.push({ pathname: "/reviews", params: { book_id: current.book_id, title: current.title, author: current.author } })} testID="btn-reviews" />
         
-        {/* IA del Autor (Cerebro) — Color Cian Eléctrico con tu lógica Premium */}
-        <SideButtonMC icon="brain" color="#A020F0" onPress={openAuthorChat} testID="btn-author-ia" />
         
-        {/* Reseñas — Color Rosa Neón / Magenta con la estrella */}
-        <SideButton icon="star" color="#CCFF00"onPress={() => router.push({ pathname: "/reviews", params: { book_id: current.book_id, title: current.title, author: current.author } })} testID="btn-reviews" />
       </View>
 
       <View style={[styles.buyRow, { paddingBottom: insets.bottom + 6 }]} pointerEvents="box-none">
@@ -280,7 +283,7 @@ useEffect(() => {
   const q = encodeURIComponent(`${current.title} ${current.author}`);
   openStore(`https://www.amazon.es/s?k=${q}&i=stripbooks`);
 }} activeOpacity={0.85}>
-  <Ionicons name="logo-amazon" size={16} color="#FF9900" />
+  <Ionicons name="logo-amazon" size={16} color="#f2fafdec" />
   <Text style={[styles.buyText, { color: "#FF9900" }]}>Amazon</Text>
 </TouchableOpacity>
 
@@ -289,7 +292,7 @@ useEffect(() => {
   const q = encodeURIComponent(`${current.title} ${current.author}`);
   openStore(`https://www.casadellibro.com/busqueda-generica?query=${q}`);
 }} activeOpacity={0.85}>
-  <Ionicons name="book" size={16} color="#00FF66" />
+  <Ionicons name="book" size={16} color="#ffffff" />
   <Text style={[styles.buyText, { color: "#00FF66" }]}>Casa del Libro</Text>
 </TouchableOpacity>
 
@@ -303,10 +306,11 @@ useEffect(() => {
         {current && (
           <ShareCard
             ref={shareCardRef}
+            onCoverLoad={() => setCoverReady(true)}
             data={{
               title: current.title,
               author: current.author,
-              coverUrl: current.cover_url,
+              coverUrl: `https://res.cloudinary.com/ddppclcl1/image/upload/v1780422197/${current.book_id}.webp`,
               rating: current.rating,
               hookText: (premiumSummaries[current.book_id] || (lang === "es" ? current.summary_es : current.summary_en) || "").split(/\.\s/)[0],
             }}
@@ -401,10 +405,11 @@ function SideButtonMC({ icon, color, onPress, testID }: { icon: any; color: stri
   );
 }
 
-function SideButton({ icon, color, onPress, loading, testID }: { icon: any; color: string; onPress: () => void; loading?: boolean; testID?: string; }) {
+function SideButton({ icon, color, borderColor, onPress, loading, testID }: { icon: any; color: string; borderColor?: string; onPress: () => void; loading?: boolean; testID?: string; }) {
+  const border = borderColor || color;
   return (
     <TouchableOpacity testID={testID} onPress={onPress} activeOpacity={0.7} style={styles.sideBtnWrap}>
-      <View style={[styles.sideBtn, { borderColor: color, shadowColor: color }]}>
+      <View style={[styles.sideBtn, { borderColor: border, shadowColor: border }]}>
         {loading ? <ActivityIndicator size="small" color={color} /> : <Ionicons name={icon} size={22} color={color} />}
       </View>
     </TouchableOpacity>
@@ -543,9 +548,9 @@ const styles = StyleSheet.create({
   queryHint: { color: colors.copper, fontSize: 12, fontWeight: "600", letterSpacing: 1, maxWidth: 240 },
   sideButtons: { position: "absolute", right: 10, top: "50%", marginTop: -90, gap: 16, alignItems: "center", zIndex: 10 },
   sideBtnWrap: { alignItems: "center" },
-  sideBtn: { width: 42, height: 42, borderRadius: 21, borderWidth: 1.5, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(6,1,15,0.6)", shadowOpacity: 0.7, shadowRadius: 8, shadowOffset: { width: 0, height: 0 }, elevation: 5 },
+sideBtn: { width: 42, height: 42, borderRadius: 21, borderWidth: 1.5, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(6,1,15,0.6)", shadowOpacity: 0.7, shadowRadius: 8, shadowOffset: { width: 0, height: 0 }, elevation: 5 },
   buyRow: { position: "absolute", bottom: -23, left: 0, right: 0, flexDirection: "row", justifyContent: "space-between", gap: 8, paddingHorizontal: 12, zIndex: 10 },
-  buyBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1.5, borderColor: colors.goldSoft, paddingHorizontal: 8, paddingVertical: 11, borderRadius: 12, backgroundColor: "rgba(0,0,0,0.6)" },
+  buyBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1.5, borderColor: colors.brassSoft, paddingHorizontal: 8, paddingVertical: 11, borderRadius: 12, backgroundColor: "rgba(0,0,0,0.6)", shadowColor: colors.brass, shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 0 }, elevation: 5 },
   buyText: { color: colors.gold, fontSize: 12, fontWeight: "800", letterSpacing: 0.5 },
   modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.85)", justifyContent: "flex-end" },
   flashCard: { backgroundColor: colors.bgSurface, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderTopWidth: 2, borderColor: colors.copper, paddingHorizontal: 22, maxHeight: SCREEN_H * 0.92 },
@@ -583,7 +588,7 @@ const styles = StyleSheet.create({
   paddingHorizontal: 16,
   borderRadius: 25, // Esto es lo que le da la forma de "pastilla" (pill)
   borderWidth: 1,
-  borderColor: 'rgba(255, 255, 255, 0.23)',
+  borderColor: '#08a3fd3b',
   marginTop: 8,
   marginBottom: 10,
 },

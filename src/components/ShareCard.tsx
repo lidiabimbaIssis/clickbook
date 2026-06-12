@@ -14,8 +14,8 @@ export type ShareCardData = {
 const CARD_W = 540;
 const CARD_H = 960;
 
-const ShareCard = forwardRef<View, { data: ShareCardData }>(({ data }, ref) => {
-  const rating = Math.round(data.rating || 4);
+const ShareCard = forwardRef<View, { data: ShareCardData; onCoverLoad?: () => void }>(({ data, onCoverLoad }, ref) => {
+const rating = Math.round(data.rating || 4);
   const hook = (data.hookText || "Una historia en 60 segundos").slice(0, 130);
   const stars = Array.from({ length: 5 }).map((_, i) =>
     i < rating ? "★" : "☆"
@@ -36,7 +36,7 @@ const ShareCard = forwardRef<View, { data: ShareCardData }>(({ data }, ref) => {
 
       {/* Cover */}
       <View style={styles.coverWrap}>
-        <Image source={{ uri: data.coverUrl }} style={styles.cover} resizeMode="cover" />
+<Image source={{ uri: data.coverUrl }} style={styles.cover} resizeMode="cover" onLoad={onCoverLoad} />
       </View>
 
       {/* Title + author + rating */}
