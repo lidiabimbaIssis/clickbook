@@ -68,7 +68,7 @@ export default function Discover() {
 const fetchBooks = useCallback(async (initial: boolean) => {
   if (initial) setLoading(true);
   try {
-    const targetCount = 30;
+    const targetCount = 500;
     
     // CAMBIO AQUÍ: Si hay búsqueda, usamos /books/search, si no, /books/feed
 const endpoint = query
