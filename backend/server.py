@@ -244,7 +244,7 @@ async def downgrade_from_premium(user: User = Depends(get_current_user)):
 
 # ----------------- Book routes -----------------
 @api_router.get("/books/feed")
-async def books_feed(count: int = 30):
+async def books_feed(count: int = 500):
     books = await db.books.find({}, {"_id": 0}).limit(count).to_list(length=count)
     print(f"DEBUG: El servidor ha encontrado {len(books)} libros.")
     return {"books": books}
