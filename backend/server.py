@@ -250,7 +250,8 @@ async def books_feed(count: int = 500):
     return {"books": books}
 
 
-@api_router.get("/books/search")
+¡Ahí está! Falta una coma después de "subgenero". Corrígelo así:
+python@api_router.get("/books/search")
 async def search_books(query: str, user: User = Depends(get_current_user)):
     books = await db.books.find({
         "$or": [
@@ -259,7 +260,7 @@ async def search_books(query: str, user: User = Depends(get_current_user)):
             {"genre": {"$regex": query, "$options": "i"}},
             {"tema": {"$regex": query, "$options": "i"}},
             {"tono": {"$regex": query, "$options": "i"}},
-            {"subgenero": {"$regex": query, "$options": "i"}}
+            {"subgenero": {"$regex": query, "$options": "i"}},
             {"mood": {"$regex": query, "$options": "i"}},
         ]
     }, {"_id": 0}).to_list(length=100)
