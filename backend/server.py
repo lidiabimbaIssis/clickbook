@@ -250,8 +250,7 @@ async def books_feed(count: int = 500):
     return {"books": books}
 
 
-¡Ahí está! Falta una coma después de "subgenero". Corrígelo así:
-python@api_router.get("/books/search")
+@api_router.get("/books/search")
 async def search_books(query: str, user: User = Depends(get_current_user)):
     books = await db.books.find({
         "$or": [
