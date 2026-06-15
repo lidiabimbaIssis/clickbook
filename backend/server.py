@@ -257,10 +257,16 @@ async def search_books(query: str, user: User = Depends(get_current_user)):
             {"title": {"$regex": query, "$options": "i"}},
             {"author": {"$regex": query, "$options": "i"}},
             {"genre": {"$regex": query, "$options": "i"}},
-            {"tema": {"$regex": query, "$options": "i"}}
+            {"tema": {"$regex": query, "$options": "i"}},
+            {"tono": {"$regex": query, "$options": "i"}},
+            {"subgenero": {"$regex": query, "$options": "i"}}
         ]
     }, {"_id": 0}).to_list(length=100)
-    print(f"DEBUG SEARCH: query={query}, encontrados={len(books)}")
+    
+    # Mezcla aleatoriamente los resultados
+    import random
+    random.shuffle(books)
+    
     return {"books": books}
 
 
