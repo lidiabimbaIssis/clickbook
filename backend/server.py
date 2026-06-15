@@ -260,6 +260,7 @@ async def search_books(query: str, user: User = Depends(get_current_user)):
             {"tema": {"$regex": query, "$options": "i"}},
             {"tono": {"$regex": query, "$options": "i"}},
             {"subgenero": {"$regex": query, "$options": "i"}}
+            {"mood": {"$regex": query, "$options": "i"}},
         ]
     }, {"_id": 0}).to_list(length=100)
     
