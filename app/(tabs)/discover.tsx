@@ -25,11 +25,10 @@ const MOOD_MAP: Array<{ kw: RegExp; label: string; icon: string; color: string }
   { kw: /(poesi|liric)/i, label: "Llorar", icon: "💧", color: colors.brass },
   { kw: /(autoayuda|desarrollo|negocio)/i, label: "Aprender", icon: "🎯", color: colors.verdigris },
 ];
-
 function inferMood(book: Book): { label: string; icon: string; color: string } {
-  const text = `${book.genre || ""}`;
-  for (const m of MOOD_MAP) if (m.kw.test(text)) return { label: m.label, icon: m.icon, color: m.color };
-  return { label: "Descubre", icon: "📖", color: colors.brass };
+  const found = MOOD_MAP.find(m => m.label.toLowerCase() === (book.mood || "").toLowerCase());
+  if (found) return { label: found.label, icon: found.icon, color: found.color };
+  return { label: book.mood || "Descubre", icon: "📖", color: colors.brass };
 }
 
 export default function Discover() {
@@ -537,7 +536,7 @@ const styles = StyleSheet.create({
   moodPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 15, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: colors.brassSoft, backgroundColor: "rgba(6,1,15,0.85)" },
   moodPillIcon: { fontSize: 14 },
   moodPillLabel: { fontSize: 11, fontWeight: "800", letterSpacing: 1 },
-  ratingPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1.5, borderColor: colors.copper, backgroundColor: "rgba(6,1,15,0.85)" },
+  ratingPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1.5, borderColor: "#031588", backgroundColor: "rgba(6,1,15,0.85)" },
   ratingValue: { color: colors.copper, fontSize: 12, fontWeight: "900", letterSpacing: 0.5 },
   topBar: { position: "absolute", top: 0, left: 0, right: 0, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, zIndex: 10 },
   backBtn: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, borderColor: colors.brassSoft, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.4)" },
@@ -555,21 +554,21 @@ sideBtn: { width: 42, height: 42, borderRadius: 21, borderWidth: 1.5, alignItems
   modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.85)", justifyContent: "flex-end" },
   flashCard: { backgroundColor: colors.bgSurface, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderTopWidth: 2, borderColor: colors.copper, paddingHorizontal: 22, maxHeight: SCREEN_H * 0.92 },
   flashClose: { position: "absolute", top: 12, right: 12, padding: 8, zIndex: 5 },
-  flashTitle: { color: colors.textOnDark, fontSize: 22, fontWeight: "900" },
+  flashTitle: { color: colors.textOnDark, fontSize: 24, fontWeight: "900" },
   flashAuthor: { color: colors.brass, fontSize: 14, marginTop: 4, fontStyle: "italic" },
   statRow: { flexDirection: "row", gap: 10, marginTop: 18 },
   statBox: { flex: 1, borderWidth: 1, borderColor: colors.brassSoft, borderRadius: 12, padding: 10, alignItems: "center", backgroundColor: "rgba(0,240,255,0.04)" },
-  statLabel: { color: colors.textOnDark, fontSize: 9, fontWeight: "800", letterSpacing: 1.5, marginTop: 4 },
-  statValue: { color: colors.brass, fontSize: 15, fontWeight: "900", marginTop: 2 },
+  statLabel: { color: colors.textOnDark, fontSize: 11, fontWeight: "800", letterSpacing: 1.5, marginTop: 4 },
+  statValue: { color: colors.brass, fontSize: 13, fontWeight: "900", marginTop: 2 },
   flashLabel: { alignItems: "center", marginTop: 18 },
-  flashLabelText: { color: colors.copper, fontSize: 10, letterSpacing: 4, fontWeight: "800" },
+  flashLabelText: { color: colors.copper, fontSize: 13, letterSpacing: 4, fontWeight: "800" },
   detailGrid: { flexDirection: "row", flexWrap: "wrap", borderWidth: 1, borderColor: colors.brassSoft, borderRadius: 12, padding: 14, marginTop: 10 },
   detailItem: { width: "50%", paddingVertical: 8, paddingRight: 8 },
   detailHeader: { flexDirection: "row", alignItems: "center", gap: 4 },
-  detailLabel: { fontSize: 10, fontWeight: "900", letterSpacing: 1 },
-  detailValue: { color: colors.textOnDark, fontSize: 13, marginTop: 3 },
-  synopsisLabel: { color: colors.copper, fontSize: 10, letterSpacing: 3, fontWeight: "900", marginTop: 18 },
-  synopsisText: { color: colors.textOnDark, fontSize: 14, lineHeight: 21, marginTop: 8 },
+  detailLabel: { fontSize: 11, fontWeight: "900", letterSpacing: 1 },
+  detailValue: { color: colors.textOnDark, fontSize: 14, marginTop: 3 },
+  synopsisLabel: { color: colors.copper, fontSize: 13, letterSpacing: 3, fontWeight: "900", marginTop: 18 },
+  synopsisText: { color: colors.textOnDark, fontSize: 15, lineHeight: 21, marginTop: 8 },
   iaBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: colors.gold, paddingVertical: 13, borderRadius: 999, marginTop: 18 },
   iaBtnText: { color: colors.bgBase, fontWeight: "900", fontSize: 13, letterSpacing: 0.5 },
   iaBtnLocked: { backgroundColor: "transparent", borderWidth: 1.5, borderColor: colors.gold },
@@ -594,12 +593,12 @@ sideBtn: { width: 42, height: 42, borderRadius: 21, borderWidth: 1.5, alignItems
 },
 pillText: {
   color: '#ffffff',
-  fontSize: 11,
-  marginHorizontal: 8,
+  fontSize: 13,
+  marginHorizontal: 7,
   fontWeight: '500',
 },
 separator: {
-  color: 'rgba(250, 249, 249, 0.64)',
+  color: 'rgba(57, 138, 243, 0.64)',
   fontSize: 12,
 },
   hookContainer: { marginTop: 24, padding: 16, backgroundColor: 'rgba(255, 255, 255, 0.05)', borderRadius: 16, borderLeftWidth: 3, borderLeftColor: colors.copper },

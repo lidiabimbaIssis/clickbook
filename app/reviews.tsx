@@ -151,7 +151,7 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
           </View>
 
           <View style={[styles.card, { borderColor: "#4b017c", alignSelf: 'center', width: '100%' }]}>
-            <Text style={styles.cardLabel}>QUE SENTIRÁS LEYENDO ESTE LIBRO ✨</Text>
+            <Text style={styles.cardLabel}>QUE SENTIRÁS LEYENDO ESTE LIBRO✨</Text>
             <View style={styles.emotionsContainer}>
               {(data as any).emotions?.slice(0, 3).map((e: any, i: number) => (
                 <View key={i} style={styles.emotionItem}>
@@ -175,13 +175,13 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
           </View>
 
           {/* leelo si */}
-<View style={[styles.card, { borderColor: "#163208" }]}>
+<View style={[styles.card, { borderColor: "#971d76" }]}>
   <Text style={styles.cardLabel}>LÉELO SI... ✨</Text>
   <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
     {(data as any).leer_si?.map((tag: any, i: number) => (
-      <View key={i} style={[styles.topicPill, { borderColor: "#163208"  }]}>
+      <View key={i} style={[styles.topicPill, { borderColor: "#971d76"  }]}>
         <Text style={{ fontSize: 14, marginRight: 4 }}>{tag.emoji}</Text>
-       <Text style={[styles.topicLabel, { color: "#ffffff", flexShrink: 1 }]}>{capitalize(tag.label)}</Text>
+<Text style={[styles.topicLabel, { color: "#E8E4FF", flexShrink: 1 }]}>{capitalize(tag.label)}</Text>
       </View>
     ))}
   </View>
@@ -218,18 +218,18 @@ const styles = StyleSheet.create({
   card: { borderWidth: 1, borderColor: colors.brassSoft, borderRadius: 14, padding: 14, marginBottom: 12, backgroundColor: colors.bgSurface },
   cardCols: { flexDirection: "row" },
   cardHead: { flexDirection: "row", alignItems: "center" },
-  cardLabel: { color: colors.brass, fontSize: 11, fontWeight: "900", letterSpacing: 2 },
+  cardLabel: { color: colors.brass, fontSize: 12, fontWeight: "900", letterSpacing: 2 },
   ratingRow: { flexDirection: "row", alignItems: "center", marginTop: 6 },
   ratingNumber: { color: colors.textOnDark, fontSize: 48, fontWeight: "900", letterSpacing: -2 },
   starsRow: { flexDirection: "row", marginTop: 4 },
-  totalLabel: { color: colors.textOnDarkMuted, fontSize: 11, marginTop: 8 },
-  topicPill: { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderRadius: 999, backgroundColor: "rgba(0,0,0,0.3)", flexShrink: 1 },
+  totalLabel: { color: colors.textOnDarkMuted, fontSize: 12, marginTop: 8 },
+  topicPill: { flexDirection: "row", alignItems: "center", paddingHorizontal: 5, paddingVertical: 8, borderWidth: 1, borderRadius: 999, backgroundColor: "rgba(0,0,0,0.3)", flexShrink: 1 },
   topicLeft: { flexDirection: "row", alignItems: "center", gap: 6, flex: 1 },
-  topicLabel: { fontSize: 12, fontWeight: "700" },
-  topicPct: { fontSize: 12, fontWeight: "900" },
+  topicLabel: { fontSize: 15, fontWeight: "300" },
+  topicPct: { fontSize: 13, fontWeight: "900" },
   feelRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "rgba(176,38,255,0.12)", gap: 12 },
   feelEmoji: { fontSize: 22 },
-  feelLabel: { color: colors.textOnDark, fontSize: 14, flex: 1, fontWeight: "600" },
+  feelLabel: { color: colors.textOnDark, fontSize: 15, flex: 1, fontWeight: "600" },
   feelCount: { color: colors.textOnDarkMuted, fontSize: 12, fontWeight: "800", letterSpacing: 0.5 },
   compatCard: { width: 120, alignItems: "center" },
   compatCover: { width: 120, height: 180, borderRadius: 10, backgroundColor: colors.bgSurfaceLight, borderWidth: 1, borderColor: colors.brassSoft },
@@ -237,6 +237,6 @@ const styles = StyleSheet.create({
   emotionsContainer: { flexDirection: "row", justifyContent: "space-around", marginTop: 10 },
   emotionItem: { alignItems: "center" },
   emotionPct: { fontSize: 20, fontWeight: "900", marginTop: 8 },
-  emotionLabel: { color: colors.textOnDarkMuted, fontSize: 10, marginTop: 4, textAlign: "center" },
+  emotionLabel: { color:"#E8E4FF", fontSize: 13, marginTop: 4, textAlign: "center" },
   compatAuthor: { color: colors.brass, fontSize: 10, marginTop: 2, fontStyle: "italic" }
 });

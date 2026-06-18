@@ -111,7 +111,7 @@ export default function LoginScreen() {
         }} 
         activeOpacity={0.85}
       >
-        <Ionicons name="eye-outline" size={18} color={colors.brass} />
+        <Ionicons name="eye-outline" size={18} color="#B026FF" />
         <Text style={styles.guestText}>Entrar como invitado</Text>
       </TouchableOpacity>
 
@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
   featureText: { color: colors.textOnDark, fontSize: 14, letterSpacing: 0.3 },
   loginBtn: { backgroundColor: colors.brass, paddingVertical: 16, borderRadius: 999, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 10, shadowColor: colors.brass, shadowOpacity: 0.4, shadowRadius: 18, shadowOffset: { width: 0, height: 6 }, elevation: 10, borderWidth: 1, borderColor: "rgba(0,0,0,0.4)" },
   loginText: { color: colors.bgBase, fontSize: 16, fontWeight: "800", letterSpacing: 1.5 },
-  guestBtn: { marginTop: 12, paddingVertical: 14, borderRadius: 999, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8, borderWidth: 1, borderColor: colors.brassSoft, backgroundColor: "rgba(34,26,19,0.6)" },
-  guestText: { color: colors.brass, fontSize: 14, fontWeight: "700", letterSpacing: 1.5 },
+  guestBtn: { marginTop: 12, paddingVertical: 14, borderRadius: 999, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8, borderWidth: 1, borderColor:"#B026FF", backgroundColor: "rgba(34,26,19,0.6)" },
+  guestText: { color:"#B026FF", fontSize: 14, fontWeight: "700", letterSpacing: 1.5 },
   footer: { textAlign: "center", color: colors.textOnDarkMuted, fontSize: 11, letterSpacing: 2, textTransform: "uppercase" },
 });

@@ -45,12 +45,14 @@ export default function Home() {
           <Text style={styles.sectionLabel}>SEGÚN TU MOOD</Text>
           <View style={styles.moodRow}>
             {[
-             { label: "Reflexionar", emoji: "🤔", q: "Ensayo" },
-             { label: "Ligero", emoji: "☁️", q: "Coming of age" },
-             { label: "Intenso", emoji: "🔥", q: "Thriller" },
-             { label: "Romántico", emoji: "💜", q: "Romance" },
-             { label: "Llorar", emoji: "💧", q: "emotivo" },
-             { label: "Aprender", emoji: "🎯", q: "desarrollo" },
+{ label: "Intenso", emoji: "🔥", q: "Intenso" },
+{ label: "Romántico", emoji: "💜", q: "Romántico" },
+{ label: "Épico", emoji: "⚔️", q: "Épico" },
+{ label: "Ligero", emoji: "☁️", q: "Ligero" },
+{ label: "Llorar", emoji: "💧", q: "Llorar" },
+{ label: "Reflexionar", emoji: "🤔", q: "Reflexionar" },
+{ label: "Aprender", emoji: "🎯", q: "Aprender" },
+{ label: "Inspirador", emoji: "✨", q: "Inspirador" },
             ].map((m) => (
               <TouchableOpacity key={m.label} style={styles.moodChip} onPress={() => go(m.q)} testID={`mood-${m.label}`}>
                 <Text style={styles.moodEmoji}>{m.emoji}</Text>
