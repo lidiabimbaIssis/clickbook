@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -5,6 +6,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { api } from "../src/lib/api";
 import { colors } from "../src/theme";
+import { useAuth } from "../src/providers/AuthProvider";
+import PaywallModal from "../src/components/PaywallModal";
 
 type Msg = { role: "user" | "assistant"; content: string };
 const SUGGESTIONS = ["¿En qué te inspiraste?", "¿Por qué este final?", "¿Qué quisiste transmitir?", "¿Tu personaje favorito?"];
@@ -20,24 +23,45 @@ export default function AuthorChat() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+  const { user, refresh } = useAuth();
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  const [showDisclaimer, setShowDisclaimer] = useState(false);
 
   useEffect(() => {
-    setMessages([{ role: "assistant", content: `Hola, soy ${author}. Acabas de conocer "${title}". ¿Qué te gustaría preguntarme?` }]);
+  AsyncStorage.getItem("author_chat_disclaimer_seen").then((val) => {
+    if (!val) setShowDisclaimer(true);
+  });
+}, []);
+
+  useEffect(() => {
+    setMessages([{ role: "assistant", content: `Hola, soy una representación IA basada en la obra de ${author}. ¿Qué te gustaría explorar de "${title}"?` }]);
   }, [author, title]);
 
   const send = async (text?: string) => {
     const msg = (text ?? input).trim();
     if (!msg || sending) return;
+
+    // 🔒 Premium gate: bloqueamos el ENVÍO real, no la entrada al chat
+    if (!user?.is_premium) {
+      setPaywallOpen(true);
+      return;
+    }
+
     setInput("");
     const newHistory: Msg[] = [...messages, { role: "user", content: msg }];
     setMessages(newHistory);
     setSending(true);
     try {
-      const res = await api<{ reply: string }>(`/books/${bookId}/author-chat`, { method: "POST", body: JSON.stringify({ message: msg, history: messages }) });
+      const res = await api<{ reply: string }>(`/books/${bookId}/author-chat`, {
+        method: "POST",
+        body: JSON.stringify({ message: msg, history: messages }),
+      });
       setMessages([...newHistory, { role: "assistant", content: res.reply }]);
     } catch (e: any) {
       const errStr = String(e?.message || "");
-      const errMsg = errStr.includes("402") ? "El chat con autor es solo para usuarios Premium." : "No he podido responder. Inténtalo de nuevo.";
+      const errMsg = errStr.includes("402")
+        ? "La IA del autor es solo para usuarios Premium."
+        : "No he podido responder. Inténtalo de nuevo.";
       setMessages([...newHistory, { role: "assistant", content: errMsg }]);
     } finally {
       setSending(false);
@@ -53,7 +77,7 @@ export default function AuthorChat() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle} numberOfLines={1}>{author}</Text>
-          <Text style={styles.headerSub} numberOfLines={1}>★ Premium · {title}</Text>
+          <Text style={styles.headerSub} numberOfLines={1}>★ IA inspirada en la obra · {title}</Text>
         </View>
         <View style={styles.live}><View style={styles.liveDot} /><Text style={styles.liveText}>EN VIVO</Text></View>
       </View>
@@ -66,14 +90,14 @@ export default function AuthorChat() {
         {sending && (
           <View style={[styles.bubble, styles.bubbleAssistant, styles.typingBubble]}>
             <ActivityIndicator size="small" color={colors.copper} />
-            <Text style={styles.typing}>{author} está escribiendo…</Text>
+            <Text style={styles.typing}>IA está escribiendo…</Text>
           </View>
         )}
       </ScrollView>
       {messages.length <= 1 && (
         <View style={styles.suggestions}>
           {SUGGESTIONS.map((s) => (
-            <TouchableOpacity key={s} style={styles.chip} onPress={() => send(s)} testID={`chip-${s}`}>
+            <TouchableOpacity key={s} style={styles.chip} onPress={() => setInput(s)} testID={`chip-${s}`}>
               <Text style={styles.chipText}>{s}</Text>
             </TouchableOpacity>
           ))}
@@ -85,6 +109,25 @@ export default function AuthorChat() {
           <Ionicons name="send" size={18} color={colors.bgBase} />
         </TouchableOpacity>
       </View>
+       {showDisclaimer && (
+        <View style={styles.disclaimer}>
+          <Text style={styles.disclaimerText}>
+            Esta conversación es generada por IA y no representa declaraciones reales del autor.
+          </Text>
+          <TouchableOpacity onPress={async () => {
+            await AsyncStorage.setItem("author_chat_disclaimer_seen", "true");
+            setShowDisclaimer(false);
+          }}>
+            <Text style={styles.disclaimerBtn}>Entendido</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      <PaywallModal
+        visible={paywallOpen}
+        reason="chat"
+        onClose={() => setPaywallOpen(false)}
+        onUpgraded={async () => { await refresh(); }}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -110,5 +153,7 @@ const styles = StyleSheet.create({
   chipText: { color: colors.brass, fontSize: 12, fontWeight: "700" },
   inputRow: { flexDirection: "row", gap: 10, paddingHorizontal: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border, alignItems: "center" },
   input: { flex: 1, backgroundColor: colors.bgSurface, borderWidth: 1, borderColor: colors.brassSoft, borderRadius: 999, paddingHorizontal: 16, paddingVertical: Platform.OS === "web" ? 12 : 10, color: colors.textOnDark, fontSize: 14, outlineWidth: 0 as any },
-  sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brass, alignItems: "center", justifyContent: "center" },
+  sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brass, alignItems: "center", justifyContent: "center" },disclaimer: { margin: 16, padding: 16, backgroundColor: "rgba(176,38,255,0.15)", borderRadius: 12, borderWidth: 1, borderColor: "rgba(176,38,255,0.4)", gap: 12 },
+disclaimerText: { color: colors.textOnDark, fontSize: 13, lineHeight: 20, textAlign: "center" },
+disclaimerBtn: { color: colors.copper, fontSize: 14, fontWeight: "800", textAlign: "center" },
 });

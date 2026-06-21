@@ -36,22 +36,23 @@ export default function Home() {
           </TouchableOpacity>
 
           <View style={styles.divider}><View style={styles.line} /><Text style={styles.dividerText}>O BIEN</Text><View style={styles.line} /></View>
-
-          <TouchableOpacity testID="btn-lucky" style={styles.luckyBtn} onPress={() => go()} activeOpacity={0.85}>
+          <TouchableOpacity testID="btn-lucky" style={styles.luckyBtn} onPress={() => router.push({ pathname: "/discover", params: { random: "true" } })} activeOpacity={0.85}>
             <Ionicons name="sparkles" size={18} color={colors.copper} />
-            <Text style={styles.luckyText}>VOY A TENER SUERTE</Text>
+            <Text style={styles.luckyText}>SORPRÉNDEME</Text>
             <Ionicons name="sparkles" size={18} color={colors.copper} />
           </TouchableOpacity>
 
           <Text style={styles.sectionLabel}>SEGÚN TU MOOD</Text>
           <View style={styles.moodRow}>
             {[
-              { label: "Reflexionar", emoji: "🤔", q: "libros que invitan a la reflexión profunda" },
-              { label: "Ligero", emoji: "☁️", q: "libros ligeros y entretenidos para desconectar" },
-              { label: "Intenso", emoji: "🔥", q: "libros intensos y trepidantes que enganchan" },
-              { label: "Romántico", emoji: "💜", q: "novelas románticas envolventes" },
-              { label: "Llorar", emoji: "💧", q: "libros emotivos que conmueven" },
-              { label: "Aprender", emoji: "🎯", q: "libros para aprender y crecer" },
+{ label: "Intenso", emoji: "🔥", q: "Intenso" },
+{ label: "Romántico", emoji: "💜", q: "Romántico" },
+{ label: "Épico", emoji: "⚔️", q: "Épico" },
+{ label: "Ligero", emoji: "☁️", q: "Ligero" },
+{ label: "Llorar", emoji: "💧", q: "Llorar" },
+{ label: "Reflexionar", emoji: "🤔", q: "Reflexionar" },
+{ label: "Aprender", emoji: "🎯", q: "Aprender" },
+{ label: "Inspirador", emoji: "✨", q: "Inspirador" },
             ].map((m) => (
               <TouchableOpacity key={m.label} style={styles.moodChip} onPress={() => go(m.q)} testID={`mood-${m.label}`}>
                 <Text style={styles.moodEmoji}>{m.emoji}</Text>

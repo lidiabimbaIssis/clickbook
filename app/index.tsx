@@ -74,8 +74,7 @@ export default function LoginScreen() {
       <View style={styles.overlay} />
       <View style={styles.header}><Logo size="lg" /><View style={styles.divider} /></View>
       <View style={styles.hero}>
-        <Text style={styles.title}>Descubre tu próximo libro</Text>
-        <Text style={styles.subtitle}>Desliza. Guarda. Escucha el resumen en un minuto.</Text>
+        <Text style={styles.title}>No es solo leer libros, es vivirlos</Text>
       </View>
       <View style={styles.features}>
         <Feature icon="albums" label="Desliza ↑ para explorar" />
@@ -111,11 +110,17 @@ export default function LoginScreen() {
         }} 
         activeOpacity={0.85}
       >
-        <Ionicons name="eye-outline" size={18} color={colors.brass} />
-        <Text style={styles.guestText}>Entrar como invitado (Modo Test)</Text>
+        <Ionicons name="eye-outline" size={18} color="#B026FF" />
+        <Text style={styles.guestText}>Entrar como invitado</Text>
       </TouchableOpacity>
 
-      <Text style={styles.footer}>Un click · Una historia</Text>
+<Text style={styles.footer}>
+        <Text style={{ color: "#ff03af" }}>DESCUBRE</Text>
+        <Text style={styles.footer}> . </Text>
+        <Text style={{ color: "#ccff00" }}>SIENTE</Text>
+        <Text style={styles.footer}> . </Text>
+        <Text style={{ color:"#00ff8c"  }}>VIVE</Text>
+      </Text>
     </ImageBackground>
   );
 }
@@ -130,8 +135,8 @@ function Feature({ icon, label }: { icon: any; label: string }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bgBase, paddingHorizontal: 28, justifyContent: "space-between", paddingTop: 70, paddingBottom: 50 },
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(18,14,10,0.75)" },
+  container: { flex: 1, backgroundColor: colors.bgBase, paddingHorizontal: 28, justifyContent: "space-evenly", paddingTop: 70, paddingBottom: 50 },
+  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgb(0, 0, 0)" },
   loading: { flex: 1, backgroundColor: colors.bgBase, justifyContent: "center", alignItems: "center" },
   loadingText: { marginTop: 16, color: colors.textOnDarkMuted, letterSpacing: 2, fontSize: 13 },
   header: { alignItems: "center" },
@@ -139,12 +144,12 @@ const styles = StyleSheet.create({
   hero: { alignItems: "center", paddingHorizontal: 8 },
   title: { fontFamily: Platform.select({ ios: "Georgia", default: "serif" }), fontSize: 30, color: colors.textOnDark, textAlign: "center", fontWeight: "800", lineHeight: 38 },
   subtitle: { marginTop: 14, color: colors.textOnDarkMuted, textAlign: "center", fontSize: 15, lineHeight: 22 },
-  features: { backgroundColor: "rgba(34,26,19,0.9)", borderWidth: 1, borderColor: colors.brassSoft, borderRadius: 14, paddingVertical: 16, paddingHorizontal: 18, gap: 10 },
+  features: { backgroundColor: "rgba(0, 0, 0, 0.33)", borderWidth: 1, borderColor: colors.brassSoft, borderRadius: 14, paddingVertical: 16, paddingHorizontal: 18, gap: 10 },
   feature: { flexDirection: "row", alignItems: "center", gap: 12 },
   featureText: { color: colors.textOnDark, fontSize: 14, letterSpacing: 0.3 },
   loginBtn: { backgroundColor: colors.brass, paddingVertical: 16, borderRadius: 999, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 10, shadowColor: colors.brass, shadowOpacity: 0.4, shadowRadius: 18, shadowOffset: { width: 0, height: 6 }, elevation: 10, borderWidth: 1, borderColor: "rgba(0,0,0,0.4)" },
   loginText: { color: colors.bgBase, fontSize: 16, fontWeight: "800", letterSpacing: 1.5 },
-  guestBtn: { marginTop: 12, paddingVertical: 14, borderRadius: 999, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8, borderWidth: 1, borderColor: colors.brassSoft, backgroundColor: "rgba(34,26,19,0.6)" },
-  guestText: { color: colors.brass, fontSize: 14, fontWeight: "700", letterSpacing: 1.5 },
+  guestBtn: { marginTop: 12, paddingVertical: 14, borderRadius: 999, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8, borderWidth: 1, borderColor:"#B026FF", backgroundColor: "rgba(34,26,19,0.6)" },
+  guestText: { color:"#B026FF", fontSize: 14, fontWeight: "700", letterSpacing: 1.5 },
   footer: { textAlign: "center", color: colors.textOnDarkMuted, fontSize: 11, letterSpacing: 2, textTransform: "uppercase" },
 });

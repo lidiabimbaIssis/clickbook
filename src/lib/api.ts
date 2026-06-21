@@ -1,23 +1,18 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
 
 export const API_BASE = "https://clickbook-production.up.railway.app/api";
 export const SESSION_KEY = "session_token";
 
-
 async function getToken(): Promise<string | null> {
-  try {
-    return await AsyncStorage.getItem(SESSION_KEY);
-  } catch {
-    return null;
-  }
+  return await SecureStore.getItemAsync(SESSION_KEY);
 }
 
 export async function setToken(token: string) {
-  await AsyncStorage.setItem(SESSION_KEY, token);
+  await SecureStore.setItemAsync(SESSION_KEY, token);
 }
 
 export async function clearToken() {
-  await AsyncStorage.removeItem(SESSION_KEY);
+  await SecureStore.deleteItemAsync(SESSION_KEY);
 }
 
 export async function api<T = any>(
@@ -25,48 +20,32 @@ export async function api<T = any>(
   init: RequestInit = {}
 ): Promise<T> {
   const token = await getToken();
+
+  // Limpiamos la ruta para evitar duplicados /api/api/
+  const cleanPath = path.startsWith("/api") ? path.replace("/api", "") : path;
+  const fullUrl = `${API_BASE}${cleanPath}`;
+
+  console.log(`[API] Llamando a ${fullUrl}. ¿Token encontrado?: ${!!token}`);
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(init.headers as Record<string, string>),
   };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
 
-  const res = await fetch(`${API_BASE}${path}`, {
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const res = await fetch(fullUrl, {
     ...init,
     headers,
-    credentials: "include",
   });
+
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`${res.status}: ${text || res.statusText}`);
+    console.error(`[API] Error ${res.status} en ${fullUrl}: ${text}`);
+    throw new Error(`${res.status}: ${text}`);
   }
+
   return res.json();
 }
-
-export type Book = {
-  book_id: string;
-  title: string;
-  author: string;
-  year: number;
-  genre: string;
-  pages: number;
-  rating: number;
-  synopsis_es: string;
-  synopsis_en: string;
-  summary_es: string;
-  summary_en: string;
-  cover_url: string;
-  amazon_url: string;
-  casa_del_libro_url: string;
-  google_books_url: string;
-};
-
-export type User = {
-  user_id: string;
-  email: string;
-  name: string;
-  picture?: string;
-  lang: "es" | "en";
-  is_premium?: boolean;
-  premium_until?: string | null;
-};
