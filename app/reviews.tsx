@@ -51,8 +51,20 @@ const iconMap: Record<string, string> = {
   "mirror": "scan-outline",
   "wind": "partly-sunny-outline",
   "spark": "sparkles-outline",
-  "fire": "flame-outline"
+  "fire": "flame-outline",
+  "rocket": "rocket-outline",
+  "smile": "happy-outline",
+  "check-circle": "checkmark-circle-outline",
+  "fist-raised": "hand-right-outline",
+  "sun": "sunny-outline",
+  "anchor": "boat-outline",
+  "pen-nib": "create-outline",
+  "chart-line": "trending-up-outline",
+  "user-tie": "person-outline",
+  "key": "key-outline",
 };
+
+
 const capitalize = (str: string) => 
   str.charAt(0).toUpperCase() + str.slice(1);
 
@@ -223,10 +235,10 @@ const styles = StyleSheet.create({
   ratingNumber: { color: colors.textOnDark, fontSize: 48, fontWeight: "900", letterSpacing: -2 },
   starsRow: { flexDirection: "row", marginTop: 4 },
   totalLabel: { color: colors.textOnDarkMuted, fontSize: 12, marginTop: 8 },
-  topicPill: { flexDirection: "row", alignItems: "center", paddingHorizontal: 5, paddingVertical: 8, borderWidth: 1, borderRadius: 999, backgroundColor: "rgba(0,0,0,0.3)", flexShrink: 1 },
-  topicLeft: { flexDirection: "row", alignItems: "center", gap: 6, flex: 1 },
-  topicLabel: { fontSize: 15, fontWeight: "300" },
-  topicPct: { fontSize: 13, fontWeight: "900" },
+  topicPill: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 5, paddingVertical: 8, borderWidth: 1, borderRadius: 999, backgroundColor: "rgba(0,0,0,0.3)", flexShrink: 1 },
+topicLeft: { flexDirection: "row", alignItems: "center", gap: 6, flex: 1, minWidth: 0 },
+topicLabel: { fontSize: 15, fontWeight: "300", flexShrink: 1 },
+topicPct: { fontSize: 13, fontWeight: "900", marginLeft: 6, flexShrink: 0 },
   feelRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "rgba(176,38,255,0.12)", gap: 12 },
   feelEmoji: { fontSize: 22 },
   feelLabel: { color: colors.textOnDark, fontSize: 15, flex: 1, fontWeight: "600" },

@@ -75,7 +75,6 @@ export default function LoginScreen() {
       <View style={styles.header}><Logo size="lg" /><View style={styles.divider} /></View>
       <View style={styles.hero}>
         <Text style={styles.title}>No es solo leer libros, es vivirlos</Text>
-        <Text style={styles.subtitle}>Desliza. Guarda. Escucha el resumen en un minuto.</Text>
       </View>
       <View style={styles.features}>
         <Feature icon="albums" label="Desliza ↑ para explorar" />
@@ -115,7 +114,13 @@ export default function LoginScreen() {
         <Text style={styles.guestText}>Entrar como invitado</Text>
       </TouchableOpacity>
 
-      <Text style={styles.footer}>DESCUBRE - SIENTE - VIVE</Text>
+<Text style={styles.footer}>
+        <Text style={{ color: "#ff03af" }}>DESCUBRE</Text>
+        <Text style={styles.footer}> . </Text>
+        <Text style={{ color: "#ccff00" }}>SIENTE</Text>
+        <Text style={styles.footer}> . </Text>
+        <Text style={{ color:"#00ff8c"  }}>VIVE</Text>
+      </Text>
     </ImageBackground>
   );
 }
@@ -130,7 +135,7 @@ function Feature({ icon, label }: { icon: any; label: string }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bgBase, paddingHorizontal: 28, justifyContent: "space-between", paddingTop: 70, paddingBottom: 50 },
+  container: { flex: 1, backgroundColor: colors.bgBase, paddingHorizontal: 28, justifyContent: "space-evenly", paddingTop: 70, paddingBottom: 50 },
   overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgb(0, 0, 0)" },
   loading: { flex: 1, backgroundColor: colors.bgBase, justifyContent: "center", alignItems: "center" },
   loadingText: { marginTop: 16, color: colors.textOnDarkMuted, letterSpacing: 2, fontSize: 13 },
