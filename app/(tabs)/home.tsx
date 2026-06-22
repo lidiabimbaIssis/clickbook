@@ -42,7 +42,7 @@ export default function Home() {
             <Ionicons name="sparkles" size={18} color={colors.copper} />
           </TouchableOpacity>
 
-          <Text style={styles.sectionLabel}>SEGÚN TU MOOD</Text>
+          <Text style={styles.sectionLabel}>SEGÚN TUS VIBES</Text>
           <View style={styles.moodRow}>
             {[
 { label: "Intenso", emoji: "🔥", q: "Intenso" },

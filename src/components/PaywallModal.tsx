@@ -23,7 +23,7 @@ export default function PaywallModal({ visible, onClose, onUpgraded, reason = "l
     catch (e) { console.warn(e); } finally { setLoading(false); }
   };
 
-  const headline = reason === "limit" ? "Has alcanzado tu límite diario" : reason === "chat" ? "Chat con el Autor" : "ClickBook Premium";
+  const headline = reason === "limit" ? "Has alcanzado tu límite diario" : reason === "chat" ? "Chat IA con el Autor" : "ClickBook Premium";
   const sub = reason === "limit" ? `Ya escuchaste ${pricing?.free_daily_audio_limit ?? 3} audios hoy. Hazte Premium para seguir descubriendo sin límites.` : reason === "chat" ? "Habla en directo con la IA que personifica al autor del libro." : "Desbloquea todo ClickBook";
 
   return (

@@ -136,8 +136,8 @@ export default function Settings() {
         onPress={() => router.push("/legal")} 
         style={{ marginTop: 20, alignItems: 'center' }}
       >
-        <Text style={{ color: 'gray', fontSize: 12, textAlign: 'center' }}>
-          Términos y Condiciones
+      <Text style={{ color: "#02666d", fontSize: 12, textAlign: 'center' }}>
+  Términos y Condiciones
         </Text>
       </TouchableOpacity>
 
