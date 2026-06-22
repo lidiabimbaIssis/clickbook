@@ -10,13 +10,10 @@ export default function TabsLayout() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
-  // DESACTIVADO PARA MODO TEST: Ya no te expulsa al Login si el servidor está caído
   useEffect(() => {
-    // if (!loading && !user) router.replace("/");
+    if (!loading && !user) router.replace("/");
   }, [loading, user, router]);
 
-  // DESACTIVADO PARA MODO TEST: Ya no se queda colgado en la pantalla de carga permanente
-  /*
   if (loading || !user) {
     return (
       <View style={styles.loading}>
@@ -24,7 +21,6 @@ export default function TabsLayout() {
       </View>
     );
   }
-  */
 
   return (
     <Tabs
