@@ -12,7 +12,6 @@ export default function LoginScreen() {
   const { user, loading, refresh } = useAuth();
   const router = useRouter();
   const [processing, setProcessing] = useState(false);
-  const [forcedGuest, setForcedGuest] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -43,11 +42,11 @@ export default function LoginScreen() {
     })();
   }, [refresh, router]);
 
-  useEffect(() => { 
-    if (forcedGuest || (!loading && user)) {
-      router.replace("/home"); 
+  useEffect(() => {
+    if (!loading && user) {
+      router.replace("/home");
     }
-  }, [loading, user, forcedGuest, router]);
+  }, [loading, user, router]);
 
   const signIn = () => {
     if (Platform.OS === "web" && typeof window !== "undefined") {
@@ -104,18 +103,13 @@ export default function LoginScreen() {
         onPress={async () => {
           setProcessing(true);
           try {
-            const fakeToken = "guest_token_temporal_desarrollo";
-            await setToken(fakeToken);
-            try { 
-              await refresh(); 
-            } catch (e) { 
-              console.log("Aviso: refresh falló, ignorando..."); 
-            }
-            setForcedGuest(true); 
+            const data = await api<any>("/auth/guest", { method: "POST" });
+            if (data?.session_token) await setToken(data.session_token);
+            await refresh();
+            router.replace("/home");
           } 
           catch (e) { 
-            console.error("Error en botón simulado:", e);
-          } finally {
+            console.error("Error en login de invitado:", e);
             setProcessing(false);
           }
         }} 
