@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
-import * as SecureStore from "expo-secure-store"; // Necesitamos importar esto
-import { api, setToken, clearToken, User } from "../lib/api";
+import { api, setToken, clearToken, SESSION_KEY, User } from "../lib/api";
+import * as SecureStore from "expo-secure-store";
 
 type AuthState = {
   user: User | null;
@@ -23,14 +23,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      // 1. Intentar recuperar el token del almacenamiento del móvil
-      const token = await SecureStore.getItemAsync("token");
-      
+      // Usamos la MISMA clave que api.ts (SESSION_KEY = "session_token")
+      const token = await SecureStore.getItemAsync(SESSION_KEY);
+
       if (token) {
-        // 2. Si hay token, lo ponemos en la configuración de la API
-        await setToken(token);
-        
-        // 3. Ahora sí, preguntamos quién es el usuario
         const me = await api<User>("/auth/me");
         setUser(me);
       } else {
@@ -48,7 +44,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await api("/auth/logout", { method: "POST" });
     } catch {}
     await clearToken();
-    await SecureStore.deleteItemAsync("token"); // Borramos también del almacenamiento seguro
     setUser(null);
   }, []);
 
