@@ -83,6 +83,6 @@ const styles = StyleSheet.create({
   sectionLabel: { color: colors.textOnDarkMuted, fontSize: 10, letterSpacing: 3, fontWeight: "800", textAlign: "center", marginTop: 8, marginBottom: -4 },
   moodRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, justifyContent: "center", marginTop: 4 },
   moodChip: { flexDirection: "row", alignItems: "center", gap: 4, borderWidth: 1, borderColor: "rgba(176,38,255,0.4)", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: "rgba(176,38,255,0.07)" },
-  moodEmoji: { fontSize: 13 },
-  moodText: { color: colors.textOnDark, fontSize: 11, fontWeight: "700" },
+  moodEmoji: { fontSize: 14 },
+  moodText: { color: colors.textOnDark, fontSize: 12, fontWeight: "700" },
 });

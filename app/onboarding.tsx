@@ -71,7 +71,7 @@ export default function Onboarding() {
         style={{ flex: 1 }}
       >
         <SlideTimer />
-        <SlideGestures />
+        <SlideVibes />
         <SlideAuthor />
       </ScrollView>
 
@@ -139,9 +139,11 @@ function SlideContainer({
   );
 }
 
-/** Slide 1 — Hook: glowing 60s timer */
+/** Slide 1 — Hook: glowing 60s timer (con waveform sutil a los lados) */
 function SlideTimer() {
   const pulse = useRef(new Animated.Value(0)).current;
+  const wave = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
@@ -149,7 +151,15 @@ function SlideTimer() {
         Animated.timing(pulse, { toValue: 0, duration: 1400, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
       ])
     ).start();
-  }, [pulse]);
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(wave, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(wave, { toValue: 0, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ])
+    ).start();
+  }, [pulse, wave]);
+
   const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.08] });
   const opacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.55, 0.95] });
 
@@ -164,66 +174,128 @@ function SlideTimer() {
         </Text>
       }
     >
-      <Animated.View
-        style={[
-          styles.timerOuter,
-          { transform: [{ scale }], opacity, shadowOpacity: 0.6 },
-        ]}
-      />
-      <View style={styles.timerInner}>
-        <Text style={styles.timer60}>60</Text>
-        <Text style={styles.timerSec}>SEG</Text>
+      <View style={styles.timerRow}>
+        <Waveform animValue={wave} color={colors.brass} side="left" />
+
+        <View style={styles.timerCenter}>
+          <Animated.View
+            style={[
+              styles.timerOuter,
+              { transform: [{ scale }], opacity, shadowOpacity: 0.6 },
+            ]}
+          />
+          <View style={styles.timerInner}>
+            <Text style={styles.timer60}>60</Text>
+            <Text style={styles.timerSec}>SEG</Text>
+          </View>
+          <View style={styles.timerRing} />
+        </View>
+
+        <Waveform animValue={wave} color={colors.brass} side="right" />
       </View>
-      <View style={styles.timerRing} />
     </SlideContainer>
   );
 }
 
-/** Slide 2 — Gestures D-pad */
-function SlideGestures() {
+/** Barras de waveform animadas, decorativas, a un lado del círculo */
+function Waveform({
+  animValue,
+  color,
+  side,
+}: {
+  animValue: Animated.Value;
+  color: string;
+  side: "left" | "right";
+}) {
+  const bars = side === "left" ? [10, 18, 26, 16, 8] : [8, 16, 26, 18, 10];
+
+  return (
+    <View style={styles.waveformWrap}>
+      {bars.map((h, i) => {
+        const scaleY = animValue.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.5, i % 2 === 0 ? 1.3 : 1],
+        });
+        return (
+          <Animated.View
+            key={i}
+            style={[
+              styles.waveformBar,
+              {
+                height: h,
+                backgroundColor: color,
+                shadowColor: color,
+                transform: [{ scaleY }],
+              },
+            ]}
+          />
+        );
+      })}
+    </View>
+  );
+}
+
+/** Slide 2 — Vibes: elige tu próximo libro según cómo quieres sentirte */
+const VIBES: { label: string; icon: any; color: string }[] = [
+  { label: "Épico", icon: "⚡", color: colors.iron },
+  { label: "Romántico", icon: "💜", color: colors.copper },
+  { label: "Intenso", icon: "🔥", color: colors.gold },
+  { label: "Llorar", icon: "💧", color: colors.brass },
+  { label: "Inspirador", icon: "✨", color: colors.verdigris },
+  { label: "Reflexionar", icon: "🤔", color: colors.copper },
+  { label: "Ligero", icon: "☁️", color: colors.brass },
+  { label: "Aprender", icon: "🎯", color: colors.verdigris },
+]
+
+function SlideVibes() {
   return (
     <SlideContainer
-      title="DESLIZA"
+      title="ELIGE TU VIBE"
       titleColor={colors.copper}
-      highlight={
-        <View style={{ alignItems: "center", gap: 4 }}>
-          <Text style={styles.highlight}>Navega entre Libros.</Text>
-          <View style={styles.gestureLegend}>
-           
-    
-            <Legend symbol="↑" color={colors.copper} text="Siguiente Libro" />
-            <Legend symbol="↓" color={colors.copper} text="Libro Anterior" />
-          </View>
-        </View>
-      }
+      highlight={<Text style={styles.highlight}>Encuentra libros según cómo quieres sentirte.</Text>}
     >
-      {/* Arrows around the central card */}
-      <View style={styles.dpad}>
-        <ArrowBtn icon="chevron-up" color={colors.copper} pos={{ top: 0, alignSelf: "center" }} />
-        <ArrowBtn icon="chevron-down" color={colors.copper} pos={{ bottom: 0, alignSelf: "center" }} />
-        <ArrowBtn icon="close" color={colors.iron} pos={{ left: 0, top: "50%", marginTop: -28 }} big />
-        <ArrowBtn icon="heart" color={colors.verdigris} pos={{ right: 0, top: "50%", marginTop: -28 }} big />
-        {/* Center mini-card */}
-        <View style={styles.miniCard}>
-          <Ionicons name="book" size={36} color={colors.brass} />
-        </View>
+ <View style={styles.vibesGrid}>
+  {VIBES.map((v) => (
+    <View key={v.label} style={[styles.vibePill, { borderColor: v.color, shadowColor: v.color }]}>
+<Text style={{ fontSize: 14 }}>{v.icon}</Text>
+      <Text style={[styles.vibePillText, { color: colors.textOnDark }]}>{v.label}</Text>
+    </View>
+  ))}
+</View>
+
+      <View style={styles.vibeHeartWrap}>
+        <Ionicons name="book-outline" size={72} color={colors.brass} style={styles.vibeBookIcon} />
+        <Ionicons name="heart" size={38} color={colors.copper} style={styles.vibeHeartIcon} />
       </View>
     </SlideContainer>
   );
 }
 
-/** Slide 3 — Author chat */
+/** Slide 3 — Author chat, con el mismo lenguaje de pulso que el slide 1 */
 function SlideAuthor() {
-  const fadeIn = useRef(new Animated.Value(0)).current;
+  const pulse = useRef(new Animated.Value(0)).current;
+  const sparkle = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
-        Animated.timing(fadeIn, { toValue: 1, duration: 1600, useNativeDriver: true }),
-        Animated.delay(400),
-        Animated.timing(fadeIn, { toValue: 0, duration: 1600, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: 1400, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: 1400, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
       ])
     ).start();
-  }, [fadeIn]);
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(sparkle, { toValue: 1, duration: 900, useNativeDriver: true }),
+        Animated.timing(sparkle, { toValue: 0, duration: 900, useNativeDriver: true }),
+      ])
+    ).start();
+  }, [pulse, sparkle]);
+
+  const avatarScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] });
+  const glowOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.5, 0.95] });
+  const sparkleOpacity = sparkle.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] });
+  const sparkleRotate = sparkle.interpolate({ inputRange: [0, 1], outputRange: ["-12deg", "12deg"] });
 
   return (
     <SlideContainer
@@ -231,11 +303,17 @@ function SlideAuthor() {
       titleColor={colors.copper}
       highlight={
         <Text style={styles.highlight}>
-          <Text style={[styles.highlightStrong, { color: colors.gold }]}>Premium</Text> · IA que personifica al autor
+          <Text style={[styles.highlightStrong, { color: colors.gold }]}>Premium</Text> · una IA inspirada en su obra
         </Text>
       }
     >
       <View style={styles.authorWrap}>
+        <Animated.View
+          style={[
+            styles.authorGlowRing,
+            { transform: [{ scale: avatarScale }], opacity: glowOpacity },
+          ]}
+        />
         <View style={styles.authorAvatar}>
           <Ionicons name="person" size={62} color={colors.copper} />
           <View style={styles.authorPremiumBadge}>
@@ -243,55 +321,18 @@ function SlideAuthor() {
           </View>
         </View>
         <View style={styles.bubbleAssistant}>
-          <Text style={styles.bubbleText}>"Tu pregunta…"</Text>
+          <Text style={styles.bubbleText}>"Pregúntame lo que quieras…"</Text>
         </View>
-        <Animated.View style={[styles.bubbleUser, { opacity: fadeIn }]}>
+        <Animated.View
+          style={[
+            styles.bubbleUser,
+            { opacity: sparkleOpacity, transform: [{ rotate: sparkleRotate }] },
+          ]}
+        >
           <Ionicons name="sparkles" size={14} color={colors.bgBase} />
         </Animated.View>
       </View>
     </SlideContainer>
-  );
-}
-
-/* ---------- HELPERS ---------- */
-
-function ArrowBtn({
-  icon,
-  color,
-  pos,
-  big,
-}: {
-  icon: any;
-  color: string;
-  pos: any;
-  big?: boolean;
-}) {
-  const size = big ? 56 : 48;
-  return (
-    <View
-      style={[
-        styles.arrowBtn,
-        pos,
-        {
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          borderColor: color,
-          shadowColor: color,
-        },
-      ]}
-    >
-      <Ionicons name={icon} size={big ? 28 : 22} color={color} />
-    </View>
-  );
-}
-
-function Legend({ symbol, color, text }: { symbol: string; color: string; text: string }) {
-  return (
-    <View style={styles.legendItem}>
-      <Text style={[styles.legendSymbol, { color }]}>{symbol}</Text>
-      <Text style={styles.legendText}>{text}</Text>
-    </View>
   );
 }
 
@@ -328,6 +369,31 @@ const styles = StyleSheet.create({
   highlightStrong: { fontWeight: "900" },
 
   /* Slide 1 — Timer */
+  timerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    width: HERO + 70,
+  },
+  timerCenter: {
+    width: HERO,
+    height: HERO,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  waveformWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    width: 40,
+  },
+  waveformBar: {
+    width: 4,
+    borderRadius: 2,
+    shadowRadius: 6,
+    shadowOpacity: 0.8,
+    shadowOffset: { width: 0, height: 0 },
+  },
   timerOuter: {
     position: "absolute",
     width: HERO - 20,
@@ -367,56 +433,61 @@ const styles = StyleSheet.create({
     marginTop: -6,
   },
 
-  /* Slide 2 — Gestures */
-  dpad: {
-    width: HERO,
-    height: HERO,
-    position: "relative",
-  },
-  miniCard: {
-    position: "absolute",
-    top: "50%",
-    left: "50%",
-    width: 90,
-    height: 130,
-    marginTop: -65,
-    marginLeft: -45,
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: colors.brass,
-    backgroundColor: colors.bgSurface,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: colors.brass,
-    shadowRadius: 20,
-    shadowOpacity: 0.6,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 10,
-  },
-  arrowBtn: {
-    position: "absolute",
-    borderWidth: 2,
-    backgroundColor: colors.bgSurface,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowOpacity: 0.7,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 10,
-  },
-  gestureLegend: {
+  /* Slide 2 — Vibes */
+  vibesGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "center",
-    gap: 10,
-    marginTop: 8,
+    gap: 8,
+    width: HERO + 60,
   },
-  legendItem: { flexDirection: "row", alignItems: "center", gap: 4 },
-  legendSymbol: { fontSize: 14, fontWeight: "900" },
-  legendText: { color: colors.textOnDarkMuted, fontSize: 12, fontWeight: "600" },
+  vibePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderWidth: 1.5,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    backgroundColor: colors.bgSurface,
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 6,
+  },
+  vibePillText: { fontSize: 12, fontWeight: "700" },
+  vibeHeartWrap: {
+    marginTop: 22,
+    width: 70,
+    height: 60,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  vibeBookIcon: {
+    ...Platform.select({
+      web: { filter: `drop-shadow(0 0 14px ${colors.brass})` as any },
+    }),
+  },
+  vibeHeartIcon: {
+    position: "absolute",
+    top: -6,
+    right: 2,
+  },
 
   /* Slide 3 — Author */
   authorWrap: { width: HERO, height: HERO, alignItems: "center", justifyContent: "center" },
+  authorGlowRing: {
+    position: "absolute",
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    borderWidth: 2,
+    borderColor: colors.copper,
+    shadowColor: colors.copper,
+    shadowRadius: 26,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 12,
+  },
   authorAvatar: {
     width: 150,
     height: 150,
@@ -447,8 +518,8 @@ const styles = StyleSheet.create({
   },
   bubbleAssistant: {
     position: "absolute",
-    left: 18,
-    top: 18,
+    left: 4,
+    top: 10,
     backgroundColor: colors.bgSurface,
     borderWidth: 1,
     borderColor: "rgba(176,38,255,0.45)",
@@ -456,12 +527,13 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 14,
     borderBottomLeftRadius: 4,
+    maxWidth: 190,
   },
   bubbleText: { color: colors.textOnDark, fontSize: 13, fontStyle: "italic" },
   bubbleUser: {
     position: "absolute",
-    right: 22,
-    bottom: 24,
+    right: 14,
+    bottom: 18,
     backgroundColor: colors.brass,
     paddingHorizontal: 12,
     paddingVertical: 8,

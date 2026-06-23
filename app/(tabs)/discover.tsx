@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions, ActivityIndicator, Platform, Linking, ScrollView, Modal, FlatList } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions, ActivityIndicator, Platform, Linking, ScrollView, Modal, FlatList, LayoutChangeEvent } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { createAudioPlayer } from "expo-audio";
@@ -14,6 +14,18 @@ import { captureAndShare } from "../../src/lib/share";
 import { LinearGradient } from 'expo-linear-gradient';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
+
+// Altura real del tab bar definida en (tabs)/_layout.tsx:
+// height: 70 + paddingTop: 8 + paddingBottom: 12 = 90.
+// Como el tabBarStyle NO es position:"absolute", esta altura SÍ resta
+// espacio real al contenido de esta pantalla. La sacamos a una constante
+// con nombre en vez de un número suelto, y la restamos UNA sola vez aquí,
+// para que el resto del archivo no tenga que volver a adivinarla.
+const TAB_BAR_HEIGHT = 90;
+
+// Altura real disponible para cada slide. Sustituye a SCREEN_H en todo
+// lo que tenga que ver con el tamaño/posicionamiento de un slide individual.
+const SLIDE_H = SCREEN_H - TAB_BAR_HEIGHT;
 
 const MOOD_MAP: Array<{ kw: RegExp; label: string; icon: string; color: string }> = [
   { kw: /(thriller|terror|negra|policial|crimen|suspense|misterio)/i, label: "Intenso", icon: "🔥", color: colors.iron },
@@ -56,7 +68,16 @@ export default function Discover() {
   const listRef = useRef<FlatList<Book>>(null);
   const shareCardRef = useRef<View>(null);
   const [coverReady, setCoverReady] = useState(false);
-  
+
+  // Altura real medida del buyRow flotante (botones de compra).
+  // Se mide UNA vez por montaje con onLayout — nunca se adivina a mano.
+  // Arranca en un valor razonable (evita un "salto" visual en el primer
+  // frame) y se corrige solo en cuanto el layout real está disponible.
+  const [buyRowHeight, setBuyRowHeight] = useState(64);
+  const onBuyRowLayout = useCallback((e: LayoutChangeEvent) => {
+    const h = e.nativeEvent.layout.height;
+    if (Math.abs(h - buyRowHeight) > 0.5) setBuyRowHeight(h);
+  }, [buyRowHeight]);
 
   const stopAudio = useCallback(() => {
     try { playerRef.current?.pause?.(); playerRef.current?.remove?.(); } catch {}
@@ -68,13 +89,13 @@ const fetchBooks = useCallback(async (initial: boolean) => {
   if (initial) setLoading(true);
   try {
     const targetCount = 500;
-    
+
     // CAMBIO AQUÍ: Si hay búsqueda, usamos /books/search, si no, /books/feed
 const endpoint = query
   ? `/books/search?query=${encodeURIComponent(query)}`
   : `/books/feed?count=${targetCount}`;
     const res = await api<{ books: Book[] }>(endpoint);
-    
+
     setBooks((prev) => {
       const existingIds = new Set(prev.map((b) => b.book_id));
       const incoming = (res?.books || []).filter((b) => !existingIds.has(b.book_id));
@@ -88,9 +109,9 @@ const endpoint = query
       }, 100);
     }
   } catch (e) {
-    console.warn("feed error", e); 
-  } finally { 
-    setLoading(false); 
+    console.warn("feed error", e);
+  } finally {
+    setLoading(false);
   }
 }, [query, isRandom]);
   const loadFavorites = useCallback(async () => {
@@ -107,10 +128,10 @@ useEffect(() => {
     try {
       // 1. Cargamos primero los libros (si hay búsqueda, se usará el 'query')
       await fetchBooks(true);
-      
-      // 2. Solo después, intentamos cargar favoritos. 
+
+      // 2. Solo después, intentamos cargar favoritos.
       // Si esto falla (401), NO afectará a los libros que ya cargaron arriba.
-      loadFavorites(); 
+      loadFavorites();
     } catch (e) {
       console.error("Error crítico en carga inicial:", e);
       setLoading(false);
@@ -136,7 +157,7 @@ useEffect(() => {
 
   const onMomentumScrollEnd = useCallback((e: any) => {
     const y = e.nativeEvent.contentOffset.y;
-    const idx = Math.round(y / SCREEN_H);
+    const idx = Math.round(y / SLIDE_H);
     if (idx !== currentIndex) {
       setCurrentIndex(idx);
       stopAudio();
@@ -239,15 +260,15 @@ await Image.prefetch(coverUrl);
         keyExtractor={(b) => b.book_id}
         showsVerticalScrollIndicator={false}
         pagingEnabled
-        snapToInterval={SCREEN_H}
+        snapToInterval={SLIDE_H}
         snapToAlignment="start"
         decelerationRate="fast"
         onMomentumScrollEnd={onMomentumScrollEnd}
-        getItemLayout={(_, index) => ({ length: SCREEN_H, offset: SCREEN_H * index, index })}
+        getItemLayout={(_, index) => ({ length: SLIDE_H, offset: SLIDE_H * index, index })}
         windowSize={3}
         maxToRenderPerBatch={2}
         initialNumToRender={1}
-        renderItem={({ item }) => <BookSlide book={item} />}
+        renderItem={({ item }) => <BookSlide book={item} reservedBottom={buyRowHeight} />}
         testID="vertical-feed"
       />
 
@@ -264,19 +285,33 @@ await Image.prefetch(coverUrl);
         </TouchableOpacity>
       </View>
 
-  
+
       <View style={styles.sideButtons} pointerEvents="box-none">
 <SideButton icon="information-circle" color="#2cbb04" borderColor="#2cbb04" onPress={() => setInfoOpen(true)} testID="btn-info" />
 <SideButton icon={isFav ? "heart" : "heart-outline"} color="#ff01cc" borderColor="#ff01cc" onPress={toggleFavorite} testID="btn-favorite" />
 <SideButton icon={playing ? "pause" : "headset"} color="#04d3fc" borderColor="#04d3fc" onPress={() => { setAudioOpen(true); playAudio(); }} loading={audioLoading} testID="btn-audio" />
 <SideButton icon="chatbubbles" color="#B026FF" borderColor="#B026FF" onPress={openAuthorChat} testID="btn-author-ia" />
 <SideButton icon="star" color="#d0fe00" borderColor="#d0fe00" onPress={() => router.push({ pathname: "/reviews", params: { book_id: current.book_id, title: current.title, author: current.author } })} testID="btn-reviews" />
-        
-        
+
+
       </View>
 
-      <View style={[styles.buyRow, { paddingBottom: insets.bottom + 6 }]} pointerEvents="box-none">
-        
+      {/*
+        buyRow sigue flotante y fijo, EXACTAMENTE igual que sideButtons:
+        position absolute, fuera del FlatList, no se mueve al pasar de libro.
+        Lo único que cambia respecto al original es el cálculo de `bottom`:
+        antes era -23 (número inventado, anclado a SCREEN_H completo).
+        Ahora es insets.bottom puro: la distancia real y segura desde el
+        borde físico de la pantalla, válida en cualquier dispositivo.
+        onLayout mide su altura real para que BookSlide pueda reservarle
+        hueco exacto y nunca lo tape la portada.
+      */}
+      <View
+        style={[styles.buyRow, { bottom: insets.bottom + 2 }]}
+        pointerEvents="box-none"
+        onLayout={onBuyRowLayout}
+      >
+
       {/* Botón de Amazon */}
 <TouchableOpacity testID="btn-buy-amazon" style={styles.buyBtn} onPress={() => {
   const q = encodeURIComponent(`${current.title} ${current.author}`);
@@ -320,64 +355,103 @@ await Image.prefetch(coverUrl);
   );
 }
 
-function BookSlide({ book }: { book: Book }) {
+function BookSlide({ book, reservedBottom }: { book: Book; reservedBottom: number }) {
   const insets = useSafeAreaInsets();
   const mood = useMemo(() => inferMood(book), [book]);
   const coverW = SCREEN_W * 0.88;
-  const coverH = Math.min(coverW * 1.5, SCREEN_H - insets.top - insets.bottom - 240);
+
+  // Espacio real que ocupa topBar (ver styles.topBar + backBtn): el botón
+  // circular mide 38 de alto, con paddingTop: insets.top + 8 por encima.
+  // Reservamos esa franja completa para que topBar nunca quede tapado,
+  // y SOLO DESPUÉS añadimos los 45 que topBadgesRow necesita "subir" desde
+  // coverWrap (porque topBadgesRow es absolute con top:-45 relativo a
+  // coverWrap, no a slide — son dos espacios distintos, no se solapan).
+  const topBarSpace = insets.top + 8 + 38 + 16; // +16 de aire entre topBar y badges
+  const slidePaddingTop = topBarSpace + 45;
 
   return (
-    <View style={[styles.slide, { width: SCREEN_W, height: SCREEN_H }]}>
-      <View style={{ position: "relative", width: coverW, alignItems: "center", marginTop: 23 }}>
-        <View style={styles.topBadgesRow} pointerEvents="box-none">
-          <View style={styles.moodPill}>
-            <Text style={styles.moodPillIcon}>{mood.icon}</Text>
-            <Text style={[styles.moodPillLabel, { color: mood.color }]} numberOfLines={1}>{mood.label}</Text>
+    <View style={[styles.slide, { width: SCREEN_W, height: SLIDE_H, paddingTop: slidePaddingTop }]}>
+      {/*
+        coverArea: flex:1. Se lleva TODO el espacio que sobra después de
+        reservar paddingTop (sitio real para topBar + sitio para
+        topBadgesRow, que sigue flotando absolute por encima de coverWrap)
+        y después de pillContainer + el spacer de abajo.
+        Ya no hay ningún coverH calculado por resta de números mágicos.
+      */}
+      <View style={styles.coverArea}>
+        <View style={styles.coverWrap}>
+          <View style={styles.topBadgesRow} pointerEvents="box-none">
+            <View style={styles.moodPill}>
+              <Text style={styles.moodPillIcon}>{mood.icon}</Text>
+              <Text style={[styles.moodPillLabel, { color: mood.color }]} numberOfLines={1}>{mood.label}</Text>
+            </View>
+            <View style={styles.ratingPill}>
+              {renderStarsCompact(book.rating)}
+              <Text style={styles.ratingValue}>{book.rating.toFixed(1)}</Text>
+            </View>
           </View>
-          <View style={styles.ratingPill}>
-            {renderStarsCompact(book.rating)}
-            <Text style={styles.ratingValue}>{book.rating.toFixed(1)}</Text>
-          </View>
-        </View>
-        
-        <Image 
-  source={{ uri: `https://res.cloudinary.com/ddppclcl1/image/upload/v1780422197/${book.book_id}.webp` }} 
-  style={{ 
-    width: coverW, 
-    height: coverH, 
-    borderRadius: 15, 
-    overflow: 'hidden' 
-  }}
-  onError={(e) => console.log("Error cargando imagen:", e.nativeEvent.error)} 
-/><LinearGradient
-    colors={['transparent', 'rgb(0, 0, 0)']}
-    start={{ x: 0.9, y: 0 }}
-    end={{ x: 1, y: 0}}
-    style={{
-      position: 'absolute',
-      top: 0,
-      bottom: 0,
-      right: 0,
-      width: '60%', // Puedes probar con '30%' si quieres que sea más estrecho
-    }}
-  />
-  
-</View>{/* ESTO LO VAMOS A PONER JUSTO DEBAJO DE LA PORTADA */}
-<View style={styles.pillContainer}>
-  {book.vibe_tags?.map((tag, index) => (
-    <React.Fragment key={index}>
-      <Text style={styles.pillText}>
-        {tag.icon} {tag.label}
-      </Text>
-      {/* Separador entre elementos */}
-      {index < (book.vibe_tags?.length || 0) - 1 && (
-        <Text style={styles.separator}>•</Text>
-      )}
-    </React.Fragment>
-  ))}
-</View>
 
+          {/*
+            Antes: borderRadius/overflow estaban en la Image directamente,
+            con height:"100%" y resizeMode="contain". Eso crea una CAJA
+            grande (todo el alto disponible) dentro de la cual la imagen
+            real del libro se dibuja más pequeña y centrada, dejando aire
+            transparente alrededor — el borderRadius redondeaba esa caja
+            invisible, no el borde real de la portada, por eso no se veía.
+
+            Ahora: coverFrame tiene aspectRatio fijo (2:3, proporción
+            estándar de tapa de libro) y altura máxima limitada al espacio
+            disponible. Así el contenedor mide CASI exactamente lo mismo
+            que la imagen real, y overflow:"hidden" + borderRadius sí
+            recortan el borde visible del libro, en cualquier dispositivo.
+          */}
+          <View style={styles.coverFrame}>
+            <Image
+              source={{ uri: `https://res.cloudinary.com/ddppclcl1/image/upload/v1780422197/${book.book_id}.webp` }}
+              resizeMode="cover"
+              style={styles.coverImage}
+              onError={(e) => console.log("Error cargando imagen:", e.nativeEvent.error)}
+            />
+          </View>
+
+          <LinearGradient
+            colors={['transparent', 'rgb(0, 0, 0)']}
+            start={{ x: 0.9, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={{
+              position: 'absolute',
+              top: 0,
+              bottom: 0,
+              right: 0,
+              width: '60%',
+            }}
+          />
+        </View>
       </View>
+
+      {/* Tags — flujo normal, altura natural, sin cambios respecto al original */}
+      <View style={styles.pillContainer}>
+        {book.vibe_tags?.map((tag, index) => (
+          <React.Fragment key={index}>
+            <Text style={styles.pillText}>
+              {tag.icon} {tag.label}
+            </Text>
+            {index < (book.vibe_tags?.length || 0) - 1 && (
+              <Text style={styles.separator}>•</Text>
+            )}
+          </React.Fragment>
+        ))}
+      </View>
+
+      {/*
+        Spacer invisible: reserva exactamente la altura real medida del
+        buyRow flotante (+ el mismo insets.bottom+8 que usa buyRow), para
+        que coverArea (flex:1) nunca calcule de más y la portada no quede
+        nunca tapada por los botones de compra fijos.
+        No es clicable, no tiene contenido — es aire reservado en el flujo.
+      */}
+      <View style={{ height: reservedBottom + insets.bottom + 2 }} pointerEvents="none" />
+    </View>
   );
 }
 
@@ -454,7 +528,7 @@ function FlashCardModal({ visible, book, lang, onClose, onAuthorChat, isPremium 
               <DetailItem label="SAGA" value={ext.saga_info || "Libro independiente"} color={colors.iron} />
               <DetailItem label="CONT. SENSIBLE" value={ext.contenido_sensible || "—"} color={colors.brass} />
               <DetailItem label="DIFICULTAD" value={ext.ficha_lectura?.dificultad || "—"} color={colors.iron} />
-<             DetailItem label="ESTILO" value={ext.ficha_lectura?.estilo || "—"} color={colors.brass} />
+              <DetailItem label="ESTILO" value={ext.ficha_lectura?.estilo || "—"} color={colors.brass} />
             </View>
 
             {/* Bloque limpio sin título de la frase impactante */}
@@ -531,7 +605,20 @@ const styles = StyleSheet.create({
   emptyTitle: { color: colors.textOnDark, fontSize: 18, marginTop: 12, textAlign: "center" },
   reloadBtn: { marginTop: 24, borderWidth: 1, borderColor: colors.brass, paddingHorizontal: 22, paddingVertical: 12, borderRadius: 999 },
   reloadText: { color: colors.brass, letterSpacing: 2, fontWeight: "700" },
-  slide: { backgroundColor: colors.bgBase, alignItems: "center", justifyContent: "center" },
+  // slide: ya NO usa justifyContent:"center". Es columna flex de arriba a
+  // abajo: paddingTop reserva sitio para topBadgesRow (absolute), luego
+  // coverArea (flex:1) se lleva el resto, luego pillContainer y el spacer.
+  slide: { backgroundColor: colors.bgBase, alignItems: "center", flexDirection: "column" },
+  coverArea: { flex: 1, width: "100%", alignItems: "center", justifyContent: "center" },
+  coverWrap: { position: "relative", width: SCREEN_W * 0.88, height: "100%", alignItems: "center", justifyContent: "center" },
+  // coverFrame: contenedor con proporción fija 2:3 (estándar de tapa de
+  // libro) y altura máxima = el espacio real disponible. overflow:"hidden"
+  // recorta la imagen exactamente en su propio borde, no en un hueco
+  // transparente más grande — por eso ahora SÍ se ven las esquinas
+  // redondeadas. maxWidth evita que en pantallas muy altas la portada se
+  // vuelva demasiado ancha en proporción a su alto.
+  coverFrame: { width: "100%", maxWidth: SCREEN_W * 0.88, aspectRatio: 2 / 3, maxHeight: "100%", borderRadius: 15, overflow: "hidden" },
+  coverImage: { width: "100%", height: "100%" },
   topBadgesRow: { position: "absolute", top: -45, left: 0, right: 0, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 4, zIndex: 8 },
   moodPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 15, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: colors.brassSoft, backgroundColor: "rgba(6,1,15,0.85)" },
   moodPillIcon: { fontSize: 14 },
@@ -548,7 +635,10 @@ const styles = StyleSheet.create({
   sideButtons: { position: "absolute", right: 10, top: "50%", marginTop: -90, gap: 16, alignItems: "center", zIndex: 10 },
   sideBtnWrap: { alignItems: "center" },
 sideBtn: { width: 42, height: 42, borderRadius: 21, borderWidth: 1.5, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(6,1,15,0.6)", shadowOpacity: 0.7, shadowRadius: 8, shadowOffset: { width: 0, height: 0 }, elevation: 5 },
-  buyRow: { position: "absolute", bottom: -23, left: 0, right: 0, flexDirection: "row", justifyContent: "space-between", gap: 8, paddingHorizontal: 12, zIndex: 10 },
+  // buyRow: igual que antes (flotante, absolute, fijo), solo cambia que
+  // `bottom` ya no es un número fijo (-23) sino que se inyecta dinámicamente
+  // con insets.bottom + 8 desde donde se usa el estilo (ver JSX de Discover).
+  buyRow: { position: "absolute", left: 0, right: 0, flexDirection: "row", justifyContent: "space-between", gap: 8, paddingHorizontal: 12, zIndex: 10 },
   buyBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1.5, borderColor: colors.brassSoft, paddingHorizontal: 8, paddingVertical: 11, borderRadius: 12, backgroundColor: "rgba(0,0,0,0.6)", shadowColor: colors.brass, shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 0 }, elevation: 5 },
   buyText: { color: colors.gold, fontSize: 12, fontWeight: "800", letterSpacing: 0.5 },
   modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.85)", justifyContent: "flex-end" },
@@ -577,15 +667,14 @@ sideBtn: { width: 42, height: 42, borderRadius: 21, borderWidth: 1.5, alignItems
   audioBadge: { color: colors.copper, fontSize: 12, letterSpacing: 3, fontWeight: "900" },
   audioPlayBtn: { width: 50, height: 50, borderRadius: 25, borderWidth: 2, borderColor: colors.brass, alignItems: "center", justifyContent: "center", backgroundColor: colors.bgBase },
   dividerLine: { height: 1, backgroundColor: colors.copper, opacity: 0.4, marginTop: 10, marginBottom: 12 },
-  // ESTOS DOS SON LOS ÚNICOS QUE REALMENTE ESTAMOS AÑADIENDO:
   pillContainer: {
   flexDirection: 'row',
   justifyContent: 'center',
   alignItems: 'center',
-  backgroundColor: 'rgba(255, 255, 255, 0.07)', // Un toque muy suave de blanco transparente
+  backgroundColor: 'rgba(255, 255, 255, 0.07)',
   paddingVertical: 5,
   paddingHorizontal: 16,
-  borderRadius: 25, // Esto es lo que le da la forma de "pastilla" (pill)
+  borderRadius: 25,
   borderWidth: 1,
   borderColor: '#08a3fd3b',
   marginTop: 8,
