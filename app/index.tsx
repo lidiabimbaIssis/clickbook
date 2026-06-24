@@ -7,6 +7,47 @@ import { useAuth } from "../src/providers/AuthProvider";
 import { api, setToken } from "../src/lib/api";
 import { colors } from "../src/theme";
 import Logo from "../src/components/Logo";
+import { LinearGradient } from "expo-linear-gradient";
+import MaskedView from "@react-native-masked-view/masked-view";
+
+/**
+ * Renderiza una palabra/frase corta con gradiente cian -> púrpura,
+ * para usar INLINE dentro de una frase más larga (ej. "vivirlos").
+ * No se puede meter un MaskedView (es una View) dentro de un <Text>,
+ * por eso se usa como elemento "hermano" dentro de un View con flexDirection: row.
+ */
+function GradientWord({
+  text,
+  fontSize,
+  fontWeight = "800",
+  fontFamily,
+}: {
+  text: string;
+  fontSize: number;
+  fontWeight?: "400" | "600" | "700" | "800" | "900";
+  fontFamily?: string;
+}) {
+  return (
+    <MaskedView
+      style={{ height: fontSize * 1.25 }}
+      maskElement={
+        <Text style={{ fontSize, fontWeight, fontFamily, backgroundColor: "transparent" }}>
+          {text}
+        </Text>
+      }
+    >
+      <LinearGradient
+        colors={[colors.brass, colors.copper]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={{ flex: 1 }}
+      >
+        <Text style={{ fontSize, fontWeight, fontFamily, opacity: 0 }}>{text}</Text>
+      </LinearGradient>
+    </MaskedView>
+  );
+}
+
 
 export default function LoginScreen() {
   const { user, loading, refresh } = useAuth();
@@ -73,9 +114,15 @@ export default function LoginScreen() {
       <View style={styles.overlay} />
       <View style={styles.header}><Logo size="lg" /><View style={styles.divider} /></View>
       <View style={styles.hero}>
-        <Text style={styles.title}>
-  No es solo leer libros, es <Text style={{ color: colors.brass }}>vivirlos</Text>
-</Text>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", alignItems: "center" }}>
+  <Text style={styles.title}>No es solo leer libros, es </Text>
+  <GradientWord
+    text="vivirlos"
+    fontSize={styles.title.fontSize}
+    fontWeight={styles.title.fontWeight as any}
+    fontFamily={styles.title.fontFamily}
+  />
+</View>
       </View>
       <View style={styles.features}>
         

@@ -307,8 +307,8 @@ await Image.prefetch(coverUrl);
         hueco exacto y nunca lo tape la portada.
       */}
       <View
-        style={[styles.buyRow, { bottom: insets.bottom + 2 }]}
-        pointerEvents="box-none"
+style={[styles.buyRow, { bottom: Math.min(insets.bottom, 20) - 8 }]}
+pointerEvents="box-none"
         onLayout={onBuyRowLayout}
       >
 
@@ -366,7 +366,7 @@ function BookSlide({ book, reservedBottom }: { book: Book; reservedBottom: numbe
   // y SOLO DESPUÉS añadimos los 45 que topBadgesRow necesita "subir" desde
   // coverWrap (porque topBadgesRow es absolute con top:-45 relativo a
   // coverWrap, no a slide — son dos espacios distintos, no se solapan).
-  const topBarSpace = insets.top + 8 + 38 + 16; // +16 de aire entre topBar y badges
+  const topBarSpace = insets.top + 8 + 38 + 10; // +8 de aire entre topBar y badges
   const slidePaddingTop = topBarSpace + 45;
 
   return (
@@ -450,7 +450,7 @@ function BookSlide({ book, reservedBottom }: { book: Book; reservedBottom: numbe
         nunca tapada por los botones de compra fijos.
         No es clicable, no tiene contenido — es aire reservado en el flujo.
       */}
-      <View style={{ height: reservedBottom + insets.bottom + 2 }} pointerEvents="none" />
+<View style={{ height: reservedBottom + Math.min(insets.bottom, 20) - 8 }} pointerEvents="none" />
     </View>
   );
 }

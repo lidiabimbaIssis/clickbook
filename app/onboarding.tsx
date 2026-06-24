@@ -16,6 +16,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { LinearGradient } from "expo-linear-gradient";
+import MaskedView from "@react-native-masked-view/masked-view";
 import { colors } from "../src/theme";
 
 const { width, height } = Dimensions.get("window");
@@ -102,37 +104,46 @@ export default function Onboarding() {
   );
 }
 
+/* ---------- GRADIENT TITLE ---------- */
+/**
+ * Título con gradiente real cian -> púrpura usando MaskedView + LinearGradient.
+ * El texto actúa de máscara; el gradiente se ve únicamente dentro de las letras.
+ */
+function GradientTitle({ text }: { text: string }) {
+  return (
+    <MaskedView
+      maskElement={
+        <Text style={[styles.title, { backgroundColor: "transparent" }]}>{text}</Text>
+      }
+    >
+      <LinearGradient
+        colors={[colors.brass, colors.copper]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+      >
+        {/* Texto invisible que solo define el tamaño del gradiente (debe matchear el de la máscara) */}
+        <Text style={[styles.title, { opacity: 0 }]}>{text}</Text>
+      </LinearGradient>
+    </MaskedView>
+  );
+}
+
 /* ---------- SLIDES ---------- */
 
 function SlideContainer({
   children,
   title,
   highlight,
-  titleColor,
 }: {
   children: React.ReactNode;
   title: string;
   highlight: React.ReactNode;
-  titleColor: string;
 }) {
   return (
     <View style={[styles.slide, { width }]}>
       <View style={styles.heroWrap}>{children}</View>
       <View style={styles.textBlock}>
-        <Text
-          style={[
-            styles.title,
-            {
-              color: titleColor,
-              ...Platform.select({
-                web: { textShadow: `0 0 24px ${titleColor}` as any },
-                default: { textShadowColor: titleColor, textShadowRadius: 18, textShadowOffset: { width: 0, height: 0 } },
-              }),
-            },
-          ]}
-        >
-          {title}
-        </Text>
+        <GradientTitle text={title} />
         <View style={styles.highlightWrap}>{highlight}</View>
       </View>
     </View>
@@ -166,7 +177,6 @@ function SlideTimer() {
   return (
     <SlideContainer
       title="UNA HISTORIA"
-      titleColor={colors.brass}
       highlight={
         <Text style={styles.highlight}>
           en{" "}
@@ -184,11 +194,15 @@ function SlideTimer() {
               { transform: [{ scale }], opacity, shadowOpacity: 0.6 },
             ]}
           />
+          <View style={styles.timerRingInner} />
           <View style={styles.timerInner}>
             <Text style={styles.timer60}>60</Text>
             <Text style={styles.timerSec}>SEG</Text>
           </View>
           <View style={styles.timerRing} />
+          <View style={styles.headphonesBadge}>
+            <Ionicons name="headset" size={18} color={colors.bgBase} />
+          </View>
         </View>
 
         <Waveform animValue={wave} color={colors.brass} side="right" />
@@ -248,26 +262,71 @@ const VIBES: { label: string; icon: any; color: string }[] = [
 ]
 
 function SlideVibes() {
+  // Animación de destellos (sparkles) alrededor del libro+corazón
+  const sparkle1 = useRef(new Animated.Value(0)).current;
+  const sparkle2 = useRef(new Animated.Value(0)).current;
+  const sparkle3 = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = (val: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(val, { toValue: 1, duration: 650, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+          Animated.timing(val, { toValue: 0, duration: 650, easing: Easing.in(Easing.ease), useNativeDriver: true }),
+        ])
+      );
+
+    loop(sparkle1, 0).start();
+    loop(sparkle2, 350).start();
+    loop(sparkle3, 700).start();
+  }, [sparkle1, sparkle2, sparkle3]);
+
   return (
     <SlideContainer
       title="ELIGE TU VIBE"
-      titleColor={colors.copper}
       highlight={<Text style={styles.highlight}>Encuentra libros según cómo quieres sentirte.</Text>}
     >
- <View style={styles.vibesGrid}>
-  {VIBES.map((v) => (
-    <View key={v.label} style={[styles.vibePill, { borderColor: v.color, shadowColor: v.color }]}>
-<Text style={{ fontSize: 14 }}>{v.icon}</Text>
-      <Text style={[styles.vibePillText, { color: colors.textOnDark }]}>{v.label}</Text>
-    </View>
-  ))}
-</View>
+      <View style={styles.vibesGrid}>
+        {VIBES.map((v) => (
+          <View key={v.label} style={[styles.vibePill, { borderColor: v.color, shadowColor: v.color }]}>
+            <Text style={{ fontSize: 14 }}>{v.icon}</Text>
+            <Text style={[styles.vibePillText, { color: colors.textOnDark }]}>{v.label}</Text>
+          </View>
+        ))}
+      </View>
 
       <View style={styles.vibeHeartWrap}>
-        <Ionicons name="book-outline" size={72} color={colors.brass} style={styles.vibeBookIcon} />
-        <Ionicons name="heart" size={38} color={colors.copper} style={styles.vibeHeartIcon} />
+        <Sparkle anim={sparkle1} style={styles.sparkleTopLeft} size={14} color={colors.copper} />
+        <Sparkle anim={sparkle2} style={styles.sparkleTopRight} size={10} color={colors.brass} />
+        <Sparkle anim={sparkle3} style={styles.sparkleBottomLeft} size={12} color={colors.copper} />
+
+        <Ionicons name="book-outline" size={104} color={colors.brass} style={styles.vibeBookIcon} />
+        <Ionicons name="heart" size={52} color={colors.copper} style={styles.vibeHeartIcon} />
       </View>
     </SlideContainer>
+  );
+}
+
+/** Destello decorativo individual, animado con fade + escala */
+function Sparkle({
+  anim,
+  style,
+  size,
+  color,
+}: {
+  anim: Animated.Value;
+  style: any;
+  size: number;
+  color: string;
+}) {
+  const scale = anim.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1.15] });
+  const opacity = anim.interpolate({ inputRange: [0, 1], outputRange: [0.35, 1] });
+
+  return (
+    <Animated.View style={[styles.sparkleBase, style, { opacity, transform: [{ scale }] }]}>
+      <Ionicons name="sparkles" size={size} color={color} />
+    </Animated.View>
   );
 }
 
@@ -275,6 +334,10 @@ function SlideVibes() {
 function SlideAuthor() {
   const pulse = useRef(new Animated.Value(0)).current;
   const sparkle = useRef(new Animated.Value(0)).current;
+  const dot1 = useRef(new Animated.Value(0)).current;
+  const dot2 = useRef(new Animated.Value(0)).current;
+  const dot3 = useRef(new Animated.Value(0)).current;
+  const badgeGlow = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.loop(
@@ -284,23 +347,53 @@ function SlideAuthor() {
       ])
     ).start();
 
+    // "Pop" del sparkle: aparece de golpe y se desvanece, como un mensaje recién enviado
     Animated.loop(
       Animated.sequence([
-        Animated.timing(sparkle, { toValue: 1, duration: 900, useNativeDriver: true }),
-        Animated.timing(sparkle, { toValue: 0, duration: 900, useNativeDriver: true }),
+        Animated.timing(sparkle, { toValue: 1, duration: 280, easing: Easing.out(Easing.back(1.6)), useNativeDriver: true }),
+        Animated.delay(900),
+        Animated.timing(sparkle, { toValue: 0, duration: 280, easing: Easing.in(Easing.ease), useNativeDriver: true }),
+        Animated.delay(400),
       ])
     ).start();
-  }, [pulse, sparkle]);
+
+    // Puntos de "escribiendo..." en cascada
+    const dotLoop = (val: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(val, { toValue: 1, duration: 380, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+          Animated.timing(val, { toValue: 0, duration: 380, easing: Easing.in(Easing.ease), useNativeDriver: true }),
+          Animated.delay(900 - delay),
+        ])
+      );
+    dotLoop(dot1, 0).start();
+    dotLoop(dot2, 150).start();
+    dotLoop(dot3, 300).start();
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(badgeGlow, { toValue: 1, duration: 1100, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(badgeGlow, { toValue: 0, duration: 1100, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ])
+    ).start();
+  }, [pulse, sparkle, dot1, dot2, dot3, badgeGlow]);
 
   const avatarScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] });
   const glowOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.5, 0.95] });
-  const sparkleOpacity = sparkle.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] });
-  const sparkleRotate = sparkle.interpolate({ inputRange: [0, 1], outputRange: ["-12deg", "12deg"] });
+  const sparkleScale = sparkle.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] });
+  const sparkleOpacity = sparkle;
+  const badgeScale = badgeGlow.interpolate({ inputRange: [0, 1], outputRange: [1, 1.12] });
+  const badgeOpacity = badgeGlow.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] });
+
+  const dotStyle = (val: Animated.Value) => ({
+    opacity: val.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }),
+    transform: [{ translateY: val.interpolate({ inputRange: [0, 1], outputRange: [0, -5] }) }],
+  });
 
   return (
     <SlideContainer
       title="HABLA CON EL AUTOR"
-      titleColor={colors.copper}
       highlight={
         <Text style={styles.highlight}>
           <Text style={[styles.highlightStrong, { color: colors.gold }]}>Premium</Text> · una IA inspirada en su obra
@@ -314,19 +407,33 @@ function SlideAuthor() {
             { transform: [{ scale: avatarScale }], opacity: glowOpacity },
           ]}
         />
+        <View style={styles.authorRingInner} />
         <View style={styles.authorAvatar}>
-          <Ionicons name="person" size={62} color={colors.copper} />
-          <View style={styles.authorPremiumBadge}>
-            <Ionicons name="diamond" size={14} color={colors.bgBase} />
-          </View>
+          <Ionicons name="person" size={78} color={colors.copper} />
+          <Animated.View
+            style={[
+              styles.authorPremiumBadge,
+              { transform: [{ scale: badgeScale }], opacity: badgeOpacity },
+            ]}
+          >
+            <Ionicons name="diamond" size={17} color={colors.bgBase} />
+          </Animated.View>
         </View>
+
         <View style={styles.bubbleAssistant}>
           <Text style={styles.bubbleText}>"Pregúntame lo que quieras…"</Text>
         </View>
+
+        <View style={styles.typingBubble}>
+          <Animated.View style={[styles.typingDot, dotStyle(dot1)]} />
+          <Animated.View style={[styles.typingDot, dotStyle(dot2)]} />
+          <Animated.View style={[styles.typingDot, dotStyle(dot3)]} />
+        </View>
+
         <Animated.View
           style={[
             styles.bubbleUser,
-            { opacity: sparkleOpacity, transform: [{ rotate: sparkleRotate }] },
+            { opacity: sparkleOpacity, transform: [{ scale: sparkleScale }] },
           ]}
         >
           <Ionicons name="sparkles" size={14} color={colors.bgBase} />
@@ -373,7 +480,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    width: HERO + 70,
+    width: HERO + 50,
   },
   timerCenter: {
     width: HERO,
@@ -385,7 +492,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    width: 40,
+    width: 32,
   },
   waveformBar: {
     width: 4,
@@ -413,6 +520,32 @@ const styles = StyleSheet.create({
     borderRadius: (HERO - 60) / 2,
     borderWidth: 1,
     borderColor: "rgba(0,240,255,0.25)",
+  },
+  timerRingInner: {
+    position: "absolute",
+    width: HERO - 38,
+    height: HERO - 38,
+    borderRadius: (HERO - 38) / 2,
+    borderWidth: 1,
+    borderColor: "rgba(0,240,255,0.4)",
+  },
+  headphonesBadge: {
+    position: "absolute",
+    bottom: 2,
+    right: 2,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.brass,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: colors.bgBase,
+    shadowColor: colors.brass,
+    shadowOpacity: 0.6,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 8,
   },
   timerInner: { alignItems: "center", justifyContent: "center" },
   timer60: {
@@ -457,41 +590,59 @@ const styles = StyleSheet.create({
   },
   vibePillText: { fontSize: 12, fontWeight: "700" },
   vibeHeartWrap: {
-    marginTop: 22,
-    width: 70,
-    height: 60,
+    marginTop: 28,
+    width: 130,
+    height: 110,
     alignItems: "center",
     justifyContent: "center",
   },
   vibeBookIcon: {
     ...Platform.select({
-      web: { filter: `drop-shadow(0 0 14px ${colors.brass})` as any },
+      web: { filter: `drop-shadow(0 0 18px ${colors.brass})` as any },
     }),
   },
   vibeHeartIcon: {
     position: "absolute",
-    top: -6,
-    right: 2,
+    top: -8,
+    right: -2,
+    ...Platform.select({
+      web: { filter: `drop-shadow(0 0 14px ${colors.copper})` as any },
+    }),
   },
+  sparkleBase: {
+    position: "absolute",
+    zIndex: 5,
+  },
+  sparkleTopLeft: { top: -6, left: 4 },
+  sparkleTopRight: { top: 6, right: -10 },
+  sparkleBottomLeft: { bottom: 4, left: -8 },
 
   /* Slide 3 — Author */
   authorWrap: { width: HERO, height: HERO, alignItems: "center", justifyContent: "center" },
   authorGlowRing: {
     position: "absolute",
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    borderWidth: 2,
+    width: HERO - 20,
+    height: HERO - 20,
+    borderRadius: (HERO - 20) / 2,
+    borderWidth: 3,
     borderColor: colors.copper,
     shadowColor: colors.copper,
-    shadowRadius: 26,
+    shadowRadius: 30,
     shadowOffset: { width: 0, height: 0 },
-    elevation: 12,
+    elevation: 14,
+  },
+  authorRingInner: {
+    position: "absolute",
+    width: HERO - 38,
+    height: HERO - 38,
+    borderRadius: (HERO - 38) / 2,
+    borderWidth: 1,
+    borderColor: "rgba(176,38,255,0.4)",
   },
   authorAvatar: {
-    width: 150,
-    height: 150,
-    borderRadius: 75,
+    width: HERO - 80,
+    height: HERO - 80,
+    borderRadius: (HERO - 80) / 2,
     borderWidth: 3,
     borderColor: colors.copper,
     backgroundColor: colors.bgSurface,
@@ -505,11 +656,11 @@ const styles = StyleSheet.create({
   },
   authorPremiumBadge: {
     position: "absolute",
-    bottom: 0,
-    right: 6,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    bottom: 4,
+    right: 10,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: colors.gold,
     alignItems: "center",
     justifyContent: "center",
@@ -530,6 +681,27 @@ const styles = StyleSheet.create({
     maxWidth: 190,
   },
   bubbleText: { color: colors.textOnDark, fontSize: 13, fontStyle: "italic" },
+  typingBubble: {
+    position: "absolute",
+    left: 30,
+    top: 64,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: colors.bgSurface,
+    borderWidth: 1,
+    borderColor: "rgba(176,38,255,0.45)",
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 14,
+    borderTopLeftRadius: 4,
+  },
+  typingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.copper,
+  },
   bubbleUser: {
     position: "absolute",
     right: 14,

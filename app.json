@@ -13,7 +13,8 @@
       "bundleIdentifier": "com.lidiabimba.clickbook",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Save book audios and shareable cards.",
-        "NSMicrophoneUsageDescription": "Used by audio playback features.",
+        "NSMicrophoneUsageDescription": "Used by audio playback and voice search features.",
+        "NSSpeechRecognitionUsageDescription": "Used to let you search by speaking instead of typing.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -21,11 +22,12 @@
       "package": "com.lidiabimba.clickbook",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#000000"
+        "backgroundColor": "#000A13"
       },
       "edgeToEdgeEnabled": true,
       "permissions": [
-        "INTERNET"
+        "INTERNET",
+        "RECORD_AUDIO"
       ]
     },
     "web": {
@@ -38,7 +40,8 @@
       "expo-web-browser",
       "expo-audio",
       "expo-font",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-speech-recognition"
     ],
     "experiments": {
       "typedRoutes": true

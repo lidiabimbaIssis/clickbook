@@ -191,7 +191,7 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
   <Text style={styles.cardLabel}>LÉELO SI... ✨</Text>
   <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
     {(data as any).leer_si?.map((tag: any, i: number) => (
-      <View key={i} style={[styles.topicPill, { borderColor: "#971d76"  }]}>
+      <View key={i} style={[styles.topicPill, { borderColor: "#570e43"  }]}>
         <Text style={{ fontSize: 14, marginRight: 4 }}>{tag.emoji}</Text>
 <Text style={[styles.topicLabel, { color: "#E8E4FF", flexShrink: 1 }]}>{capitalize(tag.label)}</Text>
       </View>
