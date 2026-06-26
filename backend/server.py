@@ -267,25 +267,13 @@ async def books_feed(count: int = 500):
     print(f"DEBUG: El servidor ha encontrado {len(books)} libros.")
     return {"books": books}
 
-
 @api_router.get("/books/search")
 async def search_books(query: str, user: User = Depends(get_current_user)):
-    books = await db.books.find({
-        "$or": [
-            {"title": {"$regex": query, "$options": "i"}},
-            {"author": {"$regex": query, "$options": "i"}},
-            {"genre": {"$regex": query, "$options": "i"}},
-            {"tema": {"$regex": query, "$options": "i"}},
-            {"tono": {"$regex": query, "$options": "i"}},
-            {"subgenero": {"$regex": query, "$options": "i"}},
-            {"mood": {"$regex": query, "$options": "i"}},
-        ]
-    }, {"_id": 0}).to_list(length=100)
-    
-    # Mezcla aleatoriamente los resultados
-    import random
-    random.shuffle(books)
-    
+    books = await db.books.find(
+        {"$text": {"$search": query}},
+        {"_id": 0, "score": {"$meta": "textScore"}}
+    ).sort([("score", {"$meta": "textScore"})]).to_list(length=100)
+
     return {"books": books}
 
 
@@ -545,6 +533,21 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"],
 )
+@app.on_event("startup")
+async def ensure_indexes():
+    try:
+        await db.books.create_index([
+            ("title", "text"),
+            ("author", "text"),
+            ("genre", "text"),
+            ("tema", "text"),
+            ("tono", "text"),
+            ("subgenero", "text"),
+            ("mood", "text"),
+        ], name="book_search_text_index")
+        logger.info("Text index ensured on books collection")
+    except Exception:
+        logger.exception("Failed to create text index")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
