@@ -261,17 +261,35 @@ async def downgrade_from_premium(user: User = Depends(get_current_user)):
 
 
 # ----------------- Book routes -----------------
+
+# Campos "pesados" (audio en base64) que NUNCA deben viajar en listados de
+# varios libros (feed, search, favorites). Solo se piden cuando se consulta
+# UN libro en concreto (get_book, premium_summary, tts).
+# Nota: resumen_audio NO se excluye porque es solo TEXTO (el guion del audio),
+# no el audio en sí, y se muestra siempre a todo el mundo, sea o no premium.
+BOOK_LIST_EXCLUDE_FIELDS = {
+    "_id": 0,
+    "premium_summary_es": 0,
+    "premium_summary_en": 0,
+    "audio_es_ES_Neural2_C_es": 0,
+    "audio_es_ES_Neural2_C_en": 0,
+    "audio_es_ES_Neural2_B_es": 0,
+    "audio_es_ES_Neural2_B_en": 0,
+}
+
 @api_router.get("/books/feed")
 async def books_feed(count: int = 500):
-    books = await db.books.find({}, {"_id": 0}).limit(count).to_list(length=count)
+    books = await db.books.find({}, BOOK_LIST_EXCLUDE_FIELDS).limit(count).to_list(length=count)
     print(f"DEBUG: El servidor ha encontrado {len(books)} libros.")
     return {"books": books}
 
 @api_router.get("/books/search")
 async def search_books(query: str, user: User = Depends(get_current_user)):
+    search_exclude_fields = dict(BOOK_LIST_EXCLUDE_FIELDS)
+    search_exclude_fields["score"] = {"$meta": "textScore"}
     books = await db.books.find(
         {"$text": {"$search": query}},
-        {"_id": 0, "score": {"$meta": "textScore"}}
+        search_exclude_fields
     ).sort([("score", {"$meta": "textScore"})]).to_list(length=100)
 
     return {"books": books}
@@ -297,7 +315,7 @@ async def get_favorites(user: User = Depends(get_current_user)):
     book_ids = [f["book_id"] for f in favs]
     if not book_ids:
         return {"books": []}
-    books = await db.books.find({"book_id": {"$in": book_ids}}, {"_id": 0}).to_list(1000)
+    books = await db.books.find({"book_id": {"$in": book_ids}}, BOOK_LIST_EXCLUDE_FIELDS).to_list(1000)
     order = {bid: i for i, bid in enumerate(book_ids)}
     books.sort(key=lambda b: order.get(b["book_id"], 9999))
     return {"books": books}
