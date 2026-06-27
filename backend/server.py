@@ -227,6 +227,23 @@ async def _increment_audio_count(user_id: str) -> int:
     )
     return int(res.get("count", 1)) if res else 1
 
+# Contador de hooks: misma lógica que el de audio de resúmenes, pero en su
+# propia colección para que sea un límite diario totalmente independiente
+# (un usuario free puede gastar 3 resúmenes + 3 hooks = 6 audios/día en total).
+FREE_DAILY_HOOK_LIMIT = int(os.environ.get("FREE_DAILY_HOOK_LIMIT", "3"))
+
+async def _get_today_hook_count(user_id: str) -> int:
+    doc = await db.daily_hook_usage.find_one({"user_id": user_id, "date": _today_key()})
+    return int(doc["count"]) if doc else 0
+
+async def _increment_hook_count(user_id: str) -> int:
+    res = await db.daily_hook_usage.find_one_and_update(
+        {"user_id": user_id, "date": _today_key()},
+        {"$inc": {"count": 1}, "$set": {"updated_at": datetime.now(timezone.utc)}},
+        upsert=True, return_document=True,
+    )
+    return int(res.get("count", 1)) if res else 1
+
 def _is_premium_active(user: User) -> bool:
     if not user.is_premium:
         return False
@@ -275,6 +292,7 @@ BOOK_LIST_EXCLUDE_FIELDS = {
     "audio_es_ES_Neural2_C_en": 0,
     "audio_es_ES_Neural2_B_es": 0,
     "audio_es_ES_Neural2_B_en": 0,
+    "hook_audio": 0,
 }
 
 @api_router.get("/books/feed")
@@ -440,6 +458,51 @@ async def tts_generate(req: TTSRequest, user: User = Depends(get_current_user)):
         "audio_base64": audio_b64, "mime": "audio/mp3", "plays_today": new_count,
         "limit": FREE_DAILY_AUDIO_LIMIT, "is_premium": is_premium, "cached": was_cached, "voice": voice_name,
     }
+
+
+# ----------------- Hook Audio (autoplay al pararse en discover) -----------------
+# El texto de "hook" ya existe en el JSON de cada libro (se usa en ShareCard y
+# FlashCardModal). Aquí solo generamos y cacheamos su audio. A diferencia de
+# /tts, este audio NO depende de idioma/voz seleccionable por el usuario: se
+# genera siempre con la misma voz por género (select_voice_for_genre), igual
+# que el resto del catálogo, y se guarda UNA SOLA VEZ en el propio documento
+# del libro, en el campo "hook_audio".
+@api_router.get("/books/{book_id}/hook-audio")
+async def get_hook_audio(book_id: str, user: User = Depends(get_current_user)):
+    is_premium = _is_premium_active(user)
+
+    if not is_premium:
+        plays_today = await _get_today_hook_count(user.user_id)
+        if plays_today >= FREE_DAILY_HOOK_LIMIT:
+            # Silencio total: sin error 402, sin modal. El frontend debe
+            # comprobar "available" y, si es False, no reproducir nada.
+            return {"available": False}
+
+    book = await db.books.find_one({"book_id": book_id}, {"_id": 0, "hook": 1, "hook_audio": 1, "genre": 1})
+    if not book:
+        raise HTTPException(404, "Book not found")
+
+    hook_text = (book.get("hook") or "").strip()
+    if not hook_text:
+        # Libro sin hook definido: no hay nada que reproducir, pero esto no
+        # cuenta como "agotaste tus hooks", así que no incrementamos contador.
+        return {"available": False}
+
+    audio_b64 = book.get("hook_audio")
+    was_cached = bool(audio_b64)
+
+    if not audio_b64:
+        voice_name = select_voice_for_genre(book.get("genre"))
+        audio_b64 = await google_tts_synthesize(text=hook_text[:1000], voice_name=voice_name)
+        try:
+            await db.books.update_one({"book_id": book_id}, {"$set": {"hook_audio": audio_b64}})
+        except Exception:
+            logger.exception("hook_audio cache write failed")
+
+    if not is_premium:
+        await _increment_hook_count(user.user_id)
+
+    return {"available": True, "audio_base64": audio_b64, "mime": "audio/mp3", "cached": was_cached}
 
 
 # ----------------- Author Chat (Premium only) -----------------
