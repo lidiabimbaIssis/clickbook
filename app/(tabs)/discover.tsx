@@ -66,6 +66,11 @@ export default function Discover() {
   const [playing, setPlaying] = useState(false);
   const [premiumSummaries, setPremiumSummaries] = useState<Record<string, string>>({});
   const playerRef = useRef<any>(null);
+  // Timer del hook automático: se arma cada vez que currentIndex cambia y se
+  // cancela si el usuario desliza antes de que pasen los 1.5s (ver useEffect
+  // más abajo). No usa estado, solo un ref, porque no necesita re-renderizar
+  // nada — solo dispara/cancela una acción.
+  const hookTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const listRef = useRef<FlatList<Book>>(null);
   const shareCardRef = useRef<View>(null);
   const [coverReady, setCoverReady] = useState(false);
@@ -155,6 +160,50 @@ useEffect(() => {
 
   const current = books[currentIndex];
   const isFav = current ? favBookIds.has(current.book_id) : false;
+
+  // ---- Hook automático: audio corto del "hook" al pararse 1.5s en una
+  // portada, sin deslizar. Ver playHookForCurrentBook más abajo para la
+  // lógica de reproducción (comparte playerRef/stopAudio con el resumen,
+  // para que NUNCA puedan sonar los dos a la vez).
+  const playHookForCurrentBook = useCallback(async (bookId: string) => {
+    try {
+      const res = await api<{ available: boolean; audio_base64?: string; mime?: string }>(
+        `/books/${bookId}/hook-audio`
+      );
+      if (!res.available) return; // sin hooks restantes hoy, o libro sin hook: silencio total, sin aviso
+
+      stopAudio(); // por si quedaba sonando un resumen u otro hook
+      const uri = `data:${res.mime};base64,${res.audio_base64}`;
+      const p = createAudioPlayer({ uri });
+      playerRef.current = p;
+      p.addListener("playbackStatusUpdate", (st: any) => { if (st.didJustFinish) stopAudio(); });
+      p.play();
+      setPlaying(true);
+    } catch (e) {
+      // Fallo silencioso a propósito: el hook es ambiental, un error de red
+      // aquí no debe interrumpir ni avisar al usuario.
+      console.warn("hook audio error", e);
+    }
+  }, [stopAudio]);
+
+  useEffect(() => {
+    if (hookTimerRef.current) {
+      clearTimeout(hookTimerRef.current);
+      hookTimerRef.current = null;
+    }
+
+    hookTimerRef.current = setTimeout(() => {
+      if (current) playHookForCurrentBook(current.book_id);
+    }, 1500);
+
+    return () => {
+      if (hookTimerRef.current) clearTimeout(hookTimerRef.current);
+    };
+    // Se reinicia cada vez que cambia el libro actual. No depende de
+    // playHookForCurrentBook directamente en el array para evitar relanzar
+    // el timer si esa función se recrea por motivos ajenos al cambio de
+    // libro; current.book_id es la señal real que nos importa.
+  }, [currentIndex, current?.book_id]);
 
   const onMomentumScrollEnd = useCallback((e: any) => {
     const y = e.nativeEvent.contentOffset.y;
