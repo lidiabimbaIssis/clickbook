@@ -78,7 +78,11 @@ export default function Favorites() {
       </View>
       {books.length === 0 ? (
         <View style={styles.empty}>
-          <Ionicons name="book-outline" size={64} color={colors.brass} />
+<Image
+  source={require("../../assets/images/empty-favorites-logo.png")}
+  style={styles.emptyLogo}
+  resizeMode="contain"
+/>
           <Text style={styles.emptyText}>Aún no has guardado ningún libro.</Text>
           <Text style={styles.emptyHint}>Marca el corazón para guardar favoritos.</Text>
         </View>
@@ -199,7 +203,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-  },
+},
   buyText: { color: colors.brass, fontSize: 11, fontWeight: "700" },
   removeBtn: {
     padding: 8,
@@ -207,4 +211,5 @@ const styles = StyleSheet.create({
     borderColor: "rgba(138,42,32,0.4)",
     borderRadius: 999,
   },
+  emptyLogo: { width: 100, height: 100, marginBottom: 8 },
 });

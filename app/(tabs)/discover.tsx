@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions, ActivityIndicator, Platform, Linking, ScrollView, Modal, FlatList, LayoutChangeEvent } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { createAudioPlayer } from "expo-audio";
 import{  useLocalSearchParams, useRouter } from "expo-router";
@@ -14,18 +15,6 @@ import { captureAndShare } from "../../src/lib/share";
 import { LinearGradient } from 'expo-linear-gradient';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
-
-// Altura real del tab bar definida en (tabs)/_layout.tsx:
-// height: 70 + paddingTop: 8 + paddingBottom: 12 = 90.
-// Como el tabBarStyle NO es position:"absolute", esta altura SÍ resta
-// espacio real al contenido de esta pantalla. La sacamos a una constante
-// con nombre en vez de un número suelto, y la restamos UNA sola vez aquí,
-// para que el resto del archivo no tenga que volver a adivinarla.
-const TAB_BAR_HEIGHT = 90;
-
-// Altura real disponible para cada slide. Sustituye a SCREEN_H en todo
-// lo que tenga que ver con el tamaño/posicionamiento de un slide individual.
-const SLIDE_H = SCREEN_H - TAB_BAR_HEIGHT;
 
 const MOOD_MAP: Array<{ kw: RegExp; label: string; icon: string; color: string }> = [
   { kw: /(thriller|terror|negra|policial|crimen|suspense|misterio)/i, label: "Intenso", icon: "🔥", color: colors.iron },
@@ -48,6 +37,18 @@ export default function Discover() {
   const lang = (user?.lang || "es") as "es" | "en";
   const insets = useSafeAreaInsets();
   const router = useRouter();
+
+  // Altura REAL del tab bar, medida en tiempo de ejecución por el propio
+  // react-navigation — ya incluye cualquier insets.bottom adicional que
+  // (tabs)/_layout.tsx sume internamente (ver ese archivo: ahora el
+  // tabBarStyle ya no usa números fijos, sino height/padding que crecen
+  // según insets.bottom real del dispositivo). Antes esto era una
+  // constante fija (TAB_BAR_HEIGHT = 90) que asumía un solo tipo de
+  // dispositivo; con este hook, SLIDE_H siempre coincide con el espacio
+  // real que el tab bar deja libre, sea cual sea el dispositivo.
+  const tabBarHeight = useBottomTabBarHeight();
+  const SLIDE_H = SCREEN_H - tabBarHeight;
+
   const params = useLocalSearchParams<{ q?: string; book_id?: string; random?: string }>();
   const query = (params.q || "").toString();
   const seedBookId = (params.book_id || "").toString();
@@ -268,7 +269,7 @@ await Image.prefetch(coverUrl);
         windowSize={3}
         maxToRenderPerBatch={2}
         initialNumToRender={1}
-        renderItem={({ item }) => <BookSlide book={item} reservedBottom={buyRowHeight} />}
+        renderItem={({ item }) => <BookSlide book={item} reservedBottom={buyRowHeight} slideHeight={SLIDE_H} />}
         testID="vertical-feed"
       />
 
@@ -299,16 +300,18 @@ await Image.prefetch(coverUrl);
       {/*
         buyRow sigue flotante y fijo, EXACTAMENTE igual que sideButtons:
         position absolute, fuera del FlatList, no se mueve al pasar de libro.
-        Lo único que cambia respecto al original es el cálculo de `bottom`:
-        antes era -23 (número inventado, anclado a SCREEN_H completo).
-        Ahora es insets.bottom puro: la distancia real y segura desde el
-        borde físico de la pantalla, válida en cualquier dispositivo.
-        onLayout mide su altura real para que BookSlide pueda reservarle
-        hueco exacto y nunca lo tape la portada.
+        IMPORTANTE: bottom ya NO suma insets.bottom aquí. Antes sí lo hacía,
+        pero ahora SLIDE_H (más arriba) ya resta tabBarHeight completo —
+        y tabBarHeight YA incluye su propio insets.bottom interno (ver
+        (tabs)/_layout.tsx). Sumar insets.bottom otra vez aquí contaba ese
+        espacio DOS veces, dejando un hueco negro de más entre buyRow y el
+        tab bar en dispositivos con barra de navegación clásica (insets.bottom
+        grande). Con solo un pequeño margen fijo de aire, queda igual de
+        seguro pero sin doble conteo.
       */}
       <View
-style={[styles.buyRow, { bottom: Math.min(insets.bottom, 20) - 8 }]}
-pointerEvents="box-none"
+        style={[styles.buyRow, { bottom: 6 }]}
+        pointerEvents="box-none"
         onLayout={onBuyRowLayout}
       >
 
@@ -355,7 +358,7 @@ pointerEvents="box-none"
   );
 }
 
-function BookSlide({ book, reservedBottom }: { book: Book; reservedBottom: number }) {
+function BookSlide({ book, reservedBottom, slideHeight }: { book: Book; reservedBottom: number; slideHeight: number }) {
   const insets = useSafeAreaInsets();
   const mood = useMemo(() => inferMood(book), [book]);
   const coverW = SCREEN_W * 0.88;
@@ -366,11 +369,11 @@ function BookSlide({ book, reservedBottom }: { book: Book; reservedBottom: numbe
   // y SOLO DESPUÉS añadimos los 45 que topBadgesRow necesita "subir" desde
   // coverWrap (porque topBadgesRow es absolute con top:-45 relativo a
   // coverWrap, no a slide — son dos espacios distintos, no se solapan).
-  const topBarSpace = insets.top + 8 + 38 + 10; // +8 de aire entre topBar y badges
+  const topBarSpace = insets.top + 8 + 38 + 8; // +8 de aire entre topBar y badges
   const slidePaddingTop = topBarSpace + 45;
 
   return (
-    <View style={[styles.slide, { width: SCREEN_W, height: SLIDE_H, paddingTop: slidePaddingTop }]}>
+    <View style={[styles.slide, { width: SCREEN_W, height: slideHeight, paddingTop: slidePaddingTop }]}>
       {/*
         coverArea: flex:1. Se lleva TODO el espacio que sobra después de
         reservar paddingTop (sitio real para topBar + sitio para
@@ -445,12 +448,12 @@ function BookSlide({ book, reservedBottom }: { book: Book; reservedBottom: numbe
 
       {/*
         Spacer invisible: reserva exactamente la altura real medida del
-        buyRow flotante (+ el mismo insets.bottom+8 que usa buyRow), para
+        buyRow flotante (+ el mismo margen fijo de 6 que usa buyRow), para
         que coverArea (flex:1) nunca calcule de más y la portada no quede
         nunca tapada por los botones de compra fijos.
         No es clicable, no tiene contenido — es aire reservado en el flujo.
       */}
-<View style={{ height: reservedBottom + Math.min(insets.bottom, 20) - 8 }} pointerEvents="none" />
+      <View style={{ height: reservedBottom + 6 }} pointerEvents="none" />
     </View>
   );
 }

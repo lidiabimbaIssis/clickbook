@@ -11,6 +11,7 @@ import {
   Platform,
   Animated,
   Easing,
+  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -19,6 +20,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import MaskedView from "@react-native-masked-view/masked-view";
 import { colors } from "../src/theme";
+
 
 const { width, height } = Dimensions.get("window");
 const HERO = Math.min(260, height * 0.32);
@@ -300,9 +302,11 @@ function SlideVibes() {
         <Sparkle anim={sparkle1} style={styles.sparkleTopLeft} size={14} color={colors.copper} />
         <Sparkle anim={sparkle2} style={styles.sparkleTopRight} size={10} color={colors.brass} />
         <Sparkle anim={sparkle3} style={styles.sparkleBottomLeft} size={12} color={colors.copper} />
-
-        <Ionicons name="book-outline" size={104} color={colors.brass} style={styles.vibeBookIcon} />
-        <Ionicons name="heart" size={52} color={colors.copper} style={styles.vibeHeartIcon} />
+        <Image
+          source={require("../assets/images/onboarding-vibe-icon-square.png")}
+          style={{ width: 100, height: 100 }}
+          resizeMode="contain"
+        />
       </View>
     </SlideContainer>
   );

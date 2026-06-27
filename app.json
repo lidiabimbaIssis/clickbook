@@ -35,14 +35,23 @@
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
-    "plugins": [
-      "expo-router",
-      "expo-web-browser",
-      "expo-audio",
-      "expo-font",
-      "expo-secure-store",
-      "expo-speech-recognition"
-    ],
+   "plugins": [
+  "expo-router",
+  "expo-web-browser",
+  "expo-audio",
+  "expo-font",
+  "expo-secure-store",
+  "expo-speech-recognition",
+  [
+    "expo-splash-screen",
+    {
+      "image": "./assets/images/splash-icon.png",
+      "imageWidth": 200,
+      "resizeMode": "contain",
+      "backgroundColor": "#000A13"
+    }
+  ]
+],
     "experiments": {
       "typedRoutes": true
     },
