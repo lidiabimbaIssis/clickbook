@@ -301,6 +301,27 @@ async def books_feed(count: int = 500):
     print(f"DEBUG: El servidor ha encontrado {len(books)} libros.")
     return {"books": books}
 
+
+# Ventana de vigencia de una "novedad": un libro con fecha_novedad deja de
+# aparecer en /books/novedades pasados estos días, SIN que haga falta tocar
+# nada manualmente — el libro sigue existiendo igual en /books/feed para
+# siempre, solo deja de mostrarse en esta lista filtrada.
+NOVEDADES_WINDOW_DAYS = int(os.environ.get("NOVEDADES_WINDOW_DAYS", "14"))
+
+@api_router.get("/books/novedades")
+async def books_novedades(count: int = 50):
+    # fecha_novedad se guarda como texto "YYYY-MM-DD" (ver Guía Maestra
+    # JSON), así que comparar como string funciona correctamente: ese
+    # formato ordena igual alfabéticamente que cronológicamente.
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=NOVEDADES_WINDOW_DAYS)).strftime("%Y-%m-%d")
+    query = {"fecha_novedad": {"$gte": cutoff}}
+    books = await db.books.find(query, BOOK_LIST_EXCLUDE_FIELDS) \
+        .sort("fecha_novedad", -1) \
+        .limit(count) \
+        .to_list(length=count)
+    return {"books": books}
+
+
 @api_router.get("/books/search")
 async def search_books(query: str, user: User = Depends(get_current_user)):
     search_exclude_fields = dict(BOOK_LIST_EXCLUDE_FIELDS)
@@ -359,6 +380,12 @@ async def get_book(book_id: str, user: User = Depends(get_current_user)):
 async def remove_favorite(book_id: str, user: User = Depends(get_current_user)):
     await db.user_interactions.delete_one({"user_id": user.user_id, "book_id": book_id, "action": "like"})
     return {"ok": True}
+
+
+@api_router.post("/favorites/clear")
+async def clear_favorites(user: User = Depends(get_current_user)):
+    result = await db.user_interactions.delete_many({"user_id": user.user_id, "action": "like"})
+    return {"ok": True, "deleted_count": result.deleted_count}
 
 
 @api_router.post("/books/reset")
