@@ -261,6 +261,18 @@ async def get_my_usage(user: User = Depends(get_current_user)):
         "premium_until": user.premium_until.isoformat() if user.premium_until else None,
     }
 
+@api_router.get("/me/hook-usage")
+async def get_my_hook_usage(user: User = Depends(get_current_user)):
+    # Igual que /me/usage pero para el contador de hooks automáticos del
+    # botón en discover.tsx — permite pintar el numerito (3, 2, 1) en la
+    # portada SIN tener que pedir el audio primero para saberlo.
+    plays_today = await _get_today_hook_count(user.user_id)
+    is_premium = _is_premium_active(user)
+    return {
+        "is_premium": is_premium, "plays_today": plays_today, "limit": FREE_DAILY_HOOK_LIMIT,
+        "remaining": max(0, FREE_DAILY_HOOK_LIMIT - plays_today) if not is_premium else None,
+    }
+
 @api_router.get("/config/pricing")
 async def get_pricing():
     return PRICING
