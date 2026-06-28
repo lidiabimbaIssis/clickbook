@@ -90,10 +90,16 @@ export default function Home() {
   const voiceAutoSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const AUTO_SEARCH_DELAY_MS = 800;
 
-  const go = (query?: string) => {
+  const go = (query?: string, isVibe?: boolean) => {
     Keyboard.dismiss();
-    if (query && query.trim()) router.push({ pathname: "/discover", params: { q: query.trim() } });
-    else router.push("/discover");
+    if (query && query.trim()) {
+      router.replace({
+        pathname: "/discover",
+        params: { q: query.trim(), t: Date.now(), ...(isVibe ? { vibe: "true" } : {}) },
+      });
+    } else {
+      router.replace({ pathname: "/discover", params: { t: Date.now() } });
+    }
   };
 
   // --- Búsqueda por voz: dictado simple ---
@@ -218,15 +224,15 @@ export default function Home() {
             "end" más arriba). Este espacio se reutiliza para "Novedades",
             mismo estilo y posición que tenía "BUSCAR".
           */}
-          <TouchableOpacity testID="btn-novedades" style={styles.primaryBtn} onPress={() => router.push({ pathname: "/discover", params: { novedades: "true" } })} activeOpacity={0.85}>
+          <TouchableOpacity testID="btn-novedades" style={styles.primaryBtn} onPress={() => router.replace({ pathname: "/discover", params: { mode: "novedades", t: Date.now() } })} activeOpacity={0.85}>
             <Ionicons name="sparkles" size={18} color={colors.bgBase} />
             <Text style={styles.primaryText}>NOVEDADES</Text>
           </TouchableOpacity>
 
           <View style={styles.divider}><View style={styles.line} /><Text style={styles.dividerText}>O BIEN</Text><View style={styles.line} /></View>
-          <TouchableOpacity testID="btn-lucky" style={styles.luckyBtn} onPress={() => router.push({ pathname: "/discover", params: { random: "true" } })} activeOpacity={0.85}>
+          <TouchableOpacity testID="btn-lucky" style={styles.luckyBtn} onPress={() => router.replace({ pathname: "/discover", params: { mode: "random", t: Date.now() } })} activeOpacity={0.85}>
             <GradientIcon name="sparkles" size={18} />
-            <GradientWord text="SORPRÉNDEME" fontSize={17} fontWeight="900" letterSpacing={3} />
+            <GradientWord text="SORPRÉNDEME" fontSize={15} fontWeight="900" letterSpacing={3} />
             <GradientIcon name="sparkles" size={18} />
           </TouchableOpacity>
 
@@ -242,7 +248,7 @@ export default function Home() {
 { label: "Aprender", emoji: "🎯", q: "Aprender" },
 { label: "Inspirador", emoji: "✨", q: "Inspirador" },
             ].map((m) => (
-              <TouchableOpacity key={m.label} style={styles.moodChip} onPress={() => go(m.q)} testID={`mood-${m.label}`}>
+              <TouchableOpacity key={m.label} style={styles.moodChip} onPress={() => go(m.q, true)} testID={`mood-${m.label}`}>
                 <Text style={styles.moodEmoji}>{m.emoji}</Text>
                 <Text style={styles.moodText}>{m.label}</Text>
               </TouchableOpacity>

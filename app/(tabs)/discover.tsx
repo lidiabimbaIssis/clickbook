@@ -49,10 +49,17 @@ export default function Discover() {
   const tabBarHeight = useBottomTabBarHeight();
   const SLIDE_H = SCREEN_H - tabBarHeight;
 
-  const params = useLocalSearchParams<{ q?: string; book_id?: string; random?: string }>();
+  const params = useLocalSearchParams<{ q?: string; book_id?: string; mode?: string; t?: string; vibe?: string }>();
   const query = (params.q || "").toString();
   const seedBookId = (params.book_id || "").toString();
-  const isRandom = params.random === "true";
+  const isRandom = params.mode === "random";
+  const isNovedades = params.mode === "novedades";
+  const isVibe = params.vibe === "true";
+  // Timestamp único de cada navegación desde home.tsx — garantiza que el
+  // useEffect de carga inicial se vuelva a disparar aunque se pulse el
+  // MISMO botón dos veces seguidas (p. ej. Sorpréndeme, Sorpréndeme), algo
+  // que con solo "mode" como dependencia no se detectaría como cambio.
+  const navKey = (params.t || "").toString();
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -66,15 +73,12 @@ export default function Discover() {
   const [playing, setPlaying] = useState(false);
   const [premiumSummaries, setPremiumSummaries] = useState<Record<string, string>>({});
   const playerRef = useRef<any>(null);
-  // Timer del hook automático: se arma cada vez que currentIndex cambia y se
-  // cancela si el usuario desliza antes de que pasen los 1.5s (ver useEffect
-  // más abajo). No usa estado, solo un ref, porque no necesita re-renderizar
-  // nada — solo dispara/cancela una acción.
-  const hookTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Red de seguridad: arranca el timer del hook aunque onLoad de la Image
-  // no llegue a dispararse (caso raro con imágenes ya cacheadas). Ver
-  // handleCoverLoad más abajo.
-  const coverLoadFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Estado del botón del hook en la portada actual: cuántos hooks le
+  // quedan hoy al usuario free (null mientras no se sabe todavía, o si es
+  // premium no se usa este número — ver hookButtonState más abajo).
+  const [hookRemaining, setHookRemaining] = useState<number | null>(null);
+  const [hookIsPremium, setHookIsPremium] = useState(false);
+  const [hookPlayingId, setHookPlayingId] = useState<string | null>(null);
   const listRef = useRef<FlatList<Book>>(null);
   const shareCardRef = useRef<View>(null);
   const [coverReady, setCoverReady] = useState(false);
@@ -100,22 +104,84 @@ const fetchBooks = useCallback(async (initial: boolean) => {
   try {
     const targetCount = 500;
 
+    // Modo "Novedades" (botón debajo de Sorpréndeme en home.tsx): solo se
+    // aplica en la carga INICIAL, no en las cargas de scroll infinito que
+    // van añadiendo más libros después (fetchBooks(false) sigue pidiendo
+    // /books/feed normal, igual que ya hacía).
+    if (initial && isNovedades) {
+      const [novedadesRes, feedRes] = await Promise.all([
+        api<{ books: Book[] }>("/books/novedades"),
+        api<{ books: Book[] }>(`/books/feed?count=${targetCount}`),
+      ]);
+
+      const novedades = novedadesRes?.books || [];
+      const novedadesIds = new Set(novedades.map((b) => b.book_id));
+      // El feed general también contiene los libros de novedades (nunca
+      // se "mueven" de colección, solo se filtran aparte) — los quitamos
+      // aquí para no verlos repetidos justo después del bloque destacado.
+      const feedSinNovedades = (feedRes?.books || []).filter((b) => !novedadesIds.has(b.book_id));
+
+      // Empalme tipo "Sorpréndeme": el feed que sigue a las novedades no
+      // siempre arranca por el mismo libro (el primero de Mongo), sino por
+      // un punto aleatorio — rotamos el array en vez de concatenarlo tal
+      // cual, para que la sesión no se sienta repetitiva cada vez que se
+      // entra a Novedades.
+      let feedRotado = feedSinNovedades;
+      if (feedSinNovedades.length > 0) {
+        const randomStart = Math.floor(Math.random() * feedSinNovedades.length);
+        feedRotado = [...feedSinNovedades.slice(randomStart), ...feedSinNovedades.slice(0, randomStart)];
+      }
+
+      setBooks([...novedades, ...feedRotado]);
+      setCurrentIndex(0);
+      return;
+    }
+
     // CAMBIO AQUÍ: Si hay búsqueda, usamos /books/search, si no, /books/feed
 const endpoint = query
   ? `/books/search?query=${encodeURIComponent(query)}`
   : `/books/feed?count=${targetCount}`;
     const res = await api<{ books: Book[] }>(endpoint);
+    let incomingBooks = res?.books || [];
+
+    // Las "vibes" (chips de mood en home.tsx) usan /books/search por
+    // texto libre, que ordena por relevancia (score) de MongoDB. En moods
+    // muy poblados (ej. "Intenso", "Romántico") muchos libros empatan en
+    // score y MongoDB devuelve siempre el mismo orden estable — se sentía
+    // como "siempre el mismo libro primero". Mezclamos aquí SOLO cuando
+    // initial && isVibe, para no tocar el orden de relevancia en
+    // búsquedas de texto libre reales (ahí sí interesa lo más relevante
+    // primero, sea por voz o escrito).
+    if (initial && isVibe && incomingBooks.length > 1) {
+      incomingBooks = [...incomingBooks];
+      for (let i = incomingBooks.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [incomingBooks[i], incomingBooks[j]] = [incomingBooks[j], incomingBooks[i]];
+      }
+    }
+
+    // Si es "Sorpréndeme", calculamos el índice random ANTES de tocar el
+    // estado de books, y aplicamos books + currentIndex en el mismo ciclo.
+    // Antes, currentIndex se actualizaba en un paso aparte DESPUÉS de
+    // setBooks, lo que dejaba un frame intermedio visible con el libro en
+    // el índice 0 (el primero de Mongo) antes de saltar al random — ese
+    // era el "parpadeo" de un instante. Actualizando ambos juntos, React
+    // los aplica en el mismo render y el índice 0 nunca llega a pintarse.
+    let randomIdx: number | null = null;
+    if (initial && isRandom && incomingBooks.length > 0) {
+      randomIdx = Math.floor(Math.random() * incomingBooks.length);
+    }
 
     setBooks((prev) => {
       const existingIds = new Set(prev.map((b) => b.book_id));
-      const incoming = (res?.books || []).filter((b) => !existingIds.has(b.book_id));
-      return initial ? res?.books || [] : [...prev, ...incoming];
+      const incoming = incomingBooks.filter((b) => !existingIds.has(b.book_id));
+      return initial ? incomingBooks : [...prev, ...incoming];
   });
-    if (initial && isRandom && res?.books?.length > 0) {
-      const randomIdx = Math.floor(Math.random() * res.books.length);
+
+    if (randomIdx !== null) {
       setCurrentIndex(randomIdx);
       setTimeout(() => {
-        listRef.current?.scrollToIndex({ index: randomIdx, animated: false });
+        listRef.current?.scrollToIndex({ index: randomIdx!, animated: false });
       }, 100);
     }
   } catch (e) {
@@ -123,7 +189,7 @@ const endpoint = query
   } finally {
     setLoading(false);
   }
-}, [query, isRandom]);
+}, [query, isRandom, isNovedades, isVibe, navKey]);
   const loadFavorites = useCallback(async () => {
     try { const res = await api<{ books: Book[] }>("/favorites"); setFavBookIds(new Set(res.books.map((b) => b.book_id))); } catch {}
   }, []);
@@ -151,7 +217,7 @@ useEffect(() => {
   return () => stopAudio();
   // Eliminamos loadFavorites de las dependencias para que no se re-ejecute
   // cuando no debe.
-}, [fetchBooks, stopAudio, seedBookId]);
+}, [fetchBooks, stopAudio, seedBookId, navKey]);
 
 useEffect(() => {
   if (!seedBookId || books.length === 0) return;
@@ -165,82 +231,63 @@ useEffect(() => {
   const current = books[currentIndex];
   const isFav = current ? favBookIds.has(current.book_id) : false;
 
-  // ---- Hook automático: audio corto del "hook" al pararse 1.5s en una
-  // portada, sin deslizar. Ver playHookForCurrentBook más abajo para la
-  // lógica de reproducción (comparte playerRef/stopAudio con el resumen,
-  // para que NUNCA puedan sonar los dos a la vez).
-  const playHookForCurrentBook = useCallback(async (bookId: string) => {
+  // ---- Hook manual: botón sutil en la portada que reproduce el "hook"
+  // del libro al pulsarlo. Para usuarios free, el botón muestra cuántos
+  // hooks le quedan hoy (3, 2, 1) ANTES de pulsar — solo se gasta uno si
+  // de verdad pulsa y escucha, nunca por pasar de largo una portada.
+  // Cuando se agotan, no se pinta ningún botón (silencio total, sin avisos).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api<{ is_premium: boolean; remaining: number | null }>("/me/hook-usage");
+        if (cancelled) return;
+        setHookIsPremium(!!res.is_premium);
+        setHookRemaining(res.remaining ?? null);
+      } catch (e) {
+        // Si falla la consulta (red, sesión, etc.), no mostramos el botón
+        // en vez de arriesgarnos a mostrar un número incorrecto.
+        if (!cancelled) {
+          setHookIsPremium(false);
+          setHookRemaining(null);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [current?.book_id]);
+
+  const playHook = useCallback(async () => {
+    if (!current) return;
+    const bookId = current.book_id;
     try {
       const res = await api<{ available: boolean; audio_base64?: string; mime?: string }>(
         `/books/${bookId}/hook-audio`
       );
-      if (!res.available) return; // sin hooks restantes hoy, o libro sin hook: silencio total, sin aviso
+      if (!res.available) return; // por si justo se agotó entre medias; silencio, sin aviso
 
       stopAudio(); // por si quedaba sonando un resumen u otro hook
       const uri = `data:${res.mime};base64,${res.audio_base64}`;
       const p = createAudioPlayer({ uri });
       playerRef.current = p;
-      p.addListener("playbackStatusUpdate", (st: any) => { if (st.didJustFinish) stopAudio(); });
+      setHookPlayingId(bookId);
+      p.addListener("playbackStatusUpdate", (st: any) => {
+        if (st.didJustFinish) {
+          stopAudio();
+          setHookPlayingId((id) => (id === bookId ? null : id));
+        }
+      });
       p.play();
       setPlaying(true);
+
+      // El número solo baja AHORA, tras confirmar que se escuchó — no al
+      // entrar en la portada ni al pulsar antes de tener respuesta.
+      if (!hookIsPremium) {
+        setHookRemaining((prev) => (prev !== null ? Math.max(0, prev - 1) : prev));
+      }
     } catch (e) {
-      // Fallo silencioso a propósito: el hook es ambiental, un error de red
-      // aquí no debe interrumpir ni avisar al usuario.
       console.warn("hook audio error", e);
     }
-  }, [stopAudio]);
-
-  // El timer del hook ya NO arranca en cuanto cambia el libro — arranca
-  // solo cuando la portada de ESE libro confirma que ya está visible
-  // (evento onLoad de la Image dentro de BookSlide). Esto evita que, en
-  // cargas lentas (sorpréndeme, búsqueda, primera apertura), el timer
-  // cuente "en el aire" mientras la portada todavía se está descargando,
-  // haciendo que el hook salte casi de inmediato en cuanto el usuario por
-  // fin ve la imagen.
-  const handleCoverLoad = useCallback((loadedBookId: string) => {
-    // Solo nos interesa si la portada que avisa "ya cargué" es la del
-    // libro que el usuario tiene delante AHORA MISMO. BookSlide vecinos
-    // (precargados por el FlatList con windowSize) también disparan este
-    // evento, pero los ignoramos.
-    if (!current || loadedBookId !== current.book_id) return;
-    if (hookTimerRef.current) return; // ya arrancado (evita doble timer si onLoad + fallback coinciden)
-    if (coverLoadFallbackRef.current) {
-      clearTimeout(coverLoadFallbackRef.current);
-      coverLoadFallbackRef.current = null;
-    }
-
-    hookTimerRef.current = setTimeout(() => {
-      playHookForCurrentBook(loadedBookId);
-    }, 1500);
-  }, [current?.book_id, playHookForCurrentBook]);
-
-  useEffect(() => {
-    if (hookTimerRef.current) {
-      clearTimeout(hookTimerRef.current);
-      hookTimerRef.current = null;
-    }
-    if (coverLoadFallbackRef.current) {
-      clearTimeout(coverLoadFallbackRef.current);
-      coverLoadFallbackRef.current = null;
-    }
-    // No arrancamos el timer del hook aquí: solo cancelamos el anterior.
-    // El nuevo arranca desde handleCoverLoad cuando la portada actual
-    // confirme que ya cargó. Red de seguridad: si por alguna razón onLoad
-    // no llega (p. ej. imagen ya en caché de memoria en algunos
-    // dispositivos no dispara el evento de forma fiable), un timeout de
-    // respaldo arranca el timer igualmente a los 800ms, para que el hook
-    // nunca se quede completamente mudo en ese caso límite.
-    const bookId = current?.book_id;
-    if (bookId) {
-      coverLoadFallbackRef.current = setTimeout(() => {
-        handleCoverLoad(bookId);
-      }, 800);
-    }
-    return () => {
-      if (hookTimerRef.current) clearTimeout(hookTimerRef.current);
-      if (coverLoadFallbackRef.current) clearTimeout(coverLoadFallbackRef.current);
-    };
-  }, [current?.book_id, handleCoverLoad]);
+  }, [current, stopAudio, hookIsPremium]);
 
   const onMomentumScrollEnd = useCallback((e: any) => {
     const y = e.nativeEvent.contentOffset.y;
@@ -355,7 +402,18 @@ await Image.prefetch(coverUrl);
         windowSize={3}
         maxToRenderPerBatch={2}
         initialNumToRender={1}
-        renderItem={({ item }) => <BookSlide book={item} reservedBottom={buyRowHeight} slideHeight={SLIDE_H} onCoverLoad={handleCoverLoad} />}
+        renderItem={({ item }) => (
+          <BookSlide
+            book={item}
+            reservedBottom={buyRowHeight}
+            slideHeight={SLIDE_H}
+            isCurrent={current?.book_id === item.book_id}
+            hookIsPremium={hookIsPremium}
+            hookRemaining={hookRemaining}
+            hookPlaying={hookPlayingId === item.book_id}
+            onPressHook={playHook}
+          />
+        )}
         testID="vertical-feed"
       />
 
@@ -444,7 +502,14 @@ await Image.prefetch(coverUrl);
   );
 }
 
-function BookSlide({ book, reservedBottom, slideHeight, onCoverLoad }: { book: Book; reservedBottom: number; slideHeight: number; onCoverLoad?: (bookId: string) => void }) {
+function BookSlide({
+  book, reservedBottom, slideHeight,
+  isCurrent, hookIsPremium, hookRemaining, hookPlaying, onPressHook,
+}: {
+  book: Book; reservedBottom: number; slideHeight: number;
+  isCurrent?: boolean; hookIsPremium?: boolean; hookRemaining?: number | null;
+  hookPlaying?: boolean; onPressHook?: () => void;
+}) {
   const insets = useSafeAreaInsets();
   const mood = useMemo(() => inferMood(book), [book]);
   const coverW = SCREEN_W * 0.88;
@@ -500,8 +565,31 @@ function BookSlide({ book, reservedBottom, slideHeight, onCoverLoad }: { book: B
               resizeMode="cover"
               style={styles.coverImage}
               onError={(e) => console.log("Error cargando imagen:", e.nativeEvent.error)}
-              onLoad={() => onCoverLoad?.(book.book_id)}
             />
+            {/*
+              Botón del hook: solo se pinta en la portada ACTUAL (isCurrent),
+              nunca en los vecinos precargados por el FlatList — evitamos
+              que aparezca un botón "fantasma" en portadas que el usuario
+              todavía no está viendo. Premium: icono de play sutil, sin
+              número, sin límite. Free con hooks restantes: número grande
+              (3, 2, 1) en vez de icono — el propio número ES el botón.
+              Free sin hooks restantes hoy: no se pinta nada, ningún hueco
+              ni aviso, tal como se decidió para esta feature.
+            */}
+            {isCurrent && (hookIsPremium || (hookRemaining ?? 0) > 0) && (
+              <TouchableOpacity
+                onPress={onPressHook}
+                style={styles.hookBtn}
+                activeOpacity={0.7}
+                testID="btn-hook"
+              >
+                {hookIsPremium ? (
+                  <Ionicons name={hookPlaying ? "pause" : "play"} size={16} color="rgba(255,255,255,0.85)" />
+                ) : (
+                  <Text style={styles.hookBtnNumber}>{hookRemaining}</Text>
+                )}
+              </TouchableOpacity>
+            )}
           </View>
 
           <LinearGradient
@@ -709,6 +797,21 @@ const styles = StyleSheet.create({
   // vuelva demasiado ancha en proporción a su alto.
   coverFrame: { width: "100%", maxWidth: SCREEN_W * 0.88, aspectRatio: 2 / 3, maxHeight: "100%", borderRadius: 15, overflow: "hidden" },
   coverImage: { width: "100%", height: "100%" },
+  // hookBtn: deliberadamente sutil — circular, semitransparente, sin
+  // borde llamativo, para que no desentone ni compita visualmente con los
+  // botones laterales grandes (info, favorito, audio, chat, reseñas).
+  hookBtn: {
+    position: "absolute",
+    bottom: 10,
+    left: 10,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  hookBtnNumber: { color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: "800" },
   topBadgesRow: { position: "absolute", top: -45, left: 0, right: 0, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 4, zIndex: 8 },
   moodPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 15, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: colors.brassSoft, backgroundColor: "rgba(6,1,15,0.85)" },
   moodPillIcon: { fontSize: 14 },
