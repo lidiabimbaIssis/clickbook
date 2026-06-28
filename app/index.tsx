@@ -114,15 +114,29 @@ export default function LoginScreen() {
       <View style={styles.overlay} />
       <View style={styles.header}><Logo size="lg" /><View style={styles.divider} /></View>
       <View style={styles.hero}>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", alignItems: "center" }}>
-  <Text style={styles.title}>No es solo leer libros, es </Text>
-  <GradientWord
-    text="vivirlos"
-    fontSize={styles.title.fontSize}
-    fontWeight={styles.title.fontWeight as any}
-    fontFamily={styles.title.fontFamily}
-  />
-</View>
+        {/*
+          Antes: una sola fila con flexWrap, dejando que React Native
+          decidiera dónde cortar. Como "vivirlos" es un bloque rígido
+          (MaskedView, no texto), el wrap automático lo empujaba entero a
+          la siguiente línea, dejando "es" solo y huérfano en medio —
+          el salto torpe que se veía en la pantalla de login.
+
+          Ahora: dos líneas explícitas, cada una su propia fila. La
+          primera línea es solo texto normal (puede envolver sola sin
+          problema). La segunda junta "es" + el GradientWord "vivirlos"
+          en la misma fila, sin wrap — como ambas piezas son cortas,
+          siempre caben juntas, sin importar el ancho de pantalla.
+        */}
+        <Text style={styles.title}>No es solo leer libros,</Text>
+        <View style={{ flexDirection: "row", justifyContent: "center", alignItems: "center", marginTop: 2 }}>
+          <Text style={styles.title}>es </Text>
+          <GradientWord
+            text="vivirlos"
+            fontSize={styles.title.fontSize}
+            fontWeight={styles.title.fontWeight as any}
+            fontFamily={styles.title.fontFamily}
+          />
+        </View>
       </View>
       <View style={styles.features}>
         

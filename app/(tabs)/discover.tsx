@@ -399,6 +399,16 @@ await Image.prefetch(coverUrl);
         decelerationRate="fast"
         onMomentumScrollEnd={onMomentumScrollEnd}
         getItemLayout={(_, index) => ({ length: SLIDE_H, offset: SLIDE_H * index, index })}
+        // initialScrollIndex: la causa real del "parpadeo" en Sorpréndeme
+        // no era el orden de los setState (eso ya estaba bien) — es que
+        // FlatList, al montar, SIEMPRE renderiza primero el índice 0 con
+        // initialNumToRender, y solo DESPUÉS salta a otro índice vía
+        // scrollToIndex. Ese primer frame en el índice 0 es lo que se veía.
+        // Con initialScrollIndex (que requiere getItemLayout, ya presente),
+        // FlatList monta directamente en el índice correcto, sin pasar
+        // nunca por el 0. Solo currentIndex > 0 lo necesita; en el resto
+        // de casos (feed normal, búsqueda) currentIndex ya es 0 de por sí.
+        initialScrollIndex={currentIndex > 0 ? currentIndex : undefined}
         windowSize={3}
         maxToRenderPerBatch={2}
         initialNumToRender={1}

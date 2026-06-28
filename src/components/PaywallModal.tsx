@@ -37,11 +37,10 @@ export default function PaywallModal({ visible, onClose, onUpgraded, reason = "l
           <Text style={styles.title}>{headline}</Text>
           <Text style={styles.sub}>{sub}</Text>
           <View style={styles.benefits}>
-            <Benefit icon="infinite" text="Escucha cualquier libro con voz premium ilimitada." />
+            <Benefit icon="infinite" text="Resúmenes con voz premium ilimitados." />
+            <Benefit icon="headset" text="Hook ilimitado en cada libro." />
             <Benefit icon="chatbubbles" text="Conversa con una IA inspirada en la obra y el universo del autor.
 " />
-            <Benefit icon="star" text="Descubre detalles y secretos que no aparecen en la historia." />
-            <Benefit icon="close-circle" text="Disfruta de una experiencia sin interrupciones." />
           </View>
           {pricing && (
             <View style={styles.plans}>

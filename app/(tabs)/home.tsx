@@ -225,7 +225,7 @@ export default function Home() {
             mismo estilo y posición que tenía "BUSCAR".
           */}
           <TouchableOpacity testID="btn-novedades" style={styles.primaryBtn} onPress={() => router.replace({ pathname: "/discover", params: { mode: "novedades", t: Date.now() } })} activeOpacity={0.85}>
-            <Ionicons name="sparkles" size={18} color={colors.bgBase} />
+            <Ionicons name="flash" size={18} color={colors.bgBase} />
             <Text style={styles.primaryText}>NOVEDADES</Text>
           </TouchableOpacity>
 
