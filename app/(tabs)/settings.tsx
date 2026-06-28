@@ -24,6 +24,9 @@ export default function Settings() {
   const lang = user?.lang || "es";
   const isPremium = !!user?.is_premium;
   const [paywallOpen, setPaywallOpen] = useState(false);
+  // Evita doble-toque mientras la petición de vaciar favoritos está en
+  // curso, igual de espíritu que audioLoading en discover.tsx.
+  const [clearingFavorites, setClearingFavorites] = useState(false);
 
   const doSignOut = async () => {
     const confirm = () => {
@@ -45,6 +48,41 @@ export default function Settings() {
       await refresh();
     } catch (e) {
       console.warn(e);
+    }
+  };
+
+  // Vaciar favoritos es destructivo e irreversible (no hay "deshacer"),
+  // así que siempre pide confirmación antes de tocar el backend — mismo
+  // patrón que ya usa doSignOut, con un Alert destructivo en nativo y un
+  // confirm() simple en web.
+  const doClearFavorites = () => {
+    const run = async () => {
+      setClearingFavorites(true);
+      try {
+        await api("/favorites/clear", { method: "POST" });
+        if (Platform.OS !== "web") {
+          Alert.alert("Hecho", "Se han borrado todos tus favoritos.");
+        }
+      } catch (e) {
+        console.warn("clear favorites failed", e);
+      } finally {
+        setClearingFavorites(false);
+      }
+    };
+
+    if (Platform.OS === "web") {
+      if (typeof window !== "undefined" && window.confirm("¿Borrar todos tus favoritos? Esta acción no se puede deshacer.")) {
+        run();
+      }
+    } else {
+      Alert.alert(
+        "Vaciar favoritos",
+        "Se borrarán todos los libros que tienes guardados como favoritos. Esta acción no se puede deshacer.",
+        [
+          { text: "Cancelar", style: "cancel" },
+          { text: "Vaciar", style: "destructive", onPress: run },
+        ]
+      );
     }
   };
 
@@ -113,18 +151,24 @@ export default function Settings() {
 
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>MAZO</Text>
+        {/*
+          Antes: "Reiniciar libros descartados" — llamaba a /books/reset,
+          que borraba interacciones "dislike". Ese gesto (deslizar para
+          descartar, estilo Tinder) ya no existe en la app actual, así que
+          el botón no tenía ningún efecto perceptible para nadie. Se
+          sustituye por "Vaciar favoritos", que sí es una acción real y
+          útil dado que el sistema de favoritos sigue activo.
+        */}
         <TouchableOpacity
           style={styles.row}
-          testID="btn-reset-history"
-          onPress={async () => {
-            await api("/books/reset", { method: "POST" });
-            if (Platform.OS !== "web") {
-              Alert.alert("Hecho", "Historial de descartes reiniciado.");
-            }
-          }}
+          testID="btn-clear-favorites"
+          onPress={doClearFavorites}
+          disabled={clearingFavorites}
         >
-          <Ionicons name="refresh" size={18} color={colors.brass} />
-          <Text style={styles.rowText}>Reiniciar libros descartados</Text>
+          <Ionicons name="trash-outline" size={18} color={colors.brass} />
+          <Text style={styles.rowText}>
+            {clearingFavorites ? "Vaciando favoritos…" : "Vaciar favoritos"}
+          </Text>
         </TouchableOpacity>
       </View>
 

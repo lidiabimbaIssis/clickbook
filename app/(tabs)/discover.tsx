@@ -71,6 +71,10 @@ export default function Discover() {
   // más abajo). No usa estado, solo un ref, porque no necesita re-renderizar
   // nada — solo dispara/cancela una acción.
   const hookTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Red de seguridad: arranca el timer del hook aunque onLoad de la Image
+  // no llegue a dispararse (caso raro con imágenes ya cacheadas). Ver
+  // handleCoverLoad más abajo.
+  const coverLoadFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const listRef = useRef<FlatList<Book>>(null);
   const shareCardRef = useRef<View>(null);
   const [coverReady, setCoverReady] = useState(false);
@@ -186,24 +190,57 @@ useEffect(() => {
     }
   }, [stopAudio]);
 
+  // El timer del hook ya NO arranca en cuanto cambia el libro — arranca
+  // solo cuando la portada de ESE libro confirma que ya está visible
+  // (evento onLoad de la Image dentro de BookSlide). Esto evita que, en
+  // cargas lentas (sorpréndeme, búsqueda, primera apertura), el timer
+  // cuente "en el aire" mientras la portada todavía se está descargando,
+  // haciendo que el hook salte casi de inmediato en cuanto el usuario por
+  // fin ve la imagen.
+  const handleCoverLoad = useCallback((loadedBookId: string) => {
+    // Solo nos interesa si la portada que avisa "ya cargué" es la del
+    // libro que el usuario tiene delante AHORA MISMO. BookSlide vecinos
+    // (precargados por el FlatList con windowSize) también disparan este
+    // evento, pero los ignoramos.
+    if (!current || loadedBookId !== current.book_id) return;
+    if (hookTimerRef.current) return; // ya arrancado (evita doble timer si onLoad + fallback coinciden)
+    if (coverLoadFallbackRef.current) {
+      clearTimeout(coverLoadFallbackRef.current);
+      coverLoadFallbackRef.current = null;
+    }
+
+    hookTimerRef.current = setTimeout(() => {
+      playHookForCurrentBook(loadedBookId);
+    }, 1500);
+  }, [current?.book_id, playHookForCurrentBook]);
+
   useEffect(() => {
     if (hookTimerRef.current) {
       clearTimeout(hookTimerRef.current);
       hookTimerRef.current = null;
     }
-
-    hookTimerRef.current = setTimeout(() => {
-      if (current) playHookForCurrentBook(current.book_id);
-    }, 1500);
-
+    if (coverLoadFallbackRef.current) {
+      clearTimeout(coverLoadFallbackRef.current);
+      coverLoadFallbackRef.current = null;
+    }
+    // No arrancamos el timer del hook aquí: solo cancelamos el anterior.
+    // El nuevo arranca desde handleCoverLoad cuando la portada actual
+    // confirme que ya cargó. Red de seguridad: si por alguna razón onLoad
+    // no llega (p. ej. imagen ya en caché de memoria en algunos
+    // dispositivos no dispara el evento de forma fiable), un timeout de
+    // respaldo arranca el timer igualmente a los 800ms, para que el hook
+    // nunca se quede completamente mudo en ese caso límite.
+    const bookId = current?.book_id;
+    if (bookId) {
+      coverLoadFallbackRef.current = setTimeout(() => {
+        handleCoverLoad(bookId);
+      }, 800);
+    }
     return () => {
       if (hookTimerRef.current) clearTimeout(hookTimerRef.current);
+      if (coverLoadFallbackRef.current) clearTimeout(coverLoadFallbackRef.current);
     };
-    // Se reinicia cada vez que cambia el libro actual. No depende de
-    // playHookForCurrentBook directamente en el array para evitar relanzar
-    // el timer si esa función se recrea por motivos ajenos al cambio de
-    // libro; current.book_id es la señal real que nos importa.
-  }, [currentIndex, current?.book_id]);
+  }, [current?.book_id, handleCoverLoad]);
 
   const onMomentumScrollEnd = useCallback((e: any) => {
     const y = e.nativeEvent.contentOffset.y;
@@ -318,7 +355,7 @@ await Image.prefetch(coverUrl);
         windowSize={3}
         maxToRenderPerBatch={2}
         initialNumToRender={1}
-        renderItem={({ item }) => <BookSlide book={item} reservedBottom={buyRowHeight} slideHeight={SLIDE_H} />}
+        renderItem={({ item }) => <BookSlide book={item} reservedBottom={buyRowHeight} slideHeight={SLIDE_H} onCoverLoad={handleCoverLoad} />}
         testID="vertical-feed"
       />
 
@@ -407,7 +444,7 @@ await Image.prefetch(coverUrl);
   );
 }
 
-function BookSlide({ book, reservedBottom, slideHeight }: { book: Book; reservedBottom: number; slideHeight: number }) {
+function BookSlide({ book, reservedBottom, slideHeight, onCoverLoad }: { book: Book; reservedBottom: number; slideHeight: number; onCoverLoad?: (bookId: string) => void }) {
   const insets = useSafeAreaInsets();
   const mood = useMemo(() => inferMood(book), [book]);
   const coverW = SCREEN_W * 0.88;
@@ -463,6 +500,7 @@ function BookSlide({ book, reservedBottom, slideHeight }: { book: Book; reserved
               resizeMode="cover"
               style={styles.coverImage}
               onError={(e) => console.log("Error cargando imagen:", e.nativeEvent.error)}
+              onLoad={() => onCoverLoad?.(book.book_id)}
             />
           </View>
 

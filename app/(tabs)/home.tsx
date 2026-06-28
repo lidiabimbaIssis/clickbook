@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Platform, Keyboard, KeyboardAvoidingView, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -77,6 +77,18 @@ export default function Home() {
   // estilo del icono (para dar feedback visual de "te estoy escuchando"),
   // toda la lógica real de voz vive en los listeners de abajo.
   const [listening, setListening] = useState(false);
+  // Guarda el último texto dictado por voz, para poder lanzar la búsqueda
+  // automática cuando el reconocimiento termina (evento "end"), sin
+  // depender de que el estado `q` ya se haya actualizado en ese instante
+  // exacto (los eventos "result" y "end" pueden llegar en el mismo tick).
+  const lastVoiceTranscriptRef = useRef("");
+  // Timer del margen de revisión tras dictar por voz: da un breve respiro
+  // (ver AUTO_SEARCH_DELAY_MS) antes de buscar automáticamente, para que
+  // el usuario alcance a ver el texto transcrito --especialmente útil con
+  // nombres en inglés, donde el reconocimiento en es-ES falla más-- antes
+  // de que la pantalla cambie sola.
+  const voiceAutoSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const AUTO_SEARCH_DELAY_MS = 800;
 
   const go = (query?: string) => {
     Keyboard.dismiss();
@@ -93,13 +105,26 @@ export default function Home() {
   // transcripción (resultado [0]) y la volcamos en el input.
   useSpeechRecognitionEvent("result", (event) => {
     const transcript = event.results?.[0]?.transcript;
-    if (transcript) setQ(transcript);
+    if (transcript) {
+      setQ(transcript);
+      lastVoiceTranscriptRef.current = transcript;
+    }
   });
 
   // Si el reconocimiento termina solo (silencio, o el usuario deja de
-  // hablar) apagamos el estado visual de "escuchando".
+  // hablar) apagamos el estado visual de "escuchando" y, si quedó algo
+  // dictado, lanzamos la búsqueda automáticamente tras un breve margen
+  // (no instantáneo) para que el usuario pueda ver/corregir el texto.
   useSpeechRecognitionEvent("end", () => {
     setListening(false);
+
+    const transcript = lastVoiceTranscriptRef.current.trim();
+    if (!transcript) return;
+
+    if (voiceAutoSearchTimerRef.current) clearTimeout(voiceAutoSearchTimerRef.current);
+    voiceAutoSearchTimerRef.current = setTimeout(() => {
+      go(transcript);
+    }, AUTO_SEARCH_DELAY_MS);
   });
 
   // Cualquier error (permiso denegado, sin conexión si el motor lo
@@ -124,6 +149,14 @@ export default function Home() {
       return;
     }
 
+    // Si había una búsqueda automática pendiente de un dictado anterior,
+    // la cancelamos: el usuario está empezando a dictar de nuevo.
+    if (voiceAutoSearchTimerRef.current) {
+      clearTimeout(voiceAutoSearchTimerRef.current);
+      voiceAutoSearchTimerRef.current = null;
+    }
+    lastVoiceTranscriptRef.current = "";
+
     setQ(""); // limpiamos el campo antes de empezar a dictar, como un input nuevo
     setListening(true);
     ExpoSpeechRecognitionModule.start({
@@ -142,7 +175,25 @@ export default function Home() {
 
           <View style={styles.searchBox}>
             <Ionicons name="search" size={18} color={colors.brass} />
-            <TextInput testID="input-search" value={q} onChangeText={setQ} placeholder="Título, autor o género…" placeholderTextColor={colors.textOnDarkMuted} style={styles.input} returnKeyType="search" onSubmitEditing={() => go(q)} />
+            <TextInput
+              testID="input-search"
+              value={q}
+              onChangeText={(text) => {
+                setQ(text);
+                // Si el usuario teclea a mano tras un dictado, cancelamos
+                // cualquier búsqueda automática de voz que hubiera quedado
+                // pendiente — ya no tiene sentido dispararla con texto viejo.
+                if (voiceAutoSearchTimerRef.current) {
+                  clearTimeout(voiceAutoSearchTimerRef.current);
+                  voiceAutoSearchTimerRef.current = null;
+                }
+              }}
+              placeholder="Título, autor o género…"
+              placeholderTextColor={colors.textOnDarkMuted}
+              style={styles.input}
+              returnKeyType="search"
+              onSubmitEditing={() => go(q)}
+            />
             {q.length > 0 && (<TouchableOpacity onPress={() => setQ("")}><Ionicons name="close-circle" size={18} color={colors.textOnDarkMuted} /></TouchableOpacity>)}
             {/*
               Micro: SIEMPRE a la derecha del todo (lupa | input | [x] | micro).
@@ -159,9 +210,17 @@ export default function Home() {
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity testID="btn-search" style={styles.primaryBtn} onPress={() => go(q)} activeOpacity={0.85}>
-            <Ionicons name="search" size={18} color={colors.bgBase} />
-            <Text style={styles.primaryText}>BUSCAR</Text>
+          {/*
+            Antes este botón decía "BUSCAR" y llamaba a go(q). Ya no hace
+            falta: la búsqueda por texto se dispara desde el propio teclado
+            (returnKeyType="search" + onSubmitEditing) y la búsqueda por voz
+            se dispara sola al terminar de dictar (ver useSpeechRecognitionEvent
+            "end" más arriba). Este espacio se reutiliza para "Novedades",
+            mismo estilo y posición que tenía "BUSCAR".
+          */}
+          <TouchableOpacity testID="btn-novedades" style={styles.primaryBtn} onPress={() => router.push({ pathname: "/discover", params: { novedades: "true" } })} activeOpacity={0.85}>
+            <Ionicons name="sparkles" size={18} color={colors.bgBase} />
+            <Text style={styles.primaryText}>NOVEDADES</Text>
           </TouchableOpacity>
 
           <View style={styles.divider}><View style={styles.line} /><Text style={styles.dividerText}>O BIEN</Text><View style={styles.line} /></View>
