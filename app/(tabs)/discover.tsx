@@ -9,6 +9,7 @@ import { api, Book } from "../../src/lib/api";
 import { useAuth } from "../../src/providers/AuthProvider";
 import { colors } from "../../src/theme";
 import PaywallModal from "../../src/components/PaywallModal";
+import CharacterSelectModal from "../../src/components/CharacterSelectModal";
 import { shareContent } from "../../src/lib/share";
 import ShareCard from "../../src/components/ShareCard";
 import { captureAndShare } from "../../src/lib/share";
@@ -347,12 +348,27 @@ useEffect(() => {
     } finally { setAudioLoading(false); }
   };
 
+  const [characterSelectOpen, setCharacterSelectOpen] = useState(false);
+
   const openAuthorChat = () => {
     if (!current) return;
     setInfoOpen(false);
+    setCharacterSelectOpen(true);
+  };
+
+  // Llamado por CharacterSelectModal: bien cuando el usuario elige un
+  // personaje concreto, bien automáticamente cuando el libro no tiene
+  // personajes detectados (modo Narrador Genérico, character = null).
+  const onCharacterSelected = (character: string | null) => {
+    if (!current) return;
+    setCharacterSelectOpen(false);
     router.push({
       pathname: "/author-chat",
-      params: { book_id: current.book_id, title: current.title, author: current.author },
+      params: {
+        book_id: current.book_id,
+        title: current.title,
+        ...(character ? { character } : {}),
+      },
     });
   };
 
@@ -506,6 +522,15 @@ await Image.prefetch(coverUrl);
       <FlashCardModal visible={infoOpen} book={current} lang={lang} onClose={() => setInfoOpen(false)} onAuthorChat={openAuthorChat} isPremium={!!user?.is_premium} />
       <AudioModal visible={audioOpen} book={current} lang={lang} playing={playing} loading={audioLoading} text={premiumSummaries[current.book_id]} onPlay={playAudio} onClose={() => { setAudioOpen(false); stopAudio(); }} />
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} reason={paywallReason} onUpgraded={async () => { await refreshAuth(); }} />
+      {current && (
+        <CharacterSelectModal
+          visible={characterSelectOpen}
+          bookId={current.book_id}
+          bookTitle={current.title}
+          onClose={() => setCharacterSelectOpen(false)}
+          onSelect={onCharacterSelected}
+        />
+      )}
     {/* Tarjeta invisible para la captura PNG */}
       <View style={{ position: "absolute", left: -9999, top: -9999, width: 540, height: 960 }} pointerEvents="none">
         {current && (

@@ -130,12 +130,23 @@ export default function LoginScreen() {
         <Text style={styles.title}>No es solo leer libros,</Text>
         <View style={{ flexDirection: "row", justifyContent: "center", alignItems: "center", marginTop: 2 }}>
           <Text style={styles.title}>es </Text>
-          <GradientWord
-            text="vivirlos"
-            fontSize={styles.title.fontSize}
-            fontWeight={styles.title.fontWeight as any}
-            fontFamily={styles.title.fontFamily}
-          />
+          {/*
+            marginTop ligeramente negativo: el MaskedView de GradientWord
+            tiene height: fontSize*1.25 con su propio Text interno
+            centrado por defecto del navegador/RN, lo que no coincide
+            exactamente con la línea base del <Text> "es " de al lado —
+            por eso se veía "vivirlos" un poco más bajo. Este ajuste fino
+            sube el bloque justo lo necesario para que ambos textos
+            queden a la misma altura visual.
+          */}
+          <View style={{ marginTop: -4 }}>
+            <GradientWord
+              text="vivirlos"
+              fontSize={styles.title.fontSize}
+              fontWeight={styles.title.fontWeight as any}
+              fontFamily={styles.title.fontFamily}
+            />
+          </View>
         </View>
       </View>
       <View style={styles.features}>
