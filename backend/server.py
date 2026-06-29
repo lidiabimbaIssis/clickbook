@@ -97,15 +97,33 @@ class LangUpdate(BaseModel):
     lang: str
 
 # ----------------- Auth helpers -----------------
-async def get_current_user(request: Request) -> User:
-    return User(
-        user_id="admin_dev",
-        email="dev@clickbook.local",
-        name="Desarrolladora",
-        is_premium=True,
-        created_at=datetime.now(timezone.utc)
-    )
+async def get_current_user(
+    request: Request,
+    authorization: Optional[str] = Header(None),
+    session_token: Optional[str] = Cookie(None),
+) -> User:
+    token = None
+    if authorization and authorization.lower().startswith("bearer "):
+        token = authorization.split(" ", 1)[1].strip()
+    elif session_token:
+        token = session_token
 
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    session_doc = await db.user_sessions.find_one({"session_token": token}, {"_id": 0})
+    if not session_doc:
+        raise HTTPException(status_code=401, detail="Invalid session")
+
+    expires_at = session_doc.get("expires_at")
+    if expires_at and expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
+        raise HTTPException(status_code=401, detail="Session expired")
+
+    user_doc = await db.users.find_one({"user_id": session_doc["user_id"]}, {"_id": 0})
+    if not user_doc:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    return User(**user_doc)
 
 
 # ----------------- Auth routes -----------------
@@ -209,6 +227,23 @@ async def _increment_audio_count(user_id: str) -> int:
     )
     return int(res.get("count", 1)) if res else 1
 
+# Contador de hooks: misma lógica que el de audio de resúmenes, pero en su
+# propia colección para que sea un límite diario totalmente independiente
+# (un usuario free puede gastar 3 resúmenes + 3 hooks = 6 audios/día en total).
+FREE_DAILY_HOOK_LIMIT = int(os.environ.get("FREE_DAILY_HOOK_LIMIT", "3"))
+
+async def _get_today_hook_count(user_id: str) -> int:
+    doc = await db.daily_hook_usage.find_one({"user_id": user_id, "date": _today_key()})
+    return int(doc["count"]) if doc else 0
+
+async def _increment_hook_count(user_id: str) -> int:
+    res = await db.daily_hook_usage.find_one_and_update(
+        {"user_id": user_id, "date": _today_key()},
+        {"$inc": {"count": 1}, "$set": {"updated_at": datetime.now(timezone.utc)}},
+        upsert=True, return_document=True,
+    )
+    return int(res.get("count", 1)) if res else 1
+
 def _is_premium_active(user: User) -> bool:
     if not user.is_premium:
         return False
@@ -224,6 +259,18 @@ async def get_my_usage(user: User = Depends(get_current_user)):
         "is_premium": is_premium, "plays_today": plays_today, "limit": FREE_DAILY_AUDIO_LIMIT,
         "remaining": max(0, FREE_DAILY_AUDIO_LIMIT - plays_today) if not is_premium else None,
         "premium_until": user.premium_until.isoformat() if user.premium_until else None,
+    }
+
+@api_router.get("/me/hook-usage")
+async def get_my_hook_usage(user: User = Depends(get_current_user)):
+    # Igual que /me/usage pero para el contador de hooks automáticos del
+    # botón en discover.tsx — permite pintar el numerito (3, 2, 1) en la
+    # portada SIN tener que pedir el audio primero para saberlo.
+    plays_today = await _get_today_hook_count(user.user_id)
+    is_premium = _is_premium_active(user)
+    return {
+        "is_premium": is_premium, "plays_today": plays_today, "limit": FREE_DAILY_HOOK_LIMIT,
+        "remaining": max(0, FREE_DAILY_HOOK_LIMIT - plays_today) if not is_premium else None,
     }
 
 @api_router.get("/config/pricing")
@@ -243,92 +290,61 @@ async def downgrade_from_premium(user: User = Depends(get_current_user)):
 
 
 # ----------------- Book routes -----------------
+
+# Campos "pesados" (audio en base64) que NUNCA deben viajar en listados de
+# varios libros (feed, search, favorites). Solo se piden cuando se consulta
+# UN libro en concreto (get_book, premium_summary, tts).
+# Nota: resumen_audio NO se excluye porque es solo TEXTO (el guion del audio),
+# no el audio en sí, y se muestra siempre a todo el mundo, sea o no premium.
+BOOK_LIST_EXCLUDE_FIELDS = {
+    "_id": 0,
+    "premium_summary_es": 0,
+    "premium_summary_en": 0,
+    "audio_es_ES_Neural2_C_es": 0,
+    "audio_es_ES_Neural2_C_en": 0,
+    "audio_es_ES_Neural2_B_es": 0,
+    "audio_es_ES_Neural2_B_en": 0,
+    "hook_audio": 0,
+}
+
 @api_router.get("/books/feed")
 async def books_feed(count: int = 500):
-    books = await db.books.find({}, {"_id": 0}).limit(count).to_list(length=count)
+    books = await db.books.find({}, BOOK_LIST_EXCLUDE_FIELDS).limit(count).to_list(length=count)
     print(f"DEBUG: El servidor ha encontrado {len(books)} libros.")
     return {"books": books}
 
 
-@api_router.get("/books/search")
-async def search_books(query: str, user: User = Depends(get_current_user)):
-    books = await db.books.find({
-        "$or": [
-            {"title": {"$regex": query, "$options": "i"}},
-            {"author": {"$regex": query, "$options": "i"}},
-            {"genre": {"$regex": query, "$options": "i"}},
-            {"tema": {"$regex": query, "$options": "i"}},
-            {"tono": {"$regex": query, "$options": "i"}},
-            {"subgenero": {"$regex": query, "$options": "i"}},
-            {"mood": {"$regex": query, "$options": "i"}},
-        ]
-    }, {"_id": 0}).to_list(length=100)
-    
-    # Mezcla aleatoriamente los resultados
-    import random
-    random.shuffle(books)
-    
+# Ventana de vigencia de una "novedad": un libro con fecha_novedad deja de
+# aparecer en /books/novedades pasados estos días, SIN que haga falta tocar
+# nada manualmente — el libro sigue existiendo igual en /books/feed para
+# siempre, solo deja de mostrarse en esta lista filtrada.
+NOVEDADES_WINDOW_DAYS = int(os.environ.get("NOVEDADES_WINDOW_DAYS", "14"))
+
+@api_router.get("/books/novedades")
+async def books_novedades(count: int = 50):
+    # fecha_novedad se guarda como texto "YYYY-MM-DD" (ver Guía Maestra
+    # JSON), así que comparar como string funciona correctamente: ese
+    # formato ordena igual alfabéticamente que cronológicamente.
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=NOVEDADES_WINDOW_DAYS)).strftime("%Y-%m-%d")
+    query = {"fecha_novedad": {"$gte": cutoff}}
+    books = await db.books.find(query, BOOK_LIST_EXCLUDE_FIELDS) \
+        .sort("fecha_novedad", -1) \
+        .limit(count) \
+        .to_list(length=count)
     return {"books": books}
 
-<<<<<<< HEAD
-# --- RUTA DE BÚSQUEDA ---
-@api_router.get("/books/search")
-async def search_books(query: str):
-    # Buscamos en 'books' (minúsculas, como acordamos)
-    cursor = db.books.find({
-        "$or": [
-            {"pantalla_principal.titulo": {"$regex": query, "$options": "i"}},
-            {"pantalla_principal.autor": {"$regex": query, "$options": "i"}}
-        ]
-    })
-    
-    books = await cursor.to_list(length=100)
-    
-    formatted_books = []
-    for b in books:
-        pantalla = b.get("pantalla_principal", {})
-        vibes = b.get("vibes_data", {})
-        
-        # Aquí protegemos la App: si algo falta, ponemos un valor por defecto
-        formatted_books.append({
-            "book_id": str(b.get("_id", "")),
-            "title": pantalla.get("titulo", "Sin título"),
-            "author": pantalla.get("autor", "Autor desconocido"),
-            "cover_url": pantalla.get("portada_url", ""),
-            "mood": pantalla.get("mood", "N/A"),
-            # Si el rating falta, enviamos 0.0 para que la App no pete al hacer .toFixed()
-            "rating": float(vibes.get("rating_general", 0.0))
-        })
-        
-    return {"books": formatted_books}
-@api_router.get("/books/search")
-async def search_books(query: str, user: User = Depends(get_current_user)):
-    cursor = db.books.find({
-        "$or": [
-            {"title": {"$regex": query, "$options": "i"}},
-            {"author": {"$regex": query, "$options": "i"}},
-            {"genre": {"$regex": query, "$options": "i"}},
-            {"tema": {"$regex": query, "$options": "i"}}
-        ]
-    }, {"_id": 0})
-    books = await cursor.to_list(length=100)
-    print(f"DEBUG SEARCH: query={query}, encontrados={len(books)}")  # ← AÑADE SOLO ESTA LÍNEA
-    return {"books": books}
 
 @api_router.get("/books/search")
 async def search_books(query: str, user: User = Depends(get_current_user)):
-    cursor = db.books.find({
-        "$or": [
-            {"title": {"$regex": query, "$options": "i"}},
-            {"author": {"$regex": query, "$options": "i"}},
-            {"genre": {"$regex": query, "$options": "i"}},
-            {"tema": {"$regex": query, "$options": "i"}}
-        ]
-    }, {"_id": 0})
-    books = await cursor.to_list(length=100)
+    search_exclude_fields = dict(BOOK_LIST_EXCLUDE_FIELDS)
+    search_exclude_fields["score"] = {"$meta": "textScore"}
+    books = await db.books.find(
+        {"$text": {"$search": query}},
+        search_exclude_fields
+    ).sort([("score", {"$meta": "textScore"})]).to_list(length=100)
+
     return {"books": books}
-=======
->>>>>>> bfe3d479ce6dac2ea3861d7dbab5c75ac9985660
+
 
 @api_router.post("/books/interact")
 async def interact(body: dict, user: User = Depends(get_current_user)):
@@ -350,7 +366,7 @@ async def get_favorites(user: User = Depends(get_current_user)):
     book_ids = [f["book_id"] for f in favs]
     if not book_ids:
         return {"books": []}
-    books = await db.books.find({"book_id": {"$in": book_ids}}, {"_id": 0}).to_list(1000)
+    books = await db.books.find({"book_id": {"$in": book_ids}}, BOOK_LIST_EXCLUDE_FIELDS).to_list(1000)
     order = {bid: i for i, bid in enumerate(book_ids)}
     books.sort(key=lambda b: order.get(b["book_id"], 9999))
     return {"books": books}
@@ -376,6 +392,12 @@ async def get_book(book_id: str, user: User = Depends(get_current_user)):
 async def remove_favorite(book_id: str, user: User = Depends(get_current_user)):
     await db.user_interactions.delete_one({"user_id": user.user_id, "book_id": book_id, "action": "like"})
     return {"ok": True}
+
+
+@api_router.post("/favorites/clear")
+async def clear_favorites(user: User = Depends(get_current_user)):
+    result = await db.user_interactions.delete_many({"user_id": user.user_id, "action": "like"})
+    return {"ok": True, "deleted_count": result.deleted_count}
 
 
 @api_router.post("/books/reset")
@@ -475,6 +497,51 @@ async def tts_generate(req: TTSRequest, user: User = Depends(get_current_user)):
         "audio_base64": audio_b64, "mime": "audio/mp3", "plays_today": new_count,
         "limit": FREE_DAILY_AUDIO_LIMIT, "is_premium": is_premium, "cached": was_cached, "voice": voice_name,
     }
+
+
+# ----------------- Hook Audio (autoplay al pararse en discover) -----------------
+# El texto de "hook" ya existe en el JSON de cada libro (se usa en ShareCard y
+# FlashCardModal). Aquí solo generamos y cacheamos su audio. A diferencia de
+# /tts, este audio NO depende de idioma/voz seleccionable por el usuario: se
+# genera siempre con la misma voz por género (select_voice_for_genre), igual
+# que el resto del catálogo, y se guarda UNA SOLA VEZ en el propio documento
+# del libro, en el campo "hook_audio".
+@api_router.get("/books/{book_id}/hook-audio")
+async def get_hook_audio(book_id: str, user: User = Depends(get_current_user)):
+    is_premium = _is_premium_active(user)
+
+    if not is_premium:
+        plays_today = await _get_today_hook_count(user.user_id)
+        if plays_today >= FREE_DAILY_HOOK_LIMIT:
+            # Silencio total: sin error 402, sin modal. El frontend debe
+            # comprobar "available" y, si es False, no reproducir nada.
+            return {"available": False}
+
+    book = await db.books.find_one({"book_id": book_id}, {"_id": 0, "hook": 1, "hook_audio": 1, "genre": 1})
+    if not book:
+        raise HTTPException(404, "Book not found")
+
+    hook_text = (book.get("hook") or "").strip()
+    if not hook_text:
+        # Libro sin hook definido: no hay nada que reproducir, pero esto no
+        # cuenta como "agotaste tus hooks", así que no incrementamos contador.
+        return {"available": False}
+
+    audio_b64 = book.get("hook_audio")
+    was_cached = bool(audio_b64)
+
+    if not audio_b64:
+        voice_name = select_voice_for_genre(book.get("genre"))
+        audio_b64 = await google_tts_synthesize(text=hook_text[:1000], voice_name=voice_name)
+        try:
+            await db.books.update_one({"book_id": book_id}, {"$set": {"hook_audio": audio_b64}})
+        except Exception:
+            logger.exception("hook_audio cache write failed")
+
+    if not is_premium:
+        await _increment_hook_count(user.user_id)
+
+    return {"available": True, "audio_base64": audio_b64, "mime": "audio/mp3", "cached": was_cached}
 
 
 # ----------------- Author Chat (Premium only) -----------------
@@ -586,6 +653,21 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"],
 )
+@app.on_event("startup")
+async def ensure_indexes():
+    try:
+        await db.books.create_index([
+            ("title", "text"),
+            ("author", "text"),
+            ("genre", "text"),
+            ("tema", "text"),
+            ("tono", "text"),
+            ("subgenero", "text"),
+            ("mood", "text"),
+        ], name="book_search_text_index")
+        logger.info("Text index ensured on books collection")
+    except Exception:
+        logger.exception("Failed to create text index")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
