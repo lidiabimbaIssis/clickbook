@@ -544,40 +544,272 @@ async def get_hook_audio(book_id: str, user: User = Depends(get_current_user)):
     return {"available": True, "audio_base64": audio_b64, "mime": "audio/mp3", "cached": was_cached}
 
 
-# ----------------- Author Chat (Premium only) -----------------
-class AuthorChatMessage(BaseModel):
+# ----------------- Character Chat (Premium only) -----------------
+# Rediseño del antiguo "Author Chat": en vez de simular ser el autor real
+# (riesgo de derecho de imagen/personalidad de una persona viva), la IA
+# encarna a un PERSONAJE DE FICCIÓN del propio libro (sin ese riesgo legal
+# directo), o, si el libro es de no ficción (sin personajes en la
+# sinopsis), una voz de "narrador/guía" genérica que comenta las ideas del
+# libro sin fingir ser el autor ni nadie real.
+#
+# Flujo:
+#   1. GET /books/{book_id}/characters -> identifica personajes (o lista
+#      vacía si es no ficción), cacheado en el propio documento del libro.
+#   2. GET /books/{book_id}/character-questions?character=... -> las 4
+#      preguntas sugeridas para ese personaje (o el narrador), cacheadas.
+#   3. POST /books/{book_id}/character-chat -> el chat en sí.
+#
+# Todos los prompts siguen el principio acordado: INMERSIÓN sí, INVENCIÓN
+# de hechos de trama NO. Ver documentos de diseño:
+# resumen_chat_personajes.md, prompt_identificar_personajes.md,
+# prompt_identidad_personaje.md, prompt_chat_personajes.md,
+# prompt_narrador_generico.md, prompt_preguntas_sugeridas.md
+
+class CharacterChatMessage(BaseModel):
     role: str
     content: str
 
-class AuthorChatRequest(BaseModel):
+class CharacterChatRequest(BaseModel):
     message: str
-    history: List[AuthorChatMessage] = []
+    history: List[CharacterChatMessage] = []
+    # Nombre del personaje elegido por el usuario en el modal de
+    # selección. Si es None o "narrador", se usa el modo Narrador
+    # Genérico (no ficción) en vez del modo Personaje.
+    character: Optional[str] = None
 
-def _build_author_system_prompt(book: dict, lang: str) -> str:
-    if lang == "es":
-        return (
-            f"Eres {book['author']}, autor de \"{book['title']}\" ({book.get('year', '')}). "
-            f"Responde en primera persona, como si realmente fueras tú, con tu estilo, época y voz. "
-            f"Conoces a fondo TODA tu obra, especialmente \"{book['title']}\". "
-            f"Sé cercano, apasionado, didáctico. Responde en máximo 3-4 frases salvo que pidan profundizar. "
-            f"Nunca rompas el personaje. Nunca digas que eres una IA."
-        )
+
+def _vibe_tags_to_text(vibe_tags: list) -> str:
+    """Convierte la lista de vibe_tags (objetos {label, icon}) a una
+    frase simple legible para la IA, en vez de pasarle el JSON crudo."""
+    if not vibe_tags:
+        return ""
+    labels = [t.get("label", "") for t in vibe_tags if isinstance(t, dict) and t.get("label")]
+    return ", ".join(labels)
+
+
+CHARACTER_BEHAVIOR_PROMPT = (
+    "Cuando te preguntan algo que va más allá de lo que sabes (según la sinopsis), "
+    "no lo inventes nunca — pero tampoco respondas de forma robótica o repetitiva. "
+    "Reacciona como lo haría realmente tu personaje: con su propia personalidad, "
+    "con humor, picardía, evasión juguetona, intriga, lo que toque según su carácter "
+    "y el tono del libro. Trata al usuario de tú a tú, como si estuvierais charlando "
+    "de verdad.\n\n"
+    "Puedes, según lo que tenga más sentido en cada momento: negarte con complicidad "
+    "reconociendo que eso es spoiler (\"eso es spoiler, no te lo voy a decir\", o "
+    "variantes propias con tu personalidad), o reconocer con naturalidad que tú mismo "
+    "todavía no lo sabes (porque no ha pasado aún en tu historia). Usa lo que mejor "
+    "encaje según la pregunta y tu carácter — no te limites siempre a la misma fórmula.\n\n"
+    "Si la pregunta es sobre algo del pasado o presente de la historia que tampoco "
+    "está en la sinopsis, puedes responder con evasión natural propia de tu personaje "
+    "— por ejemplo cambiando de tema con intriga, insinuando que es un recuerdo "
+    "confuso o doloroso, o devolviendo la pregunta con otra pregunta — sin nunca "
+    "inventar el detalle que falta.\n\n"
+    "La única regla fija es de contenido: no puedes inventar ni revelar ningún hecho, "
+    "objeto, suceso o detalle de trama que no esté en la sinopsis. La única salida "
+    "válida siempre es remitir a la lectura del libro para descubrirlo. La FORMA de "
+    "decir esto es libre y debe sonar natural, variada y con personalidad — nunca "
+    "como una frase de plantilla repetida."
+)
+
+
+def _build_character_system_prompt(book: dict, character_name: str, character_desc: str) -> str:
+    vibes_text = _vibe_tags_to_text(book.get("vibe_tags") or [])
     return (
-        f"You are {book['author']}, author of \"{book['title']}\" ({book.get('year', '')}). "
-        f"Reply in first person. Never break character. Never reveal you are an AI."
+        f"Eres {character_name}, un personaje de la novela \"{book.get('title','')}\" "
+        f"de {book.get('author','')}.\n\n"
+        f"Contexto de la obra que debes conocer y respetar siempre:\n"
+        f"- Género: {book.get('genre','')}\n"
+        f"- Tema central: {book.get('tema','')}\n"
+        f"- Tono: {book.get('tono','')}\n"
+        f"- Sinopsis completa: {book.get('sinopsis','')}\n"
+        f"- Frase clave de la historia: {book.get('hook','')}\n"
+        f"- Ambiente/sensaciones de la obra: {vibes_text}\n\n"
+        f"Tu papel dentro de esta historia: {character_desc}\n\n"
+        f"Hablas en primera persona, como si realmente fueras {character_name}, con una "
+        f"personalidad coherente con el tono de la obra ({book.get('tono','')}) y tu papel "
+        f"en ella. Vives dentro de la historia — no sabes nada de lo que le pasará a tu "
+        f"personaje más adelante, ni el final, solo lo que ya ha ocurrido hasta donde "
+        f"llega la sinopsis.\n\n"
+        f"Nunca rompas el personaje. Nunca digas que eres una IA, ni que esto es una "
+        f"novela, ni que tu existencia depende de un libro — para ti, esto es tu vida real.\n\n"
+        f"{CHARACTER_BEHAVIOR_PROMPT}"
     )
 
-@api_router.post("/books/{book_id}/author-chat")
-async def author_chat(book_id: str, req: AuthorChatRequest, user: User = Depends(get_current_user)):
-    if not _is_premium_active(user):
-        raise HTTPException(status_code=402, detail={"error": "premium_required", "message": "El chat con el autor está disponible solo para usuarios Premium."})
+
+def _build_narrator_system_prompt(book: dict) -> str:
+    vibes_text = _vibe_tags_to_text(book.get("vibe_tags") or [])
+    return (
+        f"Eres un guía entusiasta que ha leído a fondo \"{book.get('title','')}\" de "
+        f"{book.get('author','')} y le encanta comentarlo con la gente. Hablas en "
+        f"primera persona, pero no eres el autor ni ningún personaje — eres simplemente "
+        f"alguien apasionado por las ideas de este libro en concreto, con ganas de "
+        f"compartirlas.\n\n"
+        f"Contexto del libro que debes conocer y respetar siempre:\n"
+        f"- Género: {book.get('genre','')}\n"
+        f"- Tema central: {book.get('tema','')}\n"
+        f"- Tono: {book.get('tono','')}\n"
+        f"- Sinopsis completa: {book.get('sinopsis','')}\n"
+        f"- Frase clave del libro: {book.get('hook','')}\n"
+        f"- Ambiente/sensaciones del libro: {vibes_text}\n\n"
+        f"Tu tono es cercano, cálido y entusiasta — como cuando le recomiendas a un "
+        f"amigo un libro que te ha encantado y te apetece comentarlo con calma, sacando "
+        f"ideas, ejemplos y reflexiones de lo que sabes del contenido real. Deja que las "
+        f"sensaciones del libro ({vibes_text}) impregnen tu forma de hablar.\n\n"
+        f"No inventes datos, cifras, estudios, anécdotas o afirmaciones del libro que no "
+        f"estén respaldadas por la sinopsis que tienes. Si te preguntan un detalle muy "
+        f"específico que no está en la sinopsis, responde con honestidad y cercanía — "
+        f"reconociendo que ese detalle se explica mejor leyendo el libro directamente, "
+        f"sin inventarlo ni fingir que lo sabes con precisión.\n\n"
+        f"Nunca digas que eres una IA. Mantén siempre este tono de \"lector apasionado\" "
+        f"durante toda la conversación."
+    )
+
+
+@api_router.get("/books/{book_id}/characters")
+async def get_book_characters(book_id: str, user: User = Depends(get_current_user)):
+    book = await db.books.find_one(
+        {"book_id": book_id},
+        {"_id": 0, "title": 1, "genre": 1, "tema": 1, "tono": 1, "sinopsis": 1, "characters_cache": 1},
+    )
+    if not book:
+        raise HTTPException(404, "Book not found")
+
+    cached = book.get("characters_cache")
+    if cached is not None:
+        return {"characters": cached}
+
+    sinopsis = (book.get("sinopsis") or "").strip()
+    if not sinopsis:
+        # Sin sinopsis no hay nada fiable de lo que extraer — narrador genérico.
+        await db.books.update_one({"book_id": book_id}, {"$set": {"characters_cache": []}})
+        return {"characters": []}
+
+    prompt = (
+        "Eres un analista literario. A partir de la siguiente sinopsis de un libro, "
+        "identifica los personajes principales que aparecen mencionados o claramente "
+        "implicados en el texto.\n\n"
+        f"Libro: {book.get('title','')}\n"
+        f"Género: {book.get('genre','')}\n"
+        f"Tema: {book.get('tema','')}\n"
+        f"Tono: {book.get('tono','')}\n"
+        f"Sinopsis: {sinopsis}\n\n"
+        "Devuelve ÚNICAMENTE los personajes que estén explícitamente nombrados o "
+        "descritos en la sinopsis — no inventes personajes que no aparezcan en este "
+        "texto, aunque el género o tono sugieran que \"deberían\" existir.\n\n"
+        "Para cada personaje, indica:\n"
+        "- Su nombre exactamente como aparece en la sinopsis.\n"
+        "- Una frase corta (máximo 12 palabras) que lo describa, basada únicamente en "
+        "lo que dice la sinopsis sobre él/ella.\n"
+        "- Su género (\"masculino\" o \"femenino\"), deducido del propio texto de la "
+        "sinopsis. Si no hay pista clara, indica \"desconocido\".\n\n"
+        "Si la sinopsis solo nombra a un personaje claramente, devuelve solo ese uno — "
+        "no inventes un reparto más amplio para \"rellenar\".\n\n"
+        "Si la sinopsis no menciona a ningún personaje con nombre propio (libros de no "
+        "ficción: autoayuda, ensayo, historia, divulgación), devuelve una lista vacía. "
+        "Esto es un resultado válido y esperado.\n\n"
+        "Responde solo en este formato JSON, sin texto adicional:\n"
+        '{"personajes": [{"nombre": "...", "descripcion": "...", "genero": "masculino|femenino|desconocido"}]}'
+    )
+
+    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"characters-{book_id}", system_message="Eres un analista literario preciso, que nunca inventa información fuera del texto dado.").with_model("gemini", "gemini-3-flash-preview")
+
+    try:
+        response_text = await chat.send_message(UserMessage(text=prompt))
+        cleaned = re.sub(r"^```(?:json)?\s*", "", response_text.strip())
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+        parsed = json.loads(cleaned)
+        characters = parsed.get("personajes", [])
+        await db.books.update_one({"book_id": book_id}, {"$set": {"characters_cache": characters}})
+        return {"characters": characters}
+    except Exception as e:
+        logger.exception("Character identification failed")
+        # Fallo de la IA o del parseo: no bloqueamos al usuario, caemos a
+        # modo narrador genérico (lista vacía) en vez de dar error 500.
+        return {"characters": []}
+
+
+@api_router.get("/books/{book_id}/character-questions")
+async def get_character_questions(book_id: str, character: Optional[str] = None, user: User = Depends(get_current_user)):
     book = await db.books.find_one({"book_id": book_id}, {"_id": 0})
     if not book:
         raise HTTPException(404, "Book not found")
 
-    lang = user.lang or "es"
-    system_msg = _build_author_system_prompt(book, lang)
-    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"author-chat-{user.user_id}-{book_id}", system_message=system_msg).with_model("gemini", "gemini-3-flash-preview")
+    cache_field = f"questions_cache_{character}" if character else "questions_cache_narrador"
+    cached = book.get(cache_field)
+    if cached is not None:
+        return {"questions": cached}
+
+    sinopsis = (book.get("sinopsis") or "").strip()
+    vibes_text = _vibe_tags_to_text(book.get("vibe_tags") or [])
+
+    if character:
+        characters_cache = book.get("characters_cache") or []
+        char_desc = next((c.get("descripcion", "") for c in characters_cache if c.get("nombre") == character), "")
+        prompt = (
+            "A partir de esta sinopsis y este personaje, genera 4 preguntas cortas que "
+            f"un lector le haría a {character} en una conversación.\n\n"
+            f"Libro: {book.get('title','')}\n"
+            f"Sinopsis: {sinopsis}\n"
+            f"Personaje: {character} — {char_desc}\n"
+            f"Tono del libro: {book.get('tono','')}\n\n"
+            "Mezcla dos tipos de preguntas: 2 sobre la TRAMA o sus decisiones (sin "
+            "revelar spoiler en la propia pregunta), y 2 más EMOCIONALES o personales.\n\n"
+            "Reglas: cada pregunta debe poder responderse sin que el personaje necesite "
+            "inventar nada que no esté en la sinopsis. Máximo 6-7 palabras por pregunta. "
+            "No repitas la misma estructura cuatro veces. Nunca preguntes algo que solo "
+            "tendría sentido si el personaje supiera el final de su propia historia.\n\n"
+            'Responde solo en JSON: {"preguntas": ["...", "...", "...", "..."]}'
+        )
+    else:
+        prompt = (
+            "A partir de esta sinopsis, genera 4 preguntas cortas que un lector le "
+            "haría a alguien apasionado por este libro, en una conversación sobre sus "
+            "ideas.\n\n"
+            f"Libro: {book.get('title','')}\n"
+            f"Sinopsis: {sinopsis}\n"
+            f"Tema: {book.get('tema','')}\n"
+            f"Vibe del libro: {vibes_text}\n\n"
+            "Las preguntas deben invitar a conversar sobre las IDEAS y el contenido "
+            "real del libro (no hay trama ni personajes). Máximo 6-7 palabras por "
+            "pregunta. Varía la estructura entre las cuatro.\n\n"
+            'Responde solo en JSON: {"preguntas": ["...", "...", "...", "..."]}'
+        )
+
+    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"questions-{book_id}-{character or 'narrador'}", system_message="Generas preguntas breves y fieles al texto dado, sin inventar detalles de trama.").with_model("gemini", "gemini-3-flash-preview")
+
+    try:
+        response_text = await chat.send_message(UserMessage(text=prompt))
+        cleaned = re.sub(r"^```(?:json)?\s*", "", response_text.strip())
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+        parsed = json.loads(cleaned)
+        questions = parsed.get("preguntas", [])
+        await db.books.update_one({"book_id": book_id}, {"$set": {cache_field: questions}})
+        return {"questions": questions}
+    except Exception as e:
+        logger.exception("Question generation failed")
+        return {"questions": []}
+
+
+@api_router.post("/books/{book_id}/character-chat")
+async def character_chat(book_id: str, req: CharacterChatRequest, user: User = Depends(get_current_user)):
+    if not _is_premium_active(user):
+        raise HTTPException(status_code=402, detail={"error": "premium_required", "message": "Este chat está disponible solo para usuarios Premium."})
+    book = await db.books.find_one({"book_id": book_id}, {"_id": 0})
+    if not book:
+        raise HTTPException(404, "Book not found")
+
+    is_narrator = not req.character or req.character.lower() == "narrador"
+
+    if is_narrator:
+        system_msg = _build_narrator_system_prompt(book)
+        session_suffix = "narrador"
+    else:
+        characters_cache = book.get("characters_cache") or []
+        char_desc = next((c.get("descripcion", "") for c in characters_cache if c.get("nombre") == req.character), "")
+        system_msg = _build_character_system_prompt(book, req.character, char_desc)
+        session_suffix = req.character
+
+    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"character-chat-{user.user_id}-{book_id}-{session_suffix}", system_message=system_msg).with_model("gemini", "gemini-3-flash-preview")
 
     for h in req.history[-10:]:
         if h.role == "user":
@@ -586,11 +818,14 @@ async def author_chat(book_id: str, req: AuthorChatRequest, user: User = Depends
     try:
         reply = await chat.send_message(UserMessage(text=req.message))
         reply_text = reply.strip()
-        await db.author_chats.insert_one({"user_id": user.user_id, "book_id": book_id, "user_message": req.message, "assistant_reply": reply_text, "created_at": datetime.now(timezone.utc)})
+        await db.character_chats.insert_one({
+            "user_id": user.user_id, "book_id": book_id, "character": req.character or "narrador",
+            "user_message": req.message, "assistant_reply": reply_text, "created_at": datetime.now(timezone.utc),
+        })
         return {"reply": reply_text}
     except Exception as e:
-        logger.exception("Author chat failed")
-        raise HTTPException(500, f"Author chat failed: {e}")
+        logger.exception("Character chat failed")
+        raise HTTPException(500, f"Character chat failed: {e}")
 
 
 # ----------------- Premium Summary -----------------
