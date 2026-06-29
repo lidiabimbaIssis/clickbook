@@ -79,6 +79,12 @@ export default function Discover() {
   const [hookRemaining, setHookRemaining] = useState<number | null>(null);
   const [hookIsPremium, setHookIsPremium] = useState(false);
   const [hookPlayingId, setHookPlayingId] = useState<string | null>(null);
+  // Feedback INSTANTÁNEO al pulsar el botón del hook: se marca en el
+  // mismo toque, antes de esperar respuesta del backend. Sin esto, el
+  // botón se sentía "muerto" durante el segundo o dos que tarda la
+  // petición — la gente impaciente pulsaba dos veces pensando que no
+  // había funcionado, gastando dos hooks sin haber escuchado ninguno.
+  const [hookLoadingId, setHookLoadingId] = useState<string | null>(null);
   const listRef = useRef<FlatList<Book>>(null);
   const shareCardRef = useRef<View>(null);
   const [coverReady, setCoverReady] = useState(false);
@@ -259,16 +265,22 @@ useEffect(() => {
   const playHook = useCallback(async () => {
     if (!current) return;
     const bookId = current.book_id;
+    if (hookLoadingId === bookId || hookPlayingId === bookId) return; // evita doble toque mientras ya está en curso
+    setHookLoadingId(bookId); // feedback instantáneo, antes de cualquier espera de red
     try {
       const res = await api<{ available: boolean; audio_base64?: string; mime?: string }>(
         `/books/${bookId}/hook-audio`
       );
-      if (!res.available) return; // por si justo se agotó entre medias; silencio, sin aviso
+      if (!res.available) {
+        setHookLoadingId((id) => (id === bookId ? null : id));
+        return; // por si justo se agotó entre medias; silencio, sin aviso
+      }
 
       stopAudio(); // por si quedaba sonando un resumen u otro hook
       const uri = `data:${res.mime};base64,${res.audio_base64}`;
       const p = createAudioPlayer({ uri });
       playerRef.current = p;
+      setHookLoadingId((id) => (id === bookId ? null : id));
       setHookPlayingId(bookId);
       p.addListener("playbackStatusUpdate", (st: any) => {
         if (st.didJustFinish) {
@@ -286,8 +298,9 @@ useEffect(() => {
       }
     } catch (e) {
       console.warn("hook audio error", e);
+      setHookLoadingId((id) => (id === bookId ? null : id));
     }
-  }, [current, stopAudio, hookIsPremium]);
+  }, [current, stopAudio, hookIsPremium, hookLoadingId, hookPlayingId]);
 
   const onMomentumScrollEnd = useCallback((e: any) => {
     const y = e.nativeEvent.contentOffset.y;
@@ -421,6 +434,7 @@ await Image.prefetch(coverUrl);
             hookIsPremium={hookIsPremium}
             hookRemaining={hookRemaining}
             hookPlaying={hookPlayingId === item.book_id}
+            hookLoading={hookLoadingId === item.book_id}
             onPressHook={playHook}
           />
         )}
@@ -514,11 +528,11 @@ await Image.prefetch(coverUrl);
 
 function BookSlide({
   book, reservedBottom, slideHeight,
-  isCurrent, hookIsPremium, hookRemaining, hookPlaying, onPressHook,
+  isCurrent, hookIsPremium, hookRemaining, hookPlaying, hookLoading, onPressHook,
 }: {
   book: Book; reservedBottom: number; slideHeight: number;
   isCurrent?: boolean; hookIsPremium?: boolean; hookRemaining?: number | null;
-  hookPlaying?: boolean; onPressHook?: () => void;
+  hookPlaying?: boolean; hookLoading?: boolean; onPressHook?: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const mood = useMemo(() => inferMood(book), [book]);
@@ -594,9 +608,20 @@ function BookSlide({
                 testID="btn-hook"
               >
                 {hookIsPremium ? (
-                  <Ionicons name={hookPlaying ? "pause" : "play"} size={16} color="rgba(255,255,255,0.85)" />
+                  <Ionicons
+                    name={hookPlaying ? "pause" : "play"}
+                    size={16}
+                    color={hookLoading || hookPlaying ? colors.iron : "rgba(255,255,255,0.85)"}
+                  />
                 ) : (
-                  <Text style={styles.hookBtnNumber}>{hookRemaining}</Text>
+                  // El número cambia a fucsia (mismo color que el micro de
+                  // home.tsx al escuchar) en el INSTANTE del toque, antes
+                  // de esperar la respuesta del servidor — así se sabe de
+                  // inmediato que el toque sí se registró, sin tener que
+                  // adivinar y arriesgarse a pulsar dos veces de más.
+                  <Text style={[styles.hookBtnNumber, (hookLoading || hookPlaying) && { color: colors.iron }]}>
+                    {hookRemaining}
+                  </Text>
                 )}
               </TouchableOpacity>
             )}
