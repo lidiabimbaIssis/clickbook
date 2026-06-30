@@ -109,7 +109,7 @@ export default function Discover() {
 const fetchBooks = useCallback(async (initial: boolean) => {
   if (initial) setLoading(true);
   try {
-    const targetCount = 500;
+    const targetCount = 150;
 
     // Modo "Novedades" (botón debajo de Sorpréndeme en home.tsx): solo se
     // aplica en la carga INICIAL, no en las cargas de scroll infinito que
@@ -269,7 +269,11 @@ useEffect(() => {
     if (hookLoadingId === bookId || hookPlayingId === bookId) return; // evita doble toque mientras ya está en curso
     setHookLoadingId(bookId); // feedback instantáneo, antes de cualquier espera de red
     try {
-      const res = await api<{ available: boolean; audio_base64?: string; mime?: string }>(
+      // El backend puede devolver el audio de dos formas según si el
+      // libro ya está migrado a Cloudinary o no:
+      // - audio_url: URL pública en Cloudinary (caso nuevo, preferido)
+      // - audio_base64: base64 legacy (libros aún no migrados)
+      const res = await api<{ available: boolean; audio_url?: string; audio_base64?: string; mime?: string }>(
         `/books/${bookId}/hook-audio`
       );
       if (!res.available) {
@@ -278,7 +282,9 @@ useEffect(() => {
       }
 
       stopAudio(); // por si quedaba sonando un resumen u otro hook
-      const uri = `data:${res.mime};base64,${res.audio_base64}`;
+      const uri = res.audio_url
+        ? res.audio_url
+        : `data:${res.mime};base64,${res.audio_base64}`;
       const p = createAudioPlayer({ uri });
       playerRef.current = p;
       setHookLoadingId((id) => (id === bookId ? null : id));
@@ -336,8 +342,12 @@ useEffect(() => {
         text = sumRes.summary;
         setPremiumSummaries((prev) => ({ ...prev, [current.book_id]: text! }));
       }
-      const res = await api<{ audio_base64: string; mime: string }>("/tts", { method: "POST", body: JSON.stringify({ text, voice: "fable", book_id: current.book_id, lang }) });
-      const uri = `data:${res.mime};base64,${res.audio_base64}`;
+      // Igual que en playHook: el backend devuelve audio_url (Cloudinary,
+      // caso nuevo) o audio_base64 (legacy, libros aún no migrados).
+      const res = await api<{ audio_url?: string; audio_base64?: string; mime: string }>("/tts", { method: "POST", body: JSON.stringify({ text, voice: "fable", book_id: current.book_id, lang }) });
+      const uri = res.audio_url
+        ? res.audio_url
+        : `data:${res.mime};base64,${res.audio_base64}`;
       const p = createAudioPlayer({ uri });
       playerRef.current = p;
       p.addListener("playbackStatusUpdate", (st: any) => { if (st.didJustFinish) stopAudio(); });
@@ -562,25 +572,36 @@ function BookSlide({
   const insets = useSafeAreaInsets();
   const mood = useMemo(() => inferMood(book), [book]);
   const coverW = SCREEN_W * 0.88;
+  const isNovedad = !!(book as any).fecha_novedad;
 
-  // Espacio real que ocupa topBar (ver styles.topBar + backBtn): el botón
-  // circular mide 38 de alto, con paddingTop: insets.top + 8 por encima.
-  // Reservamos esa franja completa para que topBar nunca quede tapado,
-  // y SOLO DESPUÉS añadimos los 45 que topBadgesRow necesita "subir" desde
-  // coverWrap (porque topBadgesRow es absolute con top:-45 relativo a
-  // coverWrap, no a slide — son dos espacios distintos, no se solapan).
-  const topBarSpace = insets.top + 8 + 38 + 8; // +8 de aire entre topBar y badges
+  const topBarSpace = insets.top + 8 + 38 + 8;
   const slidePaddingTop = topBarSpace + 45;
+
+  // Botón del hook: se renderiza igual tanto en portadas normales como
+  // en novedades — lo extraemos aquí para no duplicarlo.
+  const hookButton = isCurrent && (hookIsPremium || (hookRemaining ?? 0) > 0) ? (
+    <TouchableOpacity
+      onPress={onPressHook}
+      style={styles.hookBtn}
+      activeOpacity={0.7}
+      testID="btn-hook"
+    >
+      {hookIsPremium ? (
+        <Ionicons
+          name={hookPlaying ? "pause" : "play"}
+          size={16}
+          color={hookLoading || hookPlaying ? colors.iron : "rgba(255,255,255,0.85)"}
+        />
+      ) : (
+        <Text style={[styles.hookBtnNumber, (hookLoading || hookPlaying) && { color: colors.iron }]}>
+          {hookRemaining}
+        </Text>
+      )}
+    </TouchableOpacity>
+  ) : null;
 
   return (
     <View style={[styles.slide, { width: SCREEN_W, height: slideHeight, paddingTop: slidePaddingTop }]}>
-      {/*
-        coverArea: flex:1. Se lleva TODO el espacio que sobra después de
-        reservar paddingTop (sitio real para topBar + sitio para
-        topBadgesRow, que sigue flotando absolute por encima de coverWrap)
-        y después de pillContainer + el spacer de abajo.
-        Ya no hay ningún coverH calculado por resta de números mágicos.
-      */}
       <View style={styles.coverArea}>
         <View style={styles.coverWrap}>
           <View style={styles.topBadgesRow} pointerEvents="box-none">
@@ -594,63 +615,39 @@ function BookSlide({
             </View>
           </View>
 
-          {/*
-            Antes: borderRadius/overflow estaban en la Image directamente,
-            con height:"100%" y resizeMode="contain". Eso crea una CAJA
-            grande (todo el alto disponible) dentro de la cual la imagen
-            real del libro se dibuja más pequeña y centrada, dejando aire
-            transparente alrededor — el borderRadius redondeaba esa caja
-            invisible, no el borde real de la portada, por eso no se veía.
-
-            Ahora: coverFrame tiene aspectRatio fijo (2:3, proporción
-            estándar de tapa de libro) y altura máxima limitada al espacio
-            disponible. Así el contenedor mide CASI exactamente lo mismo
-            que la imagen real, y overflow:"hidden" + borderRadius sí
-            recortan el borde visible del libro, en cualquier dispositivo.
-          */}
-          <View style={styles.coverFrame}>
-            <Image
-              source={{ uri: `https://res.cloudinary.com/ddppclcl1/image/upload/v1780422197/${book.book_id}.webp` }}
-              resizeMode="cover"
-              style={styles.coverImage}
-              onError={(e) => console.log("Error cargando imagen:", e.nativeEvent.error)}
-            />
-            {/*
-              Botón del hook: solo se pinta en la portada ACTUAL (isCurrent),
-              nunca en los vecinos precargados por el FlatList — evitamos
-              que aparezca un botón "fantasma" en portadas que el usuario
-              todavía no está viendo. Premium: icono de play sutil, sin
-              número, sin límite. Free con hooks restantes: número grande
-              (3, 2, 1) en vez de icono — el propio número ES el botón.
-              Free sin hooks restantes hoy: no se pinta nada, ningún hueco
-              ni aviso, tal como se decidió para esta feature.
-            */}
-            {isCurrent && (hookIsPremium || (hookRemaining ?? 0) > 0) && (
-              <TouchableOpacity
-                onPress={onPressHook}
-                style={styles.hookBtn}
-                activeOpacity={0.7}
-                testID="btn-hook"
-              >
-                {hookIsPremium ? (
-                  <Ionicons
-                    name={hookPlaying ? "pause" : "play"}
-                    size={16}
-                    color={hookLoading || hookPlaying ? colors.iron : "rgba(255,255,255,0.85)"}
-                  />
-                ) : (
-                  // El número cambia a fucsia (mismo color que el micro de
-                  // home.tsx al escuchar) en el INSTANTE del toque, antes
-                  // de esperar la respuesta del servidor — así se sabe de
-                  // inmediato que el toque sí se registró, sin tener que
-                  // adivinar y arriesgarse a pulsar dos veces de más.
-                  <Text style={[styles.hookBtnNumber, (hookLoading || hookPlaying) && { color: colors.iron }]}>
-                    {hookRemaining}
-                  </Text>
-                )}
-              </TouchableOpacity>
-            )}
-          </View>
+          {isNovedad ? (
+            // Portada de NOVEDAD: borde degradado cian->morado muy fino (2px).
+            // El LinearGradient actúa como marco: padding:2 + borderRadius:17
+            // envuelve el coverFrame (borderRadius:13) para que el borde
+            // redondeado del gradiente y el de la imagen encajen perfectamente.
+            <LinearGradient
+              colors={[colors.brass, colors.copper]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={[styles.coverFrame, { borderRadius: 17, padding: 2 }]}
+            >
+              <View style={{ flex: 1, borderRadius: 13, overflow: "hidden" }}>
+                <Image
+                  source={{ uri: `https://res.cloudinary.com/ddppclcl1/image/upload/v1780422197/${book.book_id}.webp` }}
+                  resizeMode="cover"
+                  style={styles.coverImage}
+                  onError={(e) => console.log("Error cargando imagen:", e.nativeEvent.error)}
+                />
+                {hookButton}
+              </View>
+            </LinearGradient>
+          ) : (
+            // Portada normal: sin borde degradado
+            <View style={styles.coverFrame}>
+              <Image
+                source={{ uri: `https://res.cloudinary.com/ddppclcl1/image/upload/v1780422197/${book.book_id}.webp` }}
+                resizeMode="cover"
+                style={styles.coverImage}
+                onError={(e) => console.log("Error cargando imagen:", e.nativeEvent.error)}
+              />
+              {hookButton}
+            </View>
+          )}
 
           <LinearGradient
             colors={['transparent', 'rgb(0, 0, 0)']}
@@ -667,7 +664,6 @@ function BookSlide({
         </View>
       </View>
 
-      {/* Tags — flujo normal, altura natural, sin cambios respecto al original */}
       <View style={styles.pillContainer}>
         {book.vibe_tags?.map((tag, index) => (
           <React.Fragment key={index}>
@@ -681,13 +677,6 @@ function BookSlide({
         ))}
       </View>
 
-      {/*
-        Spacer invisible: reserva exactamente la altura real medida del
-        buyRow flotante (+ el mismo margen fijo de 6 que usa buyRow), para
-        que coverArea (flex:1) nunca calcule de más y la portada no quede
-        nunca tapada por los botones de compra fijos.
-        No es clicable, no tiene contenido — es aire reservado en el flujo.
-      */}
       <View style={{ height: reservedBottom + 6 }} pointerEvents="none" />
     </View>
   );
