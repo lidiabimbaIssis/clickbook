@@ -20,6 +20,9 @@ from pydantic import BaseModel, Field
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 from emergentintegrations.llm.openai import OpenAITextToSpeech
 
+import cloudinary
+import cloudinary.uploader
+
 # ----------------- Setup -----------------
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -42,6 +45,30 @@ PRICING = {
     "launch_promo_label":  "🔥 OFERTA DE LANZAMIENTO",
     "free_daily_audio_limit": FREE_DAILY_AUDIO_LIMIT,
 }
+
+# Cloudinary: usado para almacenar audios (resúmenes y hooks) fuera de
+# Mongo, ya que guardarlos en base64 dentro de cada documento de libro
+# era la causa principal de la lentitud de Mongo Atlas (tier M0).
+cloudinary.config(
+    cloud_name=os.environ["CLOUDINARY_CLOUD_NAME"],
+    api_key=os.environ["CLOUDINARY_API_KEY"],
+    api_secret=os.environ["CLOUDINARY_API_SECRET"],
+)
+
+async def upload_audio_to_cloudinary(audio_b64: str, public_id: str) -> str:
+    """Sube un audio (en base64) a Cloudinary y devuelve su URL pública.
+    Cloudinary trata el audio como resource_type='video'. Se ejecuta en un
+    thread aparte porque el SDK de cloudinary no es async."""
+    audio_bytes = base64.b64decode(audio_b64)
+    result = await asyncio.to_thread(
+        cloudinary.uploader.upload,
+        audio_bytes,
+        resource_type="video",
+        public_id=public_id,
+        folder="clickbook_audio",
+        overwrite=True,
+    )
+    return result["secure_url"]
 
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
@@ -296,6 +323,12 @@ async def downgrade_from_premium(user: User = Depends(get_current_user)):
 # UN libro en concreto (get_book, premium_summary, tts).
 # Nota: resumen_audio NO se excluye porque es solo TEXTO (el guion del audio),
 # no el audio en sí, y se muestra siempre a todo el mundo, sea o no premium.
+# Se añaden también characters_cache y questions_cache_narrador (chat de
+# personajes) para que esos campos tampoco viajen en los listados — solo
+# hacen falta cuando se abre el chat de un libro concreto.
+# Los campos _url (Cloudinary) SÍ pueden viajar en listados si hace falta en
+# el futuro (son solo texto corto), pero de momento se excluyen igual que
+# los antiguos en base64 para mantener los listados ligeros.
 BOOK_LIST_EXCLUDE_FIELDS = {
     "_id": 0,
     "premium_summary_es": 0,
@@ -304,13 +337,43 @@ BOOK_LIST_EXCLUDE_FIELDS = {
     "audio_es_ES_Neural2_C_en": 0,
     "audio_es_ES_Neural2_B_es": 0,
     "audio_es_ES_Neural2_B_en": 0,
+    "audio_url_es_ES_Neural2_C_es": 0,
+    "audio_url_es_ES_Neural2_C_en": 0,
+    "audio_url_es_ES_Neural2_B_es": 0,
+    "audio_url_es_ES_Neural2_B_en": 0,
     "hook_audio": 0,
+    "hook_audio_url": 0,
+    "characters_cache": 0,
+    "questions_cache_narrador": 0,
 }
 
+def _strip_dynamic_cache_fields(book: dict) -> dict:
+    """questions_cache_{personaje} tiene un nombre de campo distinto por
+    cada personaje del libro, así que no se puede excluir por nombre fijo
+    en BOOK_LIST_EXCLUDE_FIELDS. Se limpia aquí a mano tras traer el
+    documento, para que estos campos nunca viajen en los listados."""
+    for k in list(book.keys()):
+        if k.startswith("questions_cache_"):
+            book.pop(k, None)
+    return book
+
+
 @api_router.get("/books/feed")
-async def books_feed(count: int = 500):
-    books = await db.books.find({}, BOOK_LIST_EXCLUDE_FIELDS).limit(count).to_list(length=count)
-    print(f"DEBUG: El servidor ha encontrado {len(books)} libros.")
+async def books_feed(skip: int = 0, count: int = 150):
+    # Paginado real: el frontend pide tandas pequeñas (skip/count) en vez de
+    # cargar todo el catálogo de golpe. Usamos $sample para que el orden sea
+    # aleatorio de verdad (antes siempre salía el mismo orden natural de
+    # Mongo), combinado con skip/limit para poder seguir pidiendo más tandas
+    # sin repetir según el usuario hace scroll.
+    pipeline = [
+        {"$sample": {"size": skip + count}},
+        {"$skip": skip},
+        {"$limit": count},
+        {"$project": BOOK_LIST_EXCLUDE_FIELDS},
+    ]
+    books = await db.books.aggregate(pipeline).to_list(length=count)
+    books = [_strip_dynamic_cache_fields(b) for b in books]
+    print(f"DEBUG: El servidor ha encontrado {len(books)} libros (skip={skip}, count={count}).")
     return {"books": books}
 
 
@@ -331,6 +394,7 @@ async def books_novedades(count: int = 50):
         .sort("fecha_novedad", -1) \
         .limit(count) \
         .to_list(length=count)
+    books = [_strip_dynamic_cache_fields(b) for b in books]
     return {"books": books}
 
 
@@ -342,6 +406,7 @@ async def search_books(query: str, user: User = Depends(get_current_user)):
         {"$text": {"$search": query}},
         search_exclude_fields
     ).sort([("score", {"$meta": "textScore"})]).to_list(length=100)
+    books = [_strip_dynamic_cache_fields(b) for b in books]
 
     return {"books": books}
 
@@ -367,6 +432,7 @@ async def get_favorites(user: User = Depends(get_current_user)):
     if not book_ids:
         return {"books": []}
     books = await db.books.find({"book_id": {"$in": book_ids}}, BOOK_LIST_EXCLUDE_FIELDS).to_list(1000)
+    books = [_strip_dynamic_cache_fields(b) for b in books]
     order = {bid: i for i, bid in enumerate(book_ids)}
     books.sort(key=lambda b: order.get(b["book_id"], 9999))
     return {"books": books}
@@ -466,15 +532,38 @@ async def tts_generate(req: TTSRequest, user: User = Depends(get_current_user)):
     explicit_voice = req.voice and req.voice not in ("fable", "alloy", "echo", "onyx", "nova", "shimmer")
     voice_name = req.voice if explicit_voice else select_voice_for_genre(book_genre)
 
+    # cache_field = nombre del campo antiguo en base64 (legacy, solo lectura
+    # de fallback si todavía no se ha migrado este libro/voz/idioma).
+    # url_field = nombre del campo nuevo, donde se guarda la URL de
+    # Cloudinary. Es el único campo que se ESCRIBE a partir de ahora.
     cache_field = None
+    url_field = None
     cached_audio = None
+    cached_audio_url = None
     if req.book_id:
         cache_field = f"audio_{_safe_voice_field(voice_name)}_{req.lang or 'es'}"
-        book_doc2 = await db.books.find_one({"book_id": req.book_id}, {cache_field: 1})
-        if book_doc2 and book_doc2.get(cache_field):
+        url_field = f"audio_url_{_safe_voice_field(voice_name)}_{req.lang or 'es'}"
+        book_doc2 = await db.books.find_one({"book_id": req.book_id}, {cache_field: 1, url_field: 1})
+        if book_doc2 and book_doc2.get(url_field):
+            cached_audio_url = book_doc2[url_field]
+        elif book_doc2 and book_doc2.get(cache_field):
             cached_audio = book_doc2[cache_field]
 
+    if cached_audio_url:
+        # Ya migrado o ya generado tras el cambio a Cloudinary: devolvemos
+        # directamente la URL, sin tocar Google TTS ni el base64.
+        new_count = 0
+        if not is_premium:
+            new_count = await _increment_audio_count(user.user_id)
+        return {
+            "audio_url": cached_audio_url, "mime": "audio/mp3", "plays_today": new_count,
+            "limit": FREE_DAILY_AUDIO_LIMIT, "is_premium": is_premium, "cached": True, "voice": voice_name,
+        }
+
     if cached_audio:
+        # Legacy: el libro todavía tiene el audio en base64 (no migrado
+        # aún por el script de migración). Lo servimos tal cual, sin
+        # volver a generarlo, pero SIN re-guardarlo en base64 otra vez.
         audio_b64 = cached_audio
         was_cached = True
     else:
@@ -483,11 +572,12 @@ async def tts_generate(req: TTSRequest, user: User = Depends(get_current_user)):
             raise HTTPException(400, "Empty text")
         audio_b64 = await google_tts_synthesize(text=text, voice_name=voice_name)
         was_cached = False
-        if cache_field and req.book_id:
+        if url_field and req.book_id:
             try:
-                await db.books.update_one({"book_id": req.book_id}, {"$set": {cache_field: audio_b64, "voice_used": voice_name}})
+                audio_url = await upload_audio_to_cloudinary(audio_b64, public_id=f"{req.book_id}_{url_field}")
+                await db.books.update_one({"book_id": req.book_id}, {"$set": {url_field: audio_url, "voice_used": voice_name}})
             except Exception:
-                logger.exception("audio cache write failed")
+                logger.exception("audio cloudinary upload/cache write failed")
 
     new_count = 0
     if not is_premium:
@@ -504,8 +594,10 @@ async def tts_generate(req: TTSRequest, user: User = Depends(get_current_user)):
 # FlashCardModal). Aquí solo generamos y cacheamos su audio. A diferencia de
 # /tts, este audio NO depende de idioma/voz seleccionable por el usuario: se
 # genera siempre con la misma voz por género (select_voice_for_genre), igual
-# que el resto del catálogo, y se guarda UNA SOLA VEZ en el propio documento
-# del libro, en el campo "hook_audio".
+# que el resto del catálogo.
+# Desde la migración a Cloudinary, el audio se guarda en "hook_audio_url"
+# (URL). El campo antiguo "hook_audio" (base64) solo se lee como fallback
+# legacy para libros que aún no se han migrado.
 @api_router.get("/books/{book_id}/hook-audio")
 async def get_hook_audio(book_id: str, user: User = Depends(get_current_user)):
     is_premium = _is_premium_active(user)
@@ -517,7 +609,7 @@ async def get_hook_audio(book_id: str, user: User = Depends(get_current_user)):
             # comprobar "available" y, si es False, no reproducir nada.
             return {"available": False}
 
-    book = await db.books.find_one({"book_id": book_id}, {"_id": 0, "hook": 1, "hook_audio": 1, "genre": 1})
+    book = await db.books.find_one({"book_id": book_id}, {"_id": 0, "hook": 1, "hook_audio": 1, "hook_audio_url": 1, "genre": 1})
     if not book:
         raise HTTPException(404, "Book not found")
 
@@ -527,17 +619,31 @@ async def get_hook_audio(book_id: str, user: User = Depends(get_current_user)):
         # cuenta como "agotaste tus hooks", así que no incrementamos contador.
         return {"available": False}
 
+    audio_url = book.get("hook_audio_url")
     audio_b64 = book.get("hook_audio")
-    was_cached = bool(audio_b64)
+    was_cached = bool(audio_url or audio_b64)
+
+    if audio_url:
+        # Ya migrado o ya generado tras el cambio a Cloudinary.
+        if not is_premium:
+            await _increment_hook_count(user.user_id)
+        return {"available": True, "audio_url": audio_url, "mime": "audio/mp3", "cached": True}
 
     if not audio_b64:
         voice_name = select_voice_for_genre(book.get("genre"))
         audio_b64 = await google_tts_synthesize(text=hook_text[:1000], voice_name=voice_name)
         try:
-            await db.books.update_one({"book_id": book_id}, {"$set": {"hook_audio": audio_b64}})
+            new_audio_url = await upload_audio_to_cloudinary(audio_b64, public_id=f"{book_id}_hook_audio")
+            await db.books.update_one({"book_id": book_id}, {"$set": {"hook_audio_url": new_audio_url}})
+            if not is_premium:
+                await _increment_hook_count(user.user_id)
+            return {"available": True, "audio_url": new_audio_url, "mime": "audio/mp3", "cached": False}
         except Exception:
-            logger.exception("hook_audio cache write failed")
+            logger.exception("hook_audio cloudinary upload/cache write failed")
 
+    # Legacy: el libro ya tenía hook_audio en base64 (no migrado aún por
+    # el script de migración). Lo servimos tal cual, sin volver a
+    # generarlo ni re-guardarlo en base64.
     if not is_premium:
         await _increment_hook_count(user.user_id)
 
