@@ -31,6 +31,7 @@ MONGO_URL = os.environ["MONGO_URL"]
 DB_NAME = os.environ["DB_NAME"]
 EMERGENT_LLM_KEY = os.environ["EMERGENT_LLM_KEY"]
 GOOGLE_TTS_API_KEY = os.environ.get("GOOGLE_TTS_API_KEY", "")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 
 AFFILIATE_AMAZON_TAG = os.environ.get("AFFILIATE_AMAZON_TAG", "")
 AFFILIATE_CASA_LIBRO = os.environ.get("AFFILIATE_CASA_LIBRO", "")
@@ -764,7 +765,6 @@ MONGO_URL = os.environ["MONGO_URL"]
 DB_NAME = os.environ["DB_NAME"]
 EMERGENT_LLM_KEY = os.environ["EMERGENT_LLM_KEY"]
 GOOGLE_TTS_API_KEY = os.environ.get("GOOGLE_TTS_API_KEY", "")
-
 AFFILIATE_AMAZON_TAG = os.environ.get("AFFILIATE_AMAZON_TAG", "")
 AFFILIATE_CASA_LIBRO = os.environ.get("AFFILIATE_CASA_LIBRO", "")
 
@@ -1573,7 +1573,7 @@ async def get_book_characters(book_id: str, user: User = Depends(get_current_use
         '{"personajes": [{"nombre": "...", "descripcion": "...", "genero": "masculino|femenino|desconocido"}]}'
     )
 
-    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"characters-{book_id}", system_message="Eres un analista literario preciso, que nunca inventa información fuera del texto dado.").with_model("gemini", "gemini-2.5-flash")
+    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"characters-{book_id}", system_message="Eres un analista literario preciso, que nunca inventa información fuera del texto dado.").with_model("gemini", GEMINI_MODEL)
 
     try:
         response_text = await chat.send_message(UserMessage(text=prompt))
@@ -1637,7 +1637,7 @@ async def get_character_questions(book_id: str, character: Optional[str] = None,
             'Responde solo en JSON: {"preguntas": ["...", "...", "..."]}'
         )
 
-    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"questions-{book_id}-{character or 'narrador'}", system_message="Generas preguntas breves y fieles al texto dado, sin inventar detalles de trama.").with_model("gemini", "gemini-2.5-flash")
+    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"questions-{book_id}-{character or 'narrador'}", system_message="Generas preguntas breves y fieles al texto dado, sin inventar detalles de trama.").with_model("gemini", GEMINI_MODEL)
 
     try:
         response_text = await chat.send_message(UserMessage(text=prompt))
@@ -1715,7 +1715,7 @@ async def premium_summary(book_id: str, lang: str = "es", user: User = Depends(g
 Empieza con una pregunta en segunda persona que implique al lector.
 Tono BookTok, directo, sin spoilers. Solo el texto, sin títulos."""
 
-    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"premium-{book_id}-{lang}", system_message="Eres un crítico literario experto.").with_model("gemini", "gemini-2.5-flash")
+    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"premium-{book_id}-{lang}", system_message="Eres un crítico literario experto.").with_model("gemini", GEMINI_MODEL)
 
     try:
         response_text = await chat.send_message(UserMessage(text=prompt))
