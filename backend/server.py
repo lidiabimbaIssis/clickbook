@@ -828,7 +828,7 @@ async def get_book_characters(book_id: str, user: User = Depends(get_current_use
         '{"personajes": [{"nombre": "...", "descripcion": "...", "genero": "masculino|femenino|desconocido"}]}'
     )
 
-    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"characters-{book_id}", system_message="Eres un analista literario preciso, que nunca inventa información fuera del texto dado.").with_model("gemini", "gemini-2.0-flash")
+    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"characters-{book_id}", system_message="Eres un analista literario preciso, que nunca inventa información fuera del texto dado.").with_model("gemini", "gemini-2.5-flash")
 
     try:
         response_text = await chat.send_message(UserMessage(text=prompt))
@@ -892,7 +892,7 @@ async def get_character_questions(book_id: str, character: Optional[str] = None,
             'Responde solo en JSON: {"preguntas": ["...", "...", "...", "..."]}'
         )
 
-    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"questions-{book_id}-{character or 'narrador'}", system_message="Generas preguntas breves y fieles al texto dado, sin inventar detalles de trama.").with_model("gemini", "gemini-2.0-flash")
+    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"questions-{book_id}-{character or 'narrador'}", system_message="Generas preguntas breves y fieles al texto dado, sin inventar detalles de trama.").with_model("gemini", "gemini-2.5-flash")
 
     try:
         response_text = await chat.send_message(UserMessage(text=prompt))
@@ -926,7 +926,7 @@ async def character_chat(book_id: str, req: CharacterChatRequest, user: User = D
         system_msg = _build_character_system_prompt(book, req.character, char_desc)
         session_suffix = req.character
 
-    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"character-chat-{user.user_id}-{book_id}-{session_suffix}", system_message=system_msg).with_model("gemini", "gemini-2.0-flash")
+    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"character-chat-{user.user_id}-{book_id}-{session_suffix}", system_message=system_msg).with_model("gemini", "gemini-2.5-flash")
 
     for h in req.history[-10:]:
         if h.role == "user":
@@ -970,7 +970,7 @@ async def premium_summary(book_id: str, lang: str = "es", user: User = Depends(g
 Empieza con una pregunta en segunda persona que implique al lector.
 Tono BookTok, directo, sin spoilers. Solo el texto, sin títulos."""
 
-    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"premium-{book_id}-{lang}", system_message="Eres un crítico literario experto.").with_model("gemini", "gemini-2.0-flash")
+    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"premium-{book_id}-{lang}", system_message="Eres un crítico literario experto.").with_model("gemini", "gemini-2.5-flash")
 
     try:
         response_text = await chat.send_message(UserMessage(text=prompt))
