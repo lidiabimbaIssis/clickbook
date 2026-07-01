@@ -652,17 +652,7 @@ function BookSlide({
             */}
             {isNovedad && (
               <View style={styles.novedadBadge} pointerEvents="none">
-                <MaskedView
-                  style={{ width: 24, height: 24 }}
-                  maskElement={<Ionicons name="flash" size={24} color="black" />}
-                >
-                  <LinearGradient
-                    colors={[colors.brass, colors.copper]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={{ width: 24, height: 24 }}
-                  />
-                </MaskedView>
+                <Text style={styles.novedadIcon}>⚡</Text>
               </View>
             )}
           </View>
@@ -882,6 +872,7 @@ const styles = StyleSheet.create({
   // Badge de novedad: rayo flash con degradado, esquina superior izquierda
   // de la portada. Sin fondo — el icono flota sobre la imagen igual que
   // el botón del hook.
+  novedadIcon: { fontSize: 22, textShadowColor: colors.brass, textShadowRadius: 8 },
   novedadBadge: {
     position: "absolute",
     top: 10,
