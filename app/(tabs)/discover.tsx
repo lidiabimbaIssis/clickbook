@@ -360,16 +360,36 @@ useEffect(() => {
 
   const [characterSelectOpen, setCharacterSelectOpen] = useState(false);
 
-  const openAuthorChat = () => {
+  const openAuthorChat = async () => {
     if (!current) return;
     setInfoOpen(false);
-    setCharacterSelectOpen(true);
+    // Consulta silenciosa de personajes antes de abrir cualquier modal:
+    // si el libro no tiene personajes (no ficción), va directo al chat
+    // con el narrador genérico sin mostrar ninguna pantalla intermedia.
+    // Si ya están cacheados en Mongo, esta llamada es instantánea.
+    try {
+      const res = await api<{ characters: { nombre: string }[] }>(`/books/${current.book_id}/characters`);
+      const list = res?.characters || [];
+      if (list.length === 0) {
+        // Sin personajes — narrador genérico directo, sin modal
+        router.push({
+          pathname: "/author-chat",
+          params: { book_id: current.book_id, title: current.title },
+        });
+      } else {
+        // Hay personajes — abre el modal de selección
+        setCharacterSelectOpen(true);
+      }
+    } catch (e) {
+      // Si falla la consulta, abre el modal igualmente como fallback
+      setCharacterSelectOpen(true);
+    }
   };
 
   // Llamado por CharacterSelectModal: bien cuando el usuario elige un
   // personaje concreto, bien automáticamente cuando el libro no tiene
   // personajes detectados (modo Narrador Genérico, character = null).
-  const onCharacterSelected = (character: string | null) => {
+  const onCharacterSelected = (character: string | null, colorIndex?: number) => {
     if (!current) return;
     setCharacterSelectOpen(false);
     router.push({
@@ -378,6 +398,7 @@ useEffect(() => {
         book_id: current.book_id,
         title: current.title,
         ...(character ? { character } : {}),
+        ...(colorIndex !== undefined ? { colorIndex: String(colorIndex) } : {}),
       },
     });
   };
@@ -615,39 +636,36 @@ function BookSlide({
             </View>
           </View>
 
-          {isNovedad ? (
-            // Portada de NOVEDAD: borde degradado cian->morado muy fino (2px).
-            // El LinearGradient actúa como marco: padding:2 + borderRadius:17
-            // envuelve el coverFrame (borderRadius:13) para que el borde
-            // redondeado del gradiente y el de la imagen encajen perfectamente.
-            <LinearGradient
-              colors={[colors.brass, colors.copper]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={[styles.coverFrame, { borderRadius: 17, padding: 2 }]}
-            >
-              <View style={{ flex: 1, borderRadius: 13, overflow: "hidden" }}>
-                <Image
-                  source={{ uri: `https://res.cloudinary.com/ddppclcl1/image/upload/v1780422197/${book.book_id}.webp` }}
-                  resizeMode="cover"
-                  style={styles.coverImage}
-                  onError={(e) => console.log("Error cargando imagen:", e.nativeEvent.error)}
-                />
-                {hookButton}
+          <View style={styles.coverFrame}>
+            <Image
+              source={{ uri: `https://res.cloudinary.com/ddppclcl1/image/upload/v1780422197/${book.book_id}.webp` }}
+              resizeMode="cover"
+              style={styles.coverImage}
+              onError={(e) => console.log("Error cargando imagen:", e.nativeEvent.error)}
+            />
+            {hookButton}
+            {/*
+              Icono de novedad: rayo flash con degradado cian->morado, solo
+              en portadas con fecha_novedad. Esquina superior izquierda,
+              tamaño 24px. MaskedView aplica el degradado al icono igual
+              que en home.tsx con GradientIcon.
+            */}
+            {isNovedad && (
+              <View style={styles.novedadBadge} pointerEvents="none">
+                <MaskedView
+                  style={{ width: 24, height: 24 }}
+                  maskElement={<Ionicons name="flash" size={24} color="black" />}
+                >
+                  <LinearGradient
+                    colors={[colors.brass, colors.copper]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={{ width: 24, height: 24 }}
+                  />
+                </MaskedView>
               </View>
-            </LinearGradient>
-          ) : (
-            // Portada normal: sin borde degradado
-            <View style={styles.coverFrame}>
-              <Image
-                source={{ uri: `https://res.cloudinary.com/ddppclcl1/image/upload/v1780422197/${book.book_id}.webp` }}
-                resizeMode="cover"
-                style={styles.coverImage}
-                onError={(e) => console.log("Error cargando imagen:", e.nativeEvent.error)}
-              />
-              {hookButton}
-            </View>
-          )}
+            )}
+          </View>
 
           <LinearGradient
             colors={['transparent', 'rgb(0, 0, 0)']}
@@ -861,6 +879,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   hookBtnNumber: { color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: "800" },
+  // Badge de novedad: rayo flash con degradado, esquina superior izquierda
+  // de la portada. Sin fondo — el icono flota sobre la imagen igual que
+  // el botón del hook.
+  novedadBadge: {
+    position: "absolute",
+    top: 10,
+    left: 10,
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.35)",
+    borderRadius: 14,
+  },
   topBadgesRow: { position: "absolute", top: -45, left: 0, right: 0, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 4, zIndex: 8 },
   moodPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 15, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: colors.brassSoft, backgroundColor: "rgba(6,1,15,0.85)" },
   moodPillIcon: { fontSize: 14 },

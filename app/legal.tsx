@@ -97,9 +97,9 @@ export default function LegalScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000000' },
   scroll: { padding: 20, paddingTop: 20, paddingBottom: 40 },
-  h1: { color: '#FFD700', fontSize: 24, fontWeight: '900', marginBottom: 16 },
-  h2: { color: '#FFD700', fontSize: 18, fontWeight: '800', marginTop: 20, marginBottom: 8 },
-  body: { color: '#FFFFFF', fontSize: 15, lineHeight: 22, marginBottom: 12 },
-  link: { color: '#FFD700', fontSize: 15, marginBottom: 6, textDecorationLine: 'underline' },
-  footer: { color: '#888888', fontSize: 12, marginTop: 24, textAlign: 'center' },
+  h1: { color: '#FFD700', fontSize: 18, fontWeight: '900', marginBottom: 14 },
+  h2: { color: '#FFD700', fontSize: 13, fontWeight: '800', marginTop: 18, marginBottom: 6 },
+  body: { color: '#CCCCCC', fontSize: 11, lineHeight: 17, marginBottom: 10 },
+  link: { color: '#FFD700', fontSize: 11, marginBottom: 6, textDecorationLine: 'underline' },
+  footer: { color: '#888888', fontSize: 10, marginTop: 24, textAlign: 'center' },
 });

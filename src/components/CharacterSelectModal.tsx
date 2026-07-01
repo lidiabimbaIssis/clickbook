@@ -10,13 +10,19 @@ type Character = {
   genero: "masculino" | "femenino" | "desconocido";
 };
 
-// Colores de avatar por género — coherentes con la paleta neón ya
-// existente (brass=cian, copper=púrpura). "desconocido" usa un tono
-// neutro intermedio para no asumir nada sin pista clara de la sinopsis.
-function avatarColors(genero: Character["genero"]) {
-  if (genero === "femenino") return { fg: colors.copper, bg: "rgba(176,38,255,0.12)", border: "rgba(176,38,255,0.3)" };
-  if (genero === "masculino") return { fg: colors.brass, bg: "rgba(0,240,255,0.12)", border: "rgba(0,240,255,0.3)" };
-  return { fg: colors.textOnDarkMuted, bg: "rgba(255,255,255,0.06)", border: "rgba(255,255,255,0.15)" };
+// Colores por posición (índice) — independiente del género.
+// Ciclo de 5 colores usando la paleta neón de la app:
+// cian, morado, rosa, verde, amarillo — y vuelve a empezar.
+const POSITION_COLORS = [
+  { fg: colors.brass,    bg: "rgba(0,240,255,0.12)",  border: "rgba(0,240,255,0.3)"  },  // cian
+  { fg: colors.copper,   bg: "rgba(176,38,255,0.12)", border: "rgba(176,38,255,0.3)" },  // morado
+  { fg: colors.iron,     bg: "rgba(255,46,120,0.12)", border: "rgba(255,46,120,0.3)" },  // rosa
+  { fg: colors.verdigris,bg: "rgba(0,255,163,0.12)",  border: "rgba(0,255,163,0.3)"  },  // verde
+  { fg: colors.gold,     bg: "rgba(255,210,63,0.12)", border: "rgba(255,210,63,0.3)"  },  // amarillo
+];
+
+function avatarColor(index: number) {
+  return POSITION_COLORS[index % POSITION_COLORS.length];
 }
 
 export default function CharacterSelectModal({
@@ -30,8 +36,7 @@ export default function CharacterSelectModal({
   bookId: string;
   bookTitle: string;
   onClose: () => void;
-  // character = null significa "modo narrador genérico" (no ficción o sin personajes detectados)
-  onSelect: (character: string | null) => void;
+  onSelect: (character: string | null, colorIndex?: number) => void;
 }) {
   const [loading, setLoading] = useState(true);
   const [characters, setCharacters] = useState<Character[]>([]);
@@ -46,16 +51,12 @@ export default function CharacterSelectModal({
         const res = await api<{ characters: Character[] }>(`/books/${bookId}/characters`);
         const list = res?.characters || [];
         setCharacters(list);
-        // Si no hay personajes (no ficción o sinopsis sin nombres), no
-        // tiene sentido mostrar un modal vacío preguntando "¿con quién
-        // quieres hablar?" — se entra directo al modo narrador genérico,
-        // sin fricción para el usuario.
         if (list.length === 0) {
           onSelect(null);
         }
       } catch (e) {
         console.warn("characters fetch failed", e);
-        onSelect(null); // ante cualquier fallo, narrador genérico es la opción más segura
+        onSelect(null);
       } finally {
         setLoading(false);
         setCheckedOnce(true);
@@ -63,9 +64,6 @@ export default function CharacterSelectModal({
     })();
   }, [visible, bookId]);
 
-  // Mientras se decide (cargando, o ya se resolvió que es modo narrador
-  // y se navegó solo), no se pinta nada visible del modal — evita un
-  // parpadeo de modal vacío antes de saltar al chat directamente.
   if (!visible || (checkedOnce && characters.length === 0)) return null;
 
   return (
@@ -88,18 +86,19 @@ export default function CharacterSelectModal({
             </View>
           ) : (
             <View style={styles.list}>
-              {characters.map((c) => {
-                const cl = avatarColors(c.genero);
+              {characters.map((c, index) => {
+                const cl = avatarColor(index);
+                const initial = c.nombre.trim().charAt(0).toUpperCase();
                 return (
                   <TouchableOpacity
                     key={c.nombre}
                     style={[styles.row, { borderColor: cl.border, backgroundColor: cl.bg }]}
                     activeOpacity={0.8}
-                    onPress={() => onSelect(c.nombre)}
+                    onPress={() => onSelect(c.nombre, index)}
                     testID={`character-${c.nombre}`}
                   >
-                    <View style={[styles.avatar, { backgroundColor: cl.bg }]}>
-                      <Ionicons name="person" size={22} color={cl.fg} />
+                    <View style={[styles.avatar, { backgroundColor: cl.bg, borderWidth: 1, borderColor: cl.border }]}>
+                      <Text style={[styles.avatarInitial, { color: cl.fg }]}>{initial}</Text>
                     </View>
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={styles.rowName} numberOfLines={1}>{c.nombre}</Text>
@@ -129,6 +128,7 @@ const styles = StyleSheet.create({
   list: { gap: 10 },
   row: { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderRadius: 14, padding: 12 },
   avatar: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
+  avatarInitial: { fontSize: 20, fontWeight: "900" },
   rowName: { color: colors.textOnDark, fontSize: 14, fontWeight: "700" },
   rowDesc: { color: colors.textOnDarkMuted, fontSize: 12, marginTop: 2, lineHeight: 16 },
   disclaimer: { color: colors.textOnDarkMuted, fontSize: 10, textAlign: "center", marginTop: 18, fontStyle: "italic" },

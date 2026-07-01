@@ -10,12 +10,6 @@ import Logo from "../src/components/Logo";
 import { LinearGradient } from "expo-linear-gradient";
 import MaskedView from "@react-native-masked-view/masked-view";
 
-/**
- * Renderiza una palabra/frase corta con gradiente cian -> púrpura,
- * para usar INLINE dentro de una frase más larga (ej. "vivirlos").
- * No se puede meter un MaskedView (es una View) dentro de un <Text>,
- * por eso se usa como elemento "hermano" dentro de un View con flexDirection: row.
- */
 function GradientWord({
   text,
   fontSize,
@@ -29,9 +23,9 @@ function GradientWord({
 }) {
   return (
     <MaskedView
-      style={{ height: fontSize * 1.25 }}
+      style={{ height: fontSize * 1.2 }}
       maskElement={
-        <Text style={{ fontSize, fontWeight, fontFamily, backgroundColor: "transparent" }}>
+        <Text style={{ fontSize, fontWeight, fontFamily, backgroundColor: "transparent", lineHeight: fontSize * 1.2 }}>
           {text}
         </Text>
       }
@@ -42,7 +36,7 @@ function GradientWord({
         end={{ x: 1, y: 0 }}
         style={{ flex: 1 }}
       >
-        <Text style={{ fontSize, fontWeight, fontFamily, opacity: 0 }}>{text}</Text>
+        <Text style={{ fontSize, fontWeight, fontFamily, opacity: 0, lineHeight: fontSize * 1.2 }}>{text}</Text>
       </LinearGradient>
     </MaskedView>
   );
@@ -114,55 +108,36 @@ export default function LoginScreen() {
       <View style={styles.overlay} />
       <View style={styles.header}><Logo size="lg" /><View style={styles.divider} /></View>
       <View style={styles.hero}>
-        {/*
-          Antes: una sola fila con flexWrap, dejando que React Native
-          decidiera dónde cortar. Como "vivirlos" es un bloque rígido
-          (MaskedView, no texto), el wrap automático lo empujaba entero a
-          la siguiente línea, dejando "es" solo y huérfano en medio —
-          el salto torpe que se veía en la pantalla de login.
-
-          Ahora: dos líneas explícitas, cada una su propia fila. La
-          primera línea es solo texto normal (puede envolver sola sin
-          problema). La segunda junta "es" + el GradientWord "vivirlos"
-          en la misma fila, sin wrap — como ambas piezas son cortas,
-          siempre caben juntas, sin importar el ancho de pantalla.
-        */}
         <Text style={styles.title}>No es solo leer libros,</Text>
-        <View style={{ flexDirection: "row", justifyContent: "center", alignItems: "center", marginTop: 2 }}>
+        {/*
+          alignItems:"baseline" alinea el texto "es" y el GradientWord
+          "vivirlos" por su línea base tipográfica — es la forma más
+          robusta de que queden a la misma altura en cualquier dispositivo,
+          independientemente de cómo calcule cada uno la height del MaskedView.
+        */}
+        <View style={{ flexDirection: "row", justifyContent: "center", alignItems: "baseline", marginTop: 2 }}>
           <Text style={styles.title}>es </Text>
-          {/*
-            marginTop ligeramente negativo: el MaskedView de GradientWord
-            tiene height: fontSize*1.25 con su propio Text interno
-            centrado por defecto del navegador/RN, lo que no coincide
-            exactamente con la línea base del <Text> "es " de al lado —
-            por eso se veía "vivirlos" un poco más bajo. Este ajuste fino
-            sube el bloque justo lo necesario para que ambos textos
-            queden a la misma altura visual.
-          */}
-          <View style={{ marginTop: -4 }}>
-            <GradientWord
-              text="vivirlos"
-              fontSize={styles.title.fontSize}
-              fontWeight={styles.title.fontWeight as any}
-              fontFamily={styles.title.fontFamily}
-            />
-          </View>
+          <GradientWord
+            text="vivirlos"
+            fontSize={styles.title.fontSize}
+            fontWeight={styles.title.fontWeight as any}
+            fontFamily={styles.title.fontFamily}
+          />
         </View>
       </View>
       <View style={styles.features}>
-        
-       <Feature icon="albums" color={colors.brass}>
-  <Text style={styles.featureText}>Desliza ↑ para <Text style={{ color: colors.brass, fontWeight: "700" }}>explorar</Text></Text>
-</Feature>
-<Feature icon="information-circle" color={colors.copper}>
-  <Text style={styles.featureText}>Pulsa <Text style={{ color: colors.copper, fontWeight: "700" }}>Info</Text> para ver la ficha</Text>
-</Feature>
-<Feature icon="heart" color={colors.brass}>
-  <Text style={styles.featureText}>Pulsa el <Text style={{ color: colors.brass, fontWeight: "700" }}>corazón</Text> para guardar</Text>
-</Feature>
-<Feature icon="headset" color={colors.copper}>
-  <Text style={styles.featureText}>Resumen en <Text style={{ color: colors.copper, fontWeight: "700" }}>audio</Text> · 1 min</Text>
-</Feature>
+        <Feature icon="albums" color={colors.brass}>
+          <Text style={styles.featureText}>Desliza ↑ para <Text style={{ color: colors.brass, fontWeight: "700" }}>explorar</Text></Text>
+        </Feature>
+        <Feature icon="information-circle" color={colors.copper}>
+          <Text style={styles.featureText}>Pulsa <Text style={{ color: colors.copper, fontWeight: "700" }}>Info</Text> para ver la ficha</Text>
+        </Feature>
+        <Feature icon="heart" color={colors.brass}>
+          <Text style={styles.featureText}>Pulsa el <Text style={{ color: colors.brass, fontWeight: "700" }}>corazón</Text> para guardar</Text>
+        </Feature>
+        <Feature icon="headset" color={colors.copper}>
+          <Text style={styles.featureText}>Resumen en <Text style={{ color: colors.copper, fontWeight: "700" }}>audio</Text> · 1 min</Text>
+        </Feature>
       </View>
       <TouchableOpacity testID="btn-google-login" style={styles.loginBtn} onPress={signIn} activeOpacity={0.85}>
         <Ionicons name="logo-google" size={20} color={colors.bgBase} />
@@ -191,16 +166,17 @@ export default function LoginScreen() {
         <Text style={styles.guestText}>Entrar como invitado</Text>
       </TouchableOpacity>
 
-<Text style={styles.footer}>
+      <Text style={styles.footer}>
         <Text style={{ color: "#00F0FF" }}>DESCUBRE</Text>
         <Text style={styles.footer}> . </Text>
         <Text style={{ color: "#B026FF" }}>SIENTE</Text>
         <Text style={styles.footer}> . </Text>
-        <Text style={{ color:"#ff07bd"  }}>VIVE</Text>
+        <Text style={{ color:"#ff07bd" }}>VIVE</Text>
       </Text>
     </ImageBackground>
   );
 }
+
 function Feature({ icon, children, color }: { icon: any; children: React.ReactNode; color?: string }) {
   return (
     <View style={styles.feature}>

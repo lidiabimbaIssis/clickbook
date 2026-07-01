@@ -3,7 +3,13 @@ import React, { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import MaskedView from "@react-native-masked-view/masked-view";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import {
+  ExpoSpeechRecognitionModule,
+  useSpeechRecognitionEvent,
+} from "expo-speech-recognition";
 import { api } from "../src/lib/api";
 import { colors } from "../src/theme";
 import { useAuth } from "../src/providers/AuthProvider";
@@ -11,16 +17,42 @@ import PaywallModal from "../src/components/PaywallModal";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
+// Avatar con inicial del personaje y degradado cian->morado.
+// Para el narrador genérico se usa el icono de libro con degradado.
+// Mismos colores por posición que CharacterSelectModal
+const POSITION_COLORS = [
+  { fg: colors.brass,     bg: "rgba(0,240,255,0.12)",  border: "rgba(0,240,255,0.3)"  },
+  { fg: colors.copper,    bg: "rgba(176,38,255,0.12)", border: "rgba(176,38,255,0.3)" },
+  { fg: colors.iron,      bg: "rgba(255,46,120,0.12)", border: "rgba(255,46,120,0.3)" },
+  { fg: colors.verdigris, bg: "rgba(0,255,163,0.12)",  border: "rgba(0,255,163,0.3)"  },
+  { fg: colors.gold,      bg: "rgba(255,210,63,0.12)", border: "rgba(255,210,63,0.3)"  },
+];
+
+function CharacterAvatar({ character, isNarrator, colorIndex }: { character: string; isNarrator: boolean; colorIndex?: number }) {
+  const initial = character.trim().charAt(0).toUpperCase();
+  const avatarStyle = isNarrator
+    ? { fg: colors.textOnDarkMuted, bg: "rgba(255,255,255,0.06)", border: "rgba(255,255,255,0.15)" }
+    : POSITION_COLORS[(colorIndex ?? 0) % POSITION_COLORS.length];
+
+  return (
+    <View style={[styles.headerAvatar, { backgroundColor: avatarStyle.bg, borderColor: avatarStyle.border, borderWidth: 1 }]}>
+      {isNarrator ? (
+        <Ionicons name="book" size={18} color={avatarStyle.fg} />
+      ) : (
+        <Text style={[styles.headerAvatarInitial, { color: avatarStyle.fg }]}>{initial}</Text>
+      )}
+    </View>
+  );
+}
+
 export default function CharacterChat() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  // character: nombre del personaje elegido en CharacterSelectModal, o
-  // vacío/ausente cuando es modo Narrador Genérico (no ficción, o
-  // sinopsis sin personajes detectados — ver resumen_chat_personajes.md).
-  const params = useLocalSearchParams<{ book_id?: string; title?: string; character?: string }>();
+  const params = useLocalSearchParams<{ book_id?: string; title?: string; character?: string; colorIndex?: string }>();
   const bookId = (params.book_id || "").toString();
   const title = (params.title || "el libro").toString();
-  const character = (params.character || "").toString(); // "" = narrador genérico
+  const character = (params.character || "").toString();
+  const colorIndex = parseInt((params.colorIndex || "0").toString(), 10);
   const isNarrator = !character;
 
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -30,6 +62,7 @@ export default function CharacterChat() {
   const scrollRef = useRef<ScrollView>(null);
   const { user, refresh } = useAuth();
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const [listening, setListening] = useState(false);
   const [showDisclaimer, setShowDisclaimer] = useState(false);
 
   useEffect(() => {
@@ -38,11 +71,6 @@ export default function CharacterChat() {
     });
   }, []);
 
-  // Saludo inicial: distinto según sea personaje o narrador. No se
-  // inventa contenido de trama aquí — es solo un saludo genérico de
-  // bienvenida, el contenido real de la conversación lo gestiona el
-  // backend con la sinopsis real (ver prompt_identidad_personaje.md /
-  // prompt_narrador_generico.md).
   useEffect(() => {
     const greeting = isNarrator
       ? `¡Hola! He leído "${title}" y me encanta comentarlo. ¿Qué te gustaría saber?`
@@ -50,8 +78,6 @@ export default function CharacterChat() {
     setMessages([{ role: "assistant", content: greeting }]);
   }, [character, title, isNarrator]);
 
-  // Preguntas sugeridas: cacheadas en el backend por libro+personaje (o
-  // por libro+narrador). Una sola llamada al entrar al chat.
   useEffect(() => {
     if (!bookId) return;
     (async () => {
@@ -65,11 +91,33 @@ export default function CharacterChat() {
     })();
   }, [bookId, character, isNarrator]);
 
+  useSpeechRecognitionEvent("result", (event) => {
+    const transcript = event.results?.[0]?.transcript;
+    if (transcript) setInput(transcript);
+  });
+
+  useSpeechRecognitionEvent("end", () => setListening(false));
+  useSpeechRecognitionEvent("error", () => setListening(false));
+
+  const onMicPress = async () => {
+    if (listening) {
+      ExpoSpeechRecognitionModule.stop();
+      return;
+    }
+    const { granted } = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+    if (!granted) return;
+    setListening(true);
+    ExpoSpeechRecognitionModule.start({
+      lang: "es-ES",
+      interimResults: true,
+      continuous: false,
+    });
+  };
+
   const send = async (text?: string) => {
     const msg = (text ?? input).trim();
     if (!msg || sending) return;
 
-    // 🔒 Premium gate: bloqueamos el ENVÍO real, no la entrada al chat
     if (!user?.is_premium) {
       setPaywallOpen(true);
       return;
@@ -113,16 +161,7 @@ export default function CharacterChat() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} testID="btn-back-chat">
           <Ionicons name="chevron-back" size={22} color={colors.brass} />
         </TouchableOpacity>
-        {/*
-          Avatar genérico en el header: mismo principio que
-          CharacterSelectModal (icono de persona, sin foto real — los
-          personajes son ficticios, no hay foto que mostrar). El
-          narrador genérico usa un icono de libro en vez de persona,
-          para diferenciarlo visualmente.
-        */}
-        <View style={styles.headerAvatar}>
-          <Ionicons name={isNarrator ? "book" : "person"} size={18} color={colors.brass} />
-        </View>
+        <CharacterAvatar character={character} isNarrator={isNarrator} colorIndex={colorIndex} />
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle} numberOfLines={1}>{headerName}</Text>
           <Text style={styles.headerSub} numberOfLines={1}>★ {headerSub}</Text>
@@ -153,6 +192,9 @@ export default function CharacterChat() {
       )}
       <View style={[styles.inputRow, { paddingBottom: insets.bottom + 10 }]}>
         <TextInput testID="input-character-chat" value={input} onChangeText={setInput} placeholder={inputPlaceholder} placeholderTextColor={colors.textOnDarkMuted} style={styles.input} returnKeyType="send" onSubmitEditing={() => send()} editable={!sending} />
+        <TouchableOpacity onPress={onMicPress} style={[styles.micBtn, listening && styles.micBtnActive]} testID="btn-mic-chat">
+          <Ionicons name={listening ? "mic" : "mic-outline"} size={20} color={listening ? colors.iron : colors.brass} />
+        </TouchableOpacity>
         <TouchableOpacity style={[styles.sendBtn, (!input.trim() || sending) && { opacity: 0.5 }]} onPress={() => send()} disabled={!input.trim() || sending} testID="btn-send-chat">
           <Ionicons name="send" size={18} color={colors.bgBase} />
         </TouchableOpacity>
@@ -183,7 +225,9 @@ export default function CharacterChat() {
 const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.border, gap: 10 },
   backBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: colors.brassSoft, alignItems: "center", justifyContent: "center" },
-  headerAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(0,240,255,0.12)", alignItems: "center", justifyContent: "center" },
+  headerAvatar: { width: 36, height: 36, borderRadius: 18, overflow: "hidden", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,240,255,0.08)" },
+  headerAvatarGradient: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
+  headerAvatarInitial: { color: "#000000", fontSize: 18, fontWeight: "900" },
   headerTitle: { color: colors.textOnDark, fontSize: 16, fontWeight: "800" },
   headerSub: { color: colors.copper, fontSize: 11, marginTop: 2, letterSpacing: 0.5 },
   live: { flexDirection: "row", alignItems: "center", gap: 6 },
@@ -202,6 +246,8 @@ const styles = StyleSheet.create({
   chipText: { color: colors.brass, fontSize: 12, fontWeight: "700" },
   inputRow: { flexDirection: "row", gap: 10, paddingHorizontal: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border, alignItems: "center" },
   input: { flex: 1, backgroundColor: colors.bgSurface, borderWidth: 1, borderColor: colors.brassSoft, borderRadius: 999, paddingHorizontal: 16, paddingVertical: Platform.OS === "web" ? 12 : 10, color: colors.textOnDark, fontSize: 14, outlineWidth: 0 as any },
+  micBtn: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.brassSoft },
+  micBtnActive: { borderColor: colors.iron, backgroundColor: "rgba(255,46,120,0.1)" },
   sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brass, alignItems: "center", justifyContent: "center" },
   disclaimer: { margin: 16, padding: 16, backgroundColor: "rgba(176,38,255,0.15)", borderRadius: 12, borderWidth: 1, borderColor: "rgba(176,38,255,0.4)", gap: 12 },
   disclaimerText: { color: colors.textOnDark, fontSize: 13, lineHeight: 20, textAlign: "center" },
