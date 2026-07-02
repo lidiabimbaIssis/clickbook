@@ -3,13 +3,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
-import MaskedView from "@react-native-masked-view/masked-view";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import {
-  ExpoSpeechRecognitionModule,
-  useSpeechRecognitionEvent,
-} from "expo-speech-recognition";
 import { api } from "../src/lib/api";
 import { colors } from "../src/theme";
 import { useAuth } from "../src/providers/AuthProvider";
@@ -17,9 +11,6 @@ import PaywallModal from "../src/components/PaywallModal";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
-// Avatar con inicial del personaje y degradado cian->morado.
-// Para el narrador genérico se usa el icono de libro con degradado.
-// Mismos colores por posición que CharacterSelectModal
 const POSITION_COLORS = [
   { fg: colors.brass,     bg: "rgba(0,240,255,0.12)",  border: "rgba(0,240,255,0.3)"  },
   { fg: colors.copper,    bg: "rgba(176,38,255,0.12)", border: "rgba(176,38,255,0.3)" },
@@ -62,7 +53,6 @@ export default function CharacterChat() {
   const scrollRef = useRef<ScrollView>(null);
   const { user, refresh } = useAuth();
   const [paywallOpen, setPaywallOpen] = useState(false);
-  const [listening, setListening] = useState(false);
   const [showDisclaimer, setShowDisclaimer] = useState(false);
 
   useEffect(() => {
@@ -90,29 +80,6 @@ export default function CharacterChat() {
       }
     })();
   }, [bookId, character, isNarrator]);
-
-  useSpeechRecognitionEvent("result", (event) => {
-    const transcript = event.results?.[0]?.transcript;
-    if (transcript) setInput(transcript);
-  });
-
-  useSpeechRecognitionEvent("end", () => setListening(false));
-  useSpeechRecognitionEvent("error", () => setListening(false));
-
-  const onMicPress = async () => {
-    if (listening) {
-      ExpoSpeechRecognitionModule.stop();
-      return;
-    }
-    const { granted } = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-    if (!granted) return;
-    setListening(true);
-    ExpoSpeechRecognitionModule.start({
-      lang: "es-ES",
-      interimResults: true,
-      continuous: false,
-    });
-  };
 
   const send = async (text?: string) => {
     const msg = (text ?? input).trim();
@@ -156,7 +123,7 @@ export default function CharacterChat() {
   const inputPlaceholder = isNarrator ? "Pregunta sobre el libro…" : `Pregunta a ${character}…`;
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0} style={{ flex: 1, backgroundColor: colors.bgBase }}>
+    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, backgroundColor: colors.bgBase }}>
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} testID="btn-back-chat">
           <Ionicons name="chevron-back" size={22} color={colors.brass} />
@@ -184,19 +151,35 @@ export default function CharacterChat() {
       {messages.length <= 1 && suggestions.length > 0 && (
         <View style={styles.suggestions}>
           {suggestions.map((s) => (
-            <TouchableOpacity key={s} style={styles.chip} onPress={() => setInput(s)} testID={`chip-${s}`}>
+            <TouchableOpacity key={s} style={styles.chip} onPress={() => send(s)} testID={`chip-${s}`}>
               <Text style={styles.chipText}>{s}</Text>
             </TouchableOpacity>
           ))}
         </View>
       )}
       <View style={[styles.inputRow, { paddingBottom: insets.bottom + 10 }]}>
-        <TextInput testID="input-character-chat" value={input} onChangeText={setInput} placeholder={inputPlaceholder} placeholderTextColor={colors.textOnDarkMuted} style={styles.input} returnKeyType="send" onSubmitEditing={() => send()} editable={!sending} />
-        <TouchableOpacity onPress={onMicPress} style={[styles.micBtn, listening && styles.micBtnActive]} testID="btn-mic-chat">
-          <Ionicons name={listening ? "mic" : "mic-outline"} size={20} color={listening ? colors.iron : colors.brass} />
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.sendBtn, (!input.trim() || sending) && { opacity: 0.5 }]} onPress={() => send()} disabled={!input.trim() || sending} testID="btn-send-chat">
-          <Ionicons name="send" size={18} color={colors.bgBase} />
+        <TextInput
+          testID="input-character-chat"
+          value={input}
+          onChangeText={setInput}
+          placeholder={inputPlaceholder}
+          placeholderTextColor={colors.textOnDarkMuted}
+          style={styles.input}
+          returnKeyType="send"
+          onSubmitEditing={() => send()}
+          editable={!sending}
+        />
+        {/* Botón enviar: rosa cuando está enviando, cian cuando está listo */}
+        <TouchableOpacity
+          style={[styles.sendBtn, sending && styles.sendBtnSending, (!input.trim() && !sending) && { opacity: 0.5 }]}
+          onPress={() => send()}
+          disabled={!input.trim() || sending}
+          testID="btn-send-chat"
+        >
+          {sending
+            ? <ActivityIndicator size="small" color={colors.bgBase} />
+            : <Ionicons name="send" size={18} color={colors.bgBase} />
+          }
         </TouchableOpacity>
       </View>
       {showDisclaimer && (
@@ -225,9 +208,8 @@ export default function CharacterChat() {
 const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.border, gap: 10 },
   backBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: colors.brassSoft, alignItems: "center", justifyContent: "center" },
-  headerAvatar: { width: 36, height: 36, borderRadius: 18, overflow: "hidden", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,240,255,0.08)" },
-  headerAvatarGradient: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
-  headerAvatarInitial: { color: "#000000", fontSize: 18, fontWeight: "900" },
+  headerAvatar: { width: 36, height: 36, borderRadius: 18, overflow: "hidden", alignItems: "center", justifyContent: "center" },
+  headerAvatarInitial: { fontSize: 18, fontWeight: "900" },
   headerTitle: { color: colors.textOnDark, fontSize: 16, fontWeight: "800" },
   headerSub: { color: colors.copper, fontSize: 11, marginTop: 2, letterSpacing: 0.5 },
   live: { flexDirection: "row", alignItems: "center", gap: 6 },
@@ -246,9 +228,8 @@ const styles = StyleSheet.create({
   chipText: { color: colors.brass, fontSize: 12, fontWeight: "700" },
   inputRow: { flexDirection: "row", gap: 10, paddingHorizontal: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border, alignItems: "center" },
   input: { flex: 1, backgroundColor: colors.bgSurface, borderWidth: 1, borderColor: colors.brassSoft, borderRadius: 999, paddingHorizontal: 16, paddingVertical: Platform.OS === "web" ? 12 : 10, color: colors.textOnDark, fontSize: 14, outlineWidth: 0 as any },
-  micBtn: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.brassSoft },
-  micBtnActive: { borderColor: colors.iron, backgroundColor: "rgba(255,46,120,0.1)" },
   sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brass, alignItems: "center", justifyContent: "center" },
+  sendBtnSending: { backgroundColor: colors.iron },
   disclaimer: { margin: 16, padding: 16, backgroundColor: "rgba(176,38,255,0.15)", borderRadius: 12, borderWidth: 1, borderColor: "rgba(176,38,255,0.4)", gap: 12 },
   disclaimerText: { color: colors.textOnDark, fontSize: 13, lineHeight: 20, textAlign: "center" },
   disclaimerBtn: { color: colors.copper, fontSize: 14, fontWeight: "800", textAlign: "center" },

@@ -652,7 +652,14 @@ function BookSlide({
             */}
             {isNovedad && (
               <View style={styles.novedadBadge} pointerEvents="none">
-                <Text style={styles.novedadIcon}>⚡</Text>
+                <LinearGradient
+                  colors={[colors.brass, colors.copper]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.novedadGradient}
+                >
+                  <Text style={styles.novedadText}>NEW</Text>
+                </LinearGradient>
               </View>
             )}
           </View>
@@ -872,18 +879,24 @@ const styles = StyleSheet.create({
   // Badge de novedad: rayo flash con degradado, esquina superior izquierda
   // de la portada. Sin fondo — el icono flota sobre la imagen igual que
   // el botón del hook.
-  novedadIcon: { fontSize: 22, textShadowColor: colors.brass, textShadowRadius: 8 },
   novedadBadge: {
     position: "absolute",
     top: 10,
     left: 10,
-    width: 28,
-    height: 28,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.35)",
-    borderRadius: 14,
+    borderRadius: 999,
+    overflow: "hidden",
+    shadowColor: colors.copper,
+    shadowOpacity: 0.6,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 6,
   },
+  novedadGradient: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  novedadText: { color: "#ffffff", fontSize: 11, fontWeight: "900", letterSpacing: 1.5 },
   topBadgesRow: { position: "absolute", top: -45, left: 0, right: 0, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 4, zIndex: 8 },
   moodPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 15, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: colors.brassSoft, backgroundColor: "rgba(6,1,15,0.85)" },
   moodPillIcon: { fontSize: 14 },
