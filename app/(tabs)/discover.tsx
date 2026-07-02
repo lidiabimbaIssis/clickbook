@@ -680,12 +680,12 @@ function BookSlide({
       </View>
 
       <View style={styles.pillContainer}>
-        {book.vibe_tags?.map((tag, index) => (
+        {(book.vibe_tags || []).map((tag, index) => (
           <React.Fragment key={index}>
             <Text style={styles.pillText}>
               {tag.icon} {tag.label}
             </Text>
-            {index < (book.vibe_tags?.length || 0) - 1 && (
+            {index < (book.vibe_tags || []).length - 1 && (
               <Text style={styles.separator}>•</Text>
             )}
           </React.Fragment>
