@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Animated, Easing } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -35,6 +35,45 @@ function CharacterAvatar({ character, isNarrator, colorIndex }: { character: str
     </View>
   );
 }
+
+// Tres puntitos animados estilo WhatsApp para el estado "escribiendo..."
+function TypingDots() {
+  const dot1 = React.useRef(new Animated.Value(0)).current;
+  const dot2 = React.useRef(new Animated.Value(0)).current;
+  const dot3 = React.useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    const animate = (dot: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(dot, { toValue: 1, duration: 300, easing: Easing.ease, useNativeDriver: true }),
+          Animated.timing(dot, { toValue: 0, duration: 300, easing: Easing.ease, useNativeDriver: true }),
+          Animated.delay(600 - delay),
+        ])
+      );
+    animate(dot1, 0).start();
+    animate(dot2, 200).start();
+    animate(dot3, 400).start();
+  }, [dot1, dot2, dot3]);
+
+  const dotStyle = (anim: Animated.Value) => ({
+    opacity: anim.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }),
+    transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [0, -4] }) }],
+  });
+
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 5, paddingVertical: 4 }}>
+      <Animated.View style={[typingDotStyle, dotStyle(dot1)]} />
+      <Animated.View style={[typingDotStyle, dotStyle(dot2)]} />
+      <Animated.View style={[typingDotStyle, dotStyle(dot3)]} />
+    </View>
+  );
+}
+
+const typingDotStyle = {
+  width: 8, height: 8, borderRadius: 4, backgroundColor: "#B026FF",
+};
 
 export default function CharacterChat() {
   const insets = useSafeAreaInsets();
@@ -94,6 +133,7 @@ export default function CharacterChat() {
     const newHistory: Msg[] = [...messages, { role: "user", content: msg }];
     setMessages(newHistory);
     setSending(true);
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
     try {
       const res = await api<{ reply: string }>(`/books/${bookId}/character-chat`, {
         method: "POST",
@@ -112,7 +152,8 @@ export default function CharacterChat() {
       setMessages([...newHistory, { role: "assistant", content: errMsg }]);
     } finally {
       setSending(false);
-      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150);
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 400);
     }
   };
 
@@ -142,8 +183,8 @@ export default function CharacterChat() {
           </View>
         ))}
         {sending && (
-          <View style={[styles.bubble, styles.bubbleAssistant, styles.typingBubble]}>
-            <ActivityIndicator size="small" color={colors.copper} />
+          <View style={[styles.bubble, styles.bubbleAssistant, { flexDirection: "row", alignItems: "center", gap: 8 }]}>
+            <TypingDots />
             <Text style={styles.typing}>Escribiendo…</Text>
           </View>
         )}

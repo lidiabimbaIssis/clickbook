@@ -232,6 +232,25 @@ useEffect(() => {
   if (idx >= 0 && listRef.current) {
     listRef.current.scrollToIndex({ index: idx, animated: false });
     setCurrentIndex(idx);
+  } else if (seedBookId && books.length > 0) {
+    // El libro no está en el batch actual — lo cargamos directamente
+    (async () => {
+      try {
+        const res = await api<any>(`/books/${seedBookId}`);
+        if (res && res.book_id) {
+          setBooks((prev) => {
+            if (prev.find((b) => b.book_id === res.book_id)) return prev;
+            return [res, ...prev];
+          });
+          setCurrentIndex(0);
+          setTimeout(() => {
+            listRef.current?.scrollToIndex({ index: 0, animated: false });
+          }, 100);
+        }
+      } catch (e) {
+        console.warn("seed book fetch failed", e);
+      }
+    })();
   }
 }, [seedBookId, books]);
 
