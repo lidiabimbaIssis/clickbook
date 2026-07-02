@@ -1745,6 +1745,81 @@ Tono BookTok, directo, sin spoilers. Solo el texto, sin títulos."""
         raise HTTPException(500, f"Premium summary failed: {e}")
 
 
+# ----------------- Migración temporal Cloudinary -----------------
+# ENDPOINT TEMPORAL: ejecuta la migración de audios base64 -> Cloudinary.
+# Llamar desde el navegador: GET /api/admin/migrate-audio?limit=5
+# Cuando la migración esté completa, eliminar este endpoint.
+import base64 as _base64
+
+async def _upload_audio_cloudinary_migration(audio_b64: str, public_id: str) -> str:
+    audio_bytes = _base64.b64decode(audio_b64)
+    result = await asyncio.to_thread(
+        cloudinary.uploader.upload,
+        audio_bytes,
+        resource_type="video",
+        public_id=public_id,
+        folder="clickbook_audio",
+        overwrite=True,
+    )
+    return result["secure_url"]
+
+MIGRATION_FIELD_MAP = {
+    "audio_es_ES_Neural2_C_es": "audio_url_es_ES_Neural2_C_es",
+    "audio_es_ES_Neural2_C_en": "audio_url_es_ES_Neural2_C_en",
+    "audio_es_ES_Neural2_B_es": "audio_url_es_ES_Neural2_B_es",
+    "audio_es_ES_Neural2_B_en": "audio_url_es_ES_Neural2_B_en",
+    "hook_audio": "hook_audio_url",
+}
+
+@api_router.get("/admin/migrate-audio")
+async def migrate_audio(limit: int = 10, unset_old: bool = False):
+    old_fields = list(MIGRATION_FIELD_MAP.keys())
+    query = {"$or": [{f: {"$exists": True, "$ne": None}} for f in old_fields]}
+    projection = {"_id": 0, "book_id": 1, **{f: 1 for f in old_fields}, **{u: 1 for u in MIGRATION_FIELD_MAP.values()}}
+
+    cursor = db.books.find(query, projection).limit(limit)
+    total_books = 0
+    total_uploaded = 0
+    total_skipped = 0
+    total_errors = 0
+    results = []
+
+    async for book in cursor:
+        book_id = book["book_id"]
+        total_books += 1
+        book_result = {"book_id": book_id, "fields": []}
+
+        for old_field, url_field in MIGRATION_FIELD_MAP.items():
+            old_value = book.get(old_field)
+            if not old_value:
+                continue
+            if book.get(url_field):
+                total_skipped += 1
+                book_result["fields"].append({"field": old_field, "status": "ya_migrado"})
+                if unset_old:
+                    await db.books.update_one({"book_id": book_id}, {"$unset": {old_field: ""}})
+                continue
+            try:
+                audio_url = await _upload_audio_cloudinary_migration(old_value, public_id=f"{book_id}_{url_field}")
+                update = {"$set": {url_field: audio_url}}
+                if unset_old:
+                    update["$unset"] = {old_field: ""}
+                await db.books.update_one({"book_id": book_id}, update)
+                total_uploaded += 1
+                book_result["fields"].append({"field": old_field, "status": "migrado", "url": audio_url})
+            except Exception as e:
+                total_errors += 1
+                book_result["fields"].append({"field": old_field, "status": "error", "error": str(e)})
+        results.append(book_result)
+
+    return {
+        "total_books": total_books,
+        "total_uploaded": total_uploaded,
+        "total_skipped": total_skipped,
+        "total_errors": total_errors,
+        "results": results,
+    }
+
 # ----------------- Health -----------------
 @api_router.get("/")
 async def root():
