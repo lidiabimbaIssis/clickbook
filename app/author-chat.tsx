@@ -206,8 +206,8 @@ export default function CharacterChat() {
           placeholder={inputPlaceholder}
           placeholderTextColor={colors.textOnDarkMuted}
           style={styles.input}
-          returnKeyType="send"
-          onSubmitEditing={() => send()}
+          multiline
+          maxHeight={100}
           editable={!sending}
         />
         {/* Botón enviar: rosa cuando está enviando, cian cuando está listo */}
