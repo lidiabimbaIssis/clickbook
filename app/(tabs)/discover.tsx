@@ -512,8 +512,8 @@ await Image.prefetch(coverUrl);
           <Ionicons name="chevron-back" size={20} color={colors.brass} />
         </TouchableOpacity>
         <View style={styles.brandRow}>
-          <Text style={styles.brandCyan}>Click</Text>
-          <Text style={styles.brandPurple}>Book</Text>
+          <Text style={styles.brandCyan}>Book</Text>
+          <Text style={styles.brandPurple}>Vibes</Text>
         </View>
         <TouchableOpacity onPress={shareBook} style={styles.backBtn} testID="btn-share-book">
           <Ionicons name="share-social" size={18} color={colors.copper} />

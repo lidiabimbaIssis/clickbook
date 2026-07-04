@@ -40,7 +40,7 @@ const REASON_COPY: Record<Reason, { title: string; sub: string }> = {
     sub: "Hazte Premium para hablar con los personajes de cualquier libro.",
   },
   general: {
-    title: "ClickBook Premium",
+    title: "BookVibes Premium",
     sub: "Desbloquea toda la experiencia.",
   },
 };

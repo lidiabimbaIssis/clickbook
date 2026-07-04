@@ -133,7 +133,7 @@ export default function Home() {
       <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.container, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} testID="home-screen">
         <View style={styles.content}>
           <View style={styles.logoBox}><Logo size="lg" /></View>
-          <Text style={styles.tagline}>UN CLICK · UNA HISTORIA</Text>
+          <Text style={styles.tagline}>SIENTE LO QUE LEES</Text>
 
           <View style={styles.searchBox}>
             <Ionicons name="search" size={18} color={colors.brass} />
@@ -163,12 +163,6 @@ export default function Home() {
             </TouchableOpacity>
           </View>
 
-          {/*
-            Botón NOVEDADES: mismo tamaño y forma que el antiguo "BUSCAR",
-            pero con degradado cian->morado por dentro (igual que Sorpréndeme
-            pero relleno, no solo el borde). El icono y el texto van en blanco
-            para contrastar bien sobre el degradado oscuro.
-          */}
           <TouchableOpacity
             testID="btn-novedades"
             onPress={() => router.replace({ pathname: "/discover", params: { mode: "novedades", t: Date.now() } })}
@@ -226,8 +220,6 @@ const styles = StyleSheet.create({
   searchBox: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: colors.bgSurface, borderWidth: 1, borderColor: colors.brassSoft, borderRadius: 14, paddingHorizontal: 14, paddingVertical: Platform.OS === "web" ? 12 : 10, marginTop: 12 },
   input: { flex: 1, color: colors.textOnDark, fontSize: 15, outlineWidth: 0 as any },
   micBtn: { padding: 2 },
-  // NOVEDADES: wrapper con borderRadius para que el LinearGradient quede
-  // recortado con esquinas redondeadas (overflow hidden en el gradient).
   novedadesWrapper: { borderRadius: 999, overflow: "hidden", shadowColor: colors.copper, shadowOpacity: 0.6, shadowRadius: 18, shadowOffset: { width: 0, height: 0 }, elevation: 10 },
   novedadesGradient: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, paddingVertical: 14, borderRadius: 999 },
   novedadesText: { color: "#ffffff", fontWeight: "900", letterSpacing: 3, fontSize: 15 },

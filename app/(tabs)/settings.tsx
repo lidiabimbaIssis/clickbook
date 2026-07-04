@@ -178,7 +178,7 @@ export default function Settings() {
         </Text>
       </TouchableOpacity>
 
-      <Text style={styles.footer}>ClickBook · MMXXVI</Text>
+      <Text style={styles.footer}>BookVibes · MMXXVI</Text>
 
       <PaywallModal
         visible={paywallOpen}
