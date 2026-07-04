@@ -29,12 +29,12 @@ const rating = Math.round(data.rating || 4);
 
       {/* Brand */}
       <View style={styles.brandRow}>
-        <Text style={styles.brandCyan}>Book</Text>
-        <Text style={styles.brandPurple}>Vibes</Text>
+        <Text style={styles.brandCyan}>Click</Text>
+        <Text style={styles.brandPurple}>Book</Text>
       </View>
-      <Text style={styles.tagline}>Siente lo que lees</Text>
+      <Text style={styles.tagline}>UN CLICK · UNA HISTORIA</Text>
 
-      {/* Cover */}git commit -m "Renombrar ClickBook a BookVibes en toda la app"
+      {/* Cover */}
       <View style={styles.coverWrap}>
 <Image source={{ uri: data.coverUrl }} style={styles.cover} resizeMode="cover" onLoad={onCoverLoad} />
       </View>
@@ -50,7 +50,7 @@ const rating = Math.round(data.rating || 4);
       {/* Footer */}
       <View style={styles.footer}>
         <Ionicons name="arrow-up" size={22} color={colors.brass} />
-        <Text style={styles.footerText}>DESCÚBRELO BOOKVIBES</Text>
+        <Text style={styles.footerText}>DESCÚBRELO EN CLICKBOOK</Text>
       </View>
     </View>
   );

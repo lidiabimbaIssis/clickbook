@@ -232,25 +232,6 @@ useEffect(() => {
   if (idx >= 0 && listRef.current) {
     listRef.current.scrollToIndex({ index: idx, animated: false });
     setCurrentIndex(idx);
-  } else if (seedBookId && books.length > 0) {
-    // El libro no está en el batch actual — lo cargamos directamente
-    (async () => {
-      try {
-        const res = await api<any>(`/books/${seedBookId}`);
-        if (res && res.book_id) {
-          setBooks((prev) => {
-            if (prev.find((b) => b.book_id === res.book_id)) return prev;
-            return [res, ...prev];
-          });
-          setCurrentIndex(0);
-          setTimeout(() => {
-            listRef.current?.scrollToIndex({ index: 0, animated: false });
-          }, 100);
-        }
-      } catch (e) {
-        console.warn("seed book fetch failed", e);
-      }
-    })();
   }
 }, [seedBookId, books]);
 
@@ -512,8 +493,8 @@ await Image.prefetch(coverUrl);
           <Ionicons name="chevron-back" size={20} color={colors.brass} />
         </TouchableOpacity>
         <View style={styles.brandRow}>
-          <Text style={styles.brandCyan}>Book</Text>
-          <Text style={styles.brandPurple}>Vibes</Text>
+          <Text style={styles.brandCyan}>Click</Text>
+          <Text style={styles.brandPurple}>Book</Text>
         </View>
         <TouchableOpacity onPress={shareBook} style={styles.backBtn} testID="btn-share-book">
           <Ionicons name="share-social" size={18} color={colors.copper} />
@@ -671,14 +652,17 @@ function BookSlide({
             */}
             {isNovedad && (
               <View style={styles.novedadBadge} pointerEvents="none">
-                <LinearGradient
-                  colors={[colors.brass, colors.copper]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.novedadGradient}
+                <MaskedView
+                  style={{ width: 24, height: 24 }}
+                  maskElement={<Ionicons name="flash" size={24} color="black" />}
                 >
-                  <Text style={styles.novedadText}>NEW</Text>
-                </LinearGradient>
+                  <LinearGradient
+                    colors={[colors.brass, colors.copper]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={{ width: 24, height: 24 }}
+                  />
+                </MaskedView>
               </View>
             )}
           </View>
@@ -699,12 +683,12 @@ function BookSlide({
       </View>
 
       <View style={styles.pillContainer}>
-        {(book.vibe_tags || []).map((tag, index) => (
+        {book.vibe_tags?.map((tag, index) => (
           <React.Fragment key={index}>
             <Text style={styles.pillText}>
               {tag.icon} {tag.label}
             </Text>
-            {index < (book.vibe_tags || []).length - 1 && (
+            {index < (book.vibe_tags?.length || 0) - 1 && (
               <Text style={styles.separator}>•</Text>
             )}
           </React.Fragment>
@@ -902,20 +886,13 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 10,
     left: 10,
-    borderRadius: 999,
-    overflow: "hidden",
-    shadowColor: colors.copper,
-    shadowOpacity: 0.6,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 6,
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.35)",
+    borderRadius: 14,
   },
-  novedadGradient: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-  },
-  novedadText: { color: "#ffffff", fontSize: 11, fontWeight: "900", letterSpacing: 1.5 },
   topBadgesRow: { position: "absolute", top: -45, left: 0, right: 0, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 4, zIndex: 8 },
   moodPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 15, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: colors.brassSoft, backgroundColor: "rgba(6,1,15,0.85)" },
   moodPillIcon: { fontSize: 14 },
