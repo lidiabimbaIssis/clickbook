@@ -18,8 +18,8 @@ export default function Logo({ size = "md" }: { size?: Size }) {
   const s = sizeMap[size];
   return (
     <View style={[styles.row, { gap: s.gap }]} testID="app-logo">
-      <Text style={[styles.cyan, { fontSize: s.font, textShadowColor: colors.brass, textShadowOffset: { width: 0, height: 0 }, textShadowRadius: s.glow }]}>Click</Text>
-      <Text style={[styles.purple, { fontSize: s.font, textShadowColor: colors.copper, textShadowOffset: { width: 0, height: 0 }, textShadowRadius: s.glow }]}>Book</Text>
+      <Text style={[styles.cyan, { fontSize: s.font, textShadowColor: colors.brass, textShadowOffset: { width: 0, height: 0 }, textShadowRadius: s.glow }]}>Book</Text>
+      <Text style={[styles.purple, { fontSize: s.font, textShadowColor: colors.copper, textShadowOffset: { width: 0, height: 0 }, textShadowRadius: s.glow }]}>Vibes</Text>
       {/*
         Icono del libro+corazón: antes eran dos <Ionicons name="book"> superpuestos
         (el libro genérico de la librería de iconos). Ahora es una sola imagen real

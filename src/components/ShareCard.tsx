@@ -29,10 +29,10 @@ const rating = Math.round(data.rating || 4);
 
       {/* Brand */}
       <View style={styles.brandRow}>
-        <Text style={styles.brandCyan}>Click</Text>
-        <Text style={styles.brandPurple}>Book</Text>
+        <Text style={styles.brandCyan}>Book</Text>
+        <Text style={styles.brandPurple}>Vibes</Text>
       </View>
-      <Text style={styles.tagline}>UN CLICK · UNA HISTORIA</Text>
+      <Text style={styles.tagline}>SIENTE LO QUE LEES</Text>
 
       {/* Cover */}
       <View style={styles.coverWrap}>
@@ -50,7 +50,7 @@ const rating = Math.round(data.rating || 4);
       {/* Footer */}
       <View style={styles.footer}>
         <Ionicons name="arrow-up" size={22} color={colors.brass} />
-        <Text style={styles.footerText}>DESCÚBRELO EN CLICKBOOK</Text>
+        <Text style={styles.footerText}>DESCÚBRELO EN BOOKVIBES</Text>
       </View>
     </View>
   );

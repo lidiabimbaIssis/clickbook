@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Modal, View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
+import { Modal, View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "../theme";
 import { api } from "../lib/api";
@@ -85,6 +85,7 @@ export default function CharacterSelectModal({
               <ActivityIndicator color={colors.brass} />
             </View>
           ) : (
+            <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
             <View style={styles.list}>
               {characters.map((c, index) => {
                 const cl = avatarColor(index);
@@ -109,6 +110,7 @@ export default function CharacterSelectModal({
                 );
               })}
             </View>
+          </ScrollView>
           )}
 
           <Text style={styles.disclaimer}>Conversación generada por IA</Text>

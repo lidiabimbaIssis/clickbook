@@ -133,7 +133,7 @@ export default function Home() {
       <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.container, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} testID="home-screen">
         <View style={styles.content}>
           <View style={styles.logoBox}><Logo size="lg" /></View>
-          <Text style={styles.tagline}>UN CLICK · UNA HISTORIA</Text>
+          <Text style={styles.tagline}>SIENTE LO QUE LEES</Text>
 
           <View style={styles.searchBox}>
             <Ionicons name="search" size={18} color={colors.brass} />
