@@ -43,7 +43,9 @@ export async function api<T = any>(
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    console.error(`[API] Error ${res.status} en ${fullUrl}: ${text}`);
+    // console.warn en vez de console.error: evita que el LogBox de desarrollo
+    // tape la pantalla con errores esperados (402 limite diario, 401 sesion, etc.)
+    console.warn(`[API] Error ${res.status} en ${fullUrl}: ${text}`);
     throw new Error(`${res.status}: ${text}`);
   }
 

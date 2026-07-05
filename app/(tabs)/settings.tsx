@@ -24,6 +24,7 @@ export default function Settings() {
   const lang = user?.lang || "es";
   const isPremium = !!user?.is_premium;
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const [clearingFavorites, setClearingFavorites] = useState(false);
 
   const doSignOut = async () => {
     const confirm = () => {
@@ -45,6 +46,37 @@ export default function Settings() {
       await refresh();
     } catch (e) {
       console.warn(e);
+    }
+  };
+
+  const doClearFavorites = () => {
+    const run = async () => {
+      setClearingFavorites(true);
+      try {
+        await api("/favorites/clear", { method: "POST" });
+        if (Platform.OS !== "web") {
+          Alert.alert("Hecho", "Se han borrado todos tus favoritos.");
+        }
+      } catch (e) {
+        console.warn("clear favorites failed", e);
+      } finally {
+        setClearingFavorites(false);
+      }
+    };
+
+    if (Platform.OS === "web") {
+      if (typeof window !== "undefined" && window.confirm("¿Borrar todos tus favoritos? Esta acción no se puede deshacer.")) {
+        run();
+      }
+    } else {
+      Alert.alert(
+        "Vaciar favoritos",
+        "Se borrarán todos los libros que tienes guardados como favoritos. Esta acción no se puede deshacer.",
+        [
+          { text: "Cancelar", style: "cancel" },
+          { text: "Vaciar", style: "destructive", onPress: run },
+        ]
+      );
     }
   };
 
@@ -79,14 +111,21 @@ export default function Settings() {
 
       {/* Premium Card */}
       {isPremium ? (
+        // Usuario premium: recuadro limpio con beneficios activos,
+        // sin repetir "Premium" ni el diamante (ya están arriba en el badge).
         <View style={styles.premiumActiveCard} testID="premium-active-card">
-          <View style={styles.premiumActiveHeader}>
-            <Ionicons name="diamond" size={22} color={colors.gold} />
-            <Text style={styles.premiumActiveTitle}>ClickBook Premium</Text>
+          <View style={styles.benefitRow}>
+            <Ionicons name="headset" size={14} color={colors.gold} />
+            <Text style={styles.benefitText}>Audios ilimitados</Text>
           </View>
-          <Text style={styles.premiumActiveText}>
-            ¡Eres Premium! Audios ilimitados, chat IA con autor y resúmenes premium activos.
-          </Text>
+          <View style={styles.benefitRow}>
+            <Ionicons name="chatbubbles" size={14} color={colors.gold} />
+            <Text style={styles.benefitText}>Habla con tus personajes favoritos</Text>
+          </View>
+          <View style={styles.benefitRow}>
+            <Ionicons name="document-text" size={14} color={colors.gold} />
+            <Text style={styles.benefitText}>Resúmenes completos y sin spoilers</Text>
+          </View>
           <TouchableOpacity style={styles.downgradeBtn} onPress={downgrade} testID="btn-downgrade">
             <Text style={styles.downgradeText}>Cancelar (modo demo)</Text>
           </TouchableOpacity>
@@ -104,7 +143,7 @@ export default function Settings() {
           <View style={{ flex: 1 }}>
             <Text style={styles.premiumCtaTitle}>Hacerse Premium</Text>
             <Text style={styles.premiumCtaSub}>
-              Audios ilimitados · Chat IA con autor · Sin anuncios
+              Audios ilimitados · Habla con tus personajes favoritos · Resúmenes premium
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color={colors.gold} />
@@ -112,19 +151,17 @@ export default function Settings() {
       )}
 
       <View style={styles.section}>
-        <Text style={styles.sectionLabel}>MAZO</Text>
+        <Text style={styles.sectionLabel}></Text>
         <TouchableOpacity
           style={styles.row}
-          testID="btn-reset-history"
-          onPress={async () => {
-            await api("/books/reset", { method: "POST" });
-            if (Platform.OS !== "web") {
-              Alert.alert("Hecho", "Historial de descartes reiniciado.");
-            }
-          }}
+          testID="btn-clear-favorites"
+          onPress={doClearFavorites}
+          disabled={clearingFavorites}
         >
-          <Ionicons name="refresh" size={18} color={colors.brass} />
-          <Text style={styles.rowText}>Reiniciar libros descartados</Text>
+          <Ionicons name="trash-outline" size={18} color={colors.brass} />
+          <Text style={styles.rowText}>
+            {clearingFavorites ? "Vaciando favoritos…" : "Vaciar favoritos"}
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -132,16 +169,16 @@ export default function Settings() {
         <Ionicons name="log-out-outline" size={18} color={colors.iron} />
         <Text style={styles.logoutText}>Cerrar sesión</Text>
       </TouchableOpacity>
-      <TouchableOpacity 
-        onPress={() => router.push("/legal")} 
-        style={{ marginTop: 20, alignItems: 'center' }}
+      <TouchableOpacity
+        onPress={() => router.push("/legal")}
+        style={{ marginTop: 20, alignItems: "center" }}
       >
-        <Text style={{ color: 'gray', fontSize: 12, textAlign: 'center' }}>
+        <Text style={{ color: "#02666d", fontSize: 12, textAlign: "center" }}>
           Términos y Condiciones
         </Text>
       </TouchableOpacity>
 
-      <Text style={styles.footer}>ClickBook · MMXXVI</Text>
+      <Text style={styles.footer}>BookVibes · MMXXVI</Text>
 
       <PaywallModal
         visible={paywallOpen}
@@ -169,105 +206,51 @@ function LangBtn({ label, active, onPress, testID }: { label: string; active: bo
 const styles = StyleSheet.create({
   container: { paddingHorizontal: 20 },
   header: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 20 },
-  title: {
-    color: colors.brass,
-    fontWeight: "900",
-    letterSpacing: 5,
-    fontSize: 16,
-  },
+  title: { color: colors.brass, fontWeight: "900", letterSpacing: 5, fontSize: 16 },
   profile: { alignItems: "center", padding: 20, marginBottom: 14 },
   avatar: { width: 80, height: 80, borderRadius: 40, borderWidth: 2, borderColor: colors.brass },
   avatarPh: { alignItems: "center", justifyContent: "center", backgroundColor: colors.bgSurface },
   name: { color: colors.textOnDark, fontSize: 18, fontWeight: "700", marginTop: 10 },
   email: { color: colors.textOnDarkMuted, fontSize: 12, marginTop: 2 },
   premiumBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: colors.gold,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    marginTop: 10,
+    flexDirection: "row", alignItems: "center", gap: 4,
+    backgroundColor: colors.gold, paddingHorizontal: 10, paddingVertical: 4,
+    borderRadius: 999, marginTop: 10,
   },
   premiumBadgeText: { color: colors.bgBase, fontWeight: "900", fontSize: 10, letterSpacing: 1.5 },
   premiumCta: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "transparent",
-    borderWidth: 2,
-    borderColor: colors.gold,
-    borderRadius: 16,
-    padding: 14,
-    gap: 14,
-    marginBottom: 14,
+    flexDirection: "row", alignItems: "center", backgroundColor: "transparent",
+    borderWidth: 2, borderColor: colors.gold, borderRadius: 16,
+    padding: 14, gap: 14, marginBottom: 14,
   },
   premiumCtaLeft: { width: 44, alignItems: "center" },
-  premiumCtaTitle: {
-    color: colors.gold,
-    fontWeight: "900",
-    fontSize: 16,
-    letterSpacing: 1,
-  },
+  premiumCtaTitle: { color: colors.gold, fontWeight: "900", fontSize: 16, letterSpacing: 1 },
   premiumCtaSub: { color: colors.textOnDark, fontSize: 12, marginTop: 4, lineHeight: 17 },
   premiumActiveCard: {
-    backgroundColor: "rgba(255,210,63,0.06)",
-    borderWidth: 1,
-    borderColor: colors.gold,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 14,
+    backgroundColor: "rgba(255,210,63,0.06)", borderWidth: 1,
+    borderColor: colors.gold, borderRadius: 16, padding: 16, marginBottom: 14, gap: 10,
   },
-  premiumActiveHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
-  premiumActiveTitle: {
-    color: colors.gold,
-    fontWeight: "900",
-    fontSize: 15,
-    letterSpacing: 1,
-  },
-  premiumActiveText: { color: colors.textOnDark, fontSize: 13, lineHeight: 19 },
-  downgradeBtn: { marginTop: 12, alignSelf: "flex-start" },
+  benefitRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  benefitText: { color: colors.textOnDark, fontSize: 13 },
+  downgradeBtn: { marginTop: 4, alignSelf: "flex-start" },
   downgradeText: { color: colors.textOnDarkMuted, fontSize: 11, textDecorationLine: "underline" },
   section: {
-    backgroundColor: colors.bgSurface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 14,
+    backgroundColor: colors.bgSurface, borderWidth: 1, borderColor: colors.border,
+    borderRadius: 14, padding: 16, marginBottom: 14,
   },
   sectionLabel: { color: colors.textOnDarkMuted, fontSize: 11, letterSpacing: 2, fontWeight: "800", marginBottom: 10 },
   langRow: { flexDirection: "row", gap: 10 },
-  langBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.brassSoft,
-    alignItems: "center",
-  },
+  langBtn: { flex: 1, paddingVertical: 12, borderRadius: 999, borderWidth: 1, borderColor: colors.brassSoft, alignItems: "center" },
   langBtnActive: { backgroundColor: colors.brass, borderColor: colors.brass },
   langText: { color: colors.brass, fontWeight: "700", letterSpacing: 1 },
   langTextActive: { color: colors.bgBase },
   row: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 6 },
   rowText: { color: colors.textOnDark, fontSize: 14 },
   logoutBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    borderWidth: 1,
-    borderColor: "rgba(255,46,120,0.5)",
-    borderRadius: 999,
-    paddingVertical: 14,
-    marginTop: 10,
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 10, borderWidth: 1, borderColor: "rgba(255,46,120,0.5)",
+    borderRadius: 999, paddingVertical: 14, marginTop: 10,
   },
   logoutText: { color: colors.iron, fontWeight: "700", letterSpacing: 1 },
-  footer: {
-    textAlign: "center",
-    color: colors.textOnDarkMuted,
-    marginTop: 30,
-    fontSize: 11,
-    letterSpacing: 3,
-  },
+  footer: { textAlign: "center", color: colors.textOnDarkMuted, marginTop: 30, fontSize: 11, letterSpacing: 3 },
 });

@@ -23,8 +23,8 @@ export default function PaywallModal({ visible, onClose, onUpgraded, reason = "l
     catch (e) { console.warn(e); } finally { setLoading(false); }
   };
 
-  const headline = reason === "limit" ? "Has alcanzado tu límite diario" : reason === "chat" ? "Chat con el Autor" : "ClickBook Premium";
-  const sub = reason === "limit" ? `Ya escuchaste ${pricing?.free_daily_audio_limit ?? 3} audios hoy. Hazte Premium para seguir descubriendo sin límites.` : reason === "chat" ? "Habla en directo con la IA que personifica al autor del libro." : "Desbloquea todo ClickBook";
+  const headline = reason === "limit" ? "Has alcanzado tu límite diario" : reason === "chat" ? "Chat IA con tus personajes favoritos" : "BookVibes Premium";
+  const sub = reason === "limit" ? `Ya escuchaste ${pricing?.free_daily_audio_limit ?? 3} audios hoy. Hazte Premium para seguir descubriendo sin límites.` : reason === "chat" ? "Hazte Premium para hablar con los personajes de cualquier libro.." : "Desbloquea todo BookVibes";
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -37,11 +37,10 @@ export default function PaywallModal({ visible, onClose, onUpgraded, reason = "l
           <Text style={styles.title}>{headline}</Text>
           <Text style={styles.sub}>{sub}</Text>
           <View style={styles.benefits}>
-            <Benefit icon="infinite" text="Escucha cualquier libro con voz premium ilimitada." />
-            <Benefit icon="chatbubbles" text="Conversa con una IA inspirada en la obra y el universo del autor.
+            <Benefit icon="infinite" text="Resúmenes con voz premium ilimitados." />
+            <Benefit icon="headset" text="Hook ilimitado en cada libro." />
+            <Benefit icon="chatbubbles" text="Habla con los personajes del libro.
 " />
-            <Benefit icon="star" text="Descubre detalles y secretos que no aparecen en la historia." />
-            <Benefit icon="close-circle" text="Disfruta de una experiencia sin interrupciones." />
           </View>
           {pricing && (
             <View style={styles.plans}>

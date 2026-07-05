@@ -7,12 +7,46 @@ import { useAuth } from "../src/providers/AuthProvider";
 import { api, setToken } from "../src/lib/api";
 import { colors } from "../src/theme";
 import Logo from "../src/components/Logo";
+import { LinearGradient } from "expo-linear-gradient";
+import MaskedView from "@react-native-masked-view/masked-view";
+
+function GradientWord({
+  text,
+  fontSize,
+  fontWeight = "800",
+  fontFamily,
+}: {
+  text: string;
+  fontSize: number;
+  fontWeight?: "400" | "600" | "700" | "800" | "900";
+  fontFamily?: string;
+}) {
+  return (
+    <MaskedView
+      style={{ height: fontSize * 1.2 }}
+      maskElement={
+        <Text style={{ fontSize, fontWeight, fontFamily, backgroundColor: "transparent", lineHeight: fontSize * 1.2 }}>
+          {text}
+        </Text>
+      }
+    >
+      <LinearGradient
+        colors={[colors.brass, colors.copper]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={{ flex: 1 }}
+      >
+        <Text style={{ fontSize, fontWeight, fontFamily, opacity: 0, lineHeight: fontSize * 1.2 }}>{text}</Text>
+      </LinearGradient>
+    </MaskedView>
+  );
+}
+
 
 export default function LoginScreen() {
   const { user, loading, refresh } = useAuth();
   const router = useRouter();
   const [processing, setProcessing] = useState(false);
-  const [forcedGuest, setForcedGuest] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -43,11 +77,11 @@ export default function LoginScreen() {
     })();
   }, [refresh, router]);
 
-  useEffect(() => { 
-    if (forcedGuest || (!loading && user)) {
-      router.replace("/home"); 
+  useEffect(() => {
+    if (!loading && user) {
+      router.replace("/home");
     }
-  }, [loading, user, forcedGuest, router]);
+  }, [loading, user, router]);
 
   const signIn = () => {
     if (Platform.OS === "web" && typeof window !== "undefined") {
@@ -74,13 +108,36 @@ export default function LoginScreen() {
       <View style={styles.overlay} />
       <View style={styles.header}><Logo size="lg" /><View style={styles.divider} /></View>
       <View style={styles.hero}>
-        <Text style={styles.title}>No es solo leer libros, es vivirlos</Text>
+        <Text style={styles.title}>No es solo leer libros,</Text>
+        {/*
+          alignItems:"baseline" alinea el texto "es" y el GradientWord
+          "vivirlos" por su línea base tipográfica — es la forma más
+          robusta de que queden a la misma altura en cualquier dispositivo,
+          independientemente de cómo calcule cada uno la height del MaskedView.
+        */}
+        <View style={{ flexDirection: "row", justifyContent: "center", alignItems: "baseline", marginTop: 2 }}>
+          <Text style={styles.title}>es </Text>
+          <GradientWord
+            text="vivirlos"
+            fontSize={styles.title.fontSize}
+            fontWeight={styles.title.fontWeight as any}
+            fontFamily={styles.title.fontFamily}
+          />
+        </View>
       </View>
       <View style={styles.features}>
-        <Feature icon="albums" label="Desliza ↑ para explorar" />
-        <Feature icon="information-circle" label="Pulsa Info para ver la ficha" />
-        <Feature icon="heart" label="Pulsa el corazón para guardar" />
-        <Feature icon="headset" label="Resumen en audio · 1 min" />
+        <Feature icon="albums" color={colors.brass}>
+          <Text style={styles.featureText}>Desliza ↑ para <Text style={{ color: colors.brass, fontWeight: "700" }}>explorar</Text></Text>
+        </Feature>
+        <Feature icon="information-circle" color={colors.copper}>
+          <Text style={styles.featureText}>Pulsa <Text style={{ color: colors.copper, fontWeight: "700" }}>Info</Text> para ver la ficha</Text>
+        </Feature>
+        <Feature icon="heart" color={colors.brass}>
+          <Text style={styles.featureText}>Pulsa el <Text style={{ color: colors.brass, fontWeight: "700" }}>corazón</Text> para guardar</Text>
+        </Feature>
+        <Feature icon="headset" color={colors.copper}>
+          <Text style={styles.featureText}>Resumen en <Text style={{ color: colors.copper, fontWeight: "700" }}>audio</Text> · 1 min</Text>
+        </Feature>
       </View>
       <TouchableOpacity testID="btn-google-login" style={styles.loginBtn} onPress={signIn} activeOpacity={0.85}>
         <Ionicons name="logo-google" size={20} color={colors.bgBase} />
@@ -93,18 +150,13 @@ export default function LoginScreen() {
         onPress={async () => {
           setProcessing(true);
           try {
-            const fakeToken = "guest_token_temporal_desarrollo";
-            await setToken(fakeToken);
-            try { 
-              await refresh(); 
-            } catch (e) { 
-              console.log("Aviso: refresh falló, ignorando..."); 
-            }
-            setForcedGuest(true); 
+            const data = await api<any>("/auth/guest", { method: "POST" });
+            if (data?.session_token) await setToken(data.session_token);
+            await refresh();
+            router.replace("/home");
           } 
           catch (e) { 
-            console.error("Error en botón simulado:", e);
-          } finally {
+            console.error("Error en login de invitado:", e);
             setProcessing(false);
           }
         }} 
@@ -114,22 +166,22 @@ export default function LoginScreen() {
         <Text style={styles.guestText}>Entrar como invitado</Text>
       </TouchableOpacity>
 
-<Text style={styles.footer}>
-        <Text style={{ color: "#ff03af" }}>DESCUBRE</Text>
+      <Text style={styles.footer}>
+        <Text style={{ color: "#00F0FF" }}>DESCUBRE</Text>
         <Text style={styles.footer}> . </Text>
-        <Text style={{ color: "#ccff00" }}>SIENTE</Text>
+        <Text style={{ color: "#B026FF" }}>SIENTE</Text>
         <Text style={styles.footer}> . </Text>
-        <Text style={{ color:"#00ff8c"  }}>VIVE</Text>
+        <Text style={{ color:"#ff07bd" }}>VIVE</Text>
       </Text>
     </ImageBackground>
   );
 }
 
-function Feature({ icon, label }: { icon: any; label: string }) {
+function Feature({ icon, children, color }: { icon: any; children: React.ReactNode; color?: string }) {
   return (
     <View style={styles.feature}>
-      <Ionicons name={icon} size={16} color={colors.brass} />
-      <Text style={styles.featureText}>{label}</Text>
+      <Ionicons name={icon} size={16} color={color || colors.brass} />
+      {children}
     </View>
   );
 }

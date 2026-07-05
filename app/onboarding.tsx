@@ -346,7 +346,7 @@ function SlideAuthor() {
       title="HABLA CON ELLOS"
       highlight={
         <Text style={styles.highlight}>
-          <Text style={[styles.highlightStrong, { color: colors.gold }]}>Premium</Text> · los personajes del libro cobran vida
+          <Text style={[styles.highlightStrong, { color: colors.gold }]}>Premium</Text> · tus personajes favoritos del libro cobran vida
         </Text>
       }
     >
