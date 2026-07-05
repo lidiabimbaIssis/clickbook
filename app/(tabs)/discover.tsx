@@ -106,7 +106,7 @@ export default function Discover() {
     setPlaying(false);
   }, []);
 
-const fetchBooks = useCallback(async (initial: boolean) => {
+const fetchBooks = useCallback(async (initial: boolean, seedId?: string) => {
   if (initial) setLoading(true);
   try {
     const targetCount = 150;
@@ -148,7 +148,23 @@ const fetchBooks = useCallback(async (initial: boolean) => {
 const endpoint = query
   ? `/books/search?query=${encodeURIComponent(query)}`
   : `/books/feed?count=${targetCount}`;
-    const res = await api<{ books: Book[] }>(endpoint);
+
+    // Si venimos de un libro concreto (favoritos, compartir, etc.), lo
+    // pedimos en PARALELO con el feed — así podemos decidir el libro y el
+    // índice correctos ANTES de pintar nada en pantalla. Esto evita el
+    // "salto" de ver primero un libro aleatorio del feed y luego saltar
+    // al libro correcto un instante después.
+    const seedPromise = initial && seedId
+      ? api<any>(`/books/${seedId}`).catch((e) => {
+          console.warn("seed book fetch failed", e);
+          return null;
+        })
+      : Promise.resolve(null);
+
+    const [res, seedBook] = await Promise.all([
+      api<{ books: Book[] }>(endpoint),
+      seedPromise,
+    ]);
     let incomingBooks = res?.books || [];
 
     // Las "vibes" (chips de mood en home.tsx) usan /books/search por
@@ -179,13 +195,35 @@ const endpoint = query
       randomIdx = Math.floor(Math.random() * incomingBooks.length);
     }
 
+    // Mismo patrón que "Sorpréndeme", pero para el libro semilla (favoritos,
+    // compartir, etc.): si ya llegó el seedBook, lo colocamos en el array
+    // ANTES de hacer setBooks — si ya estaba en el lote del feed, usamos
+    // su índice real; si no estaba, lo insertamos al principio. Así
+    // books + currentIndex se fijan juntos, en el mismo render, y nunca
+    // se llega a pintar un libro random antes del correcto.
+    let seedIdx: number | null = null;
+    if (initial && seedBook && seedBook.book_id) {
+      const existingIdx = incomingBooks.findIndex((b) => b.book_id === seedBook.book_id);
+      if (existingIdx >= 0) {
+        seedIdx = existingIdx;
+      } else {
+        incomingBooks = [seedBook, ...incomingBooks];
+        seedIdx = 0;
+      }
+    }
+
     setBooks((prev) => {
       const existingIds = new Set(prev.map((b) => b.book_id));
       const incoming = incomingBooks.filter((b) => !existingIds.has(b.book_id));
       return initial ? incomingBooks : [...prev, ...incoming];
   });
 
-    if (randomIdx !== null) {
+    if (seedIdx !== null) {
+      setCurrentIndex(seedIdx);
+      setTimeout(() => {
+        listRef.current?.scrollToIndex({ index: seedIdx!, animated: false });
+      }, 100);
+    } else if (randomIdx !== null) {
       setCurrentIndex(randomIdx);
       setTimeout(() => {
         listRef.current?.scrollToIndex({ index: randomIdx!, animated: false });
@@ -209,8 +247,11 @@ useEffect(() => {
 
   (async () => {
     try {
-      // 1. Cargamos primero los libros (si hay búsqueda, se usará el 'query')
-      await fetchBooks(true);
+      // 1. Cargamos primero los libros (si hay búsqueda, se usará el 'query').
+      // Le pasamos seedBookId para que, si venimos de un libro concreto
+      // (favoritos, compartir…), se resuelva junto con el feed y no haya
+      // que pintar primero un libro aleatorio.
+      await fetchBooks(true, seedBookId);
 
       // 2. Solo después, intentamos cargar favoritos.
       // Si esto falla (401), NO afectará a los libros que ya cargaron arriba.
@@ -512,8 +553,8 @@ await Image.prefetch(coverUrl);
           <Ionicons name="chevron-back" size={20} color={colors.brass} />
         </TouchableOpacity>
         <View style={styles.brandRow}>
-          <Text style={styles.brandCyan}>Click</Text>
-          <Text style={styles.brandPurple}>Book</Text>
+          <Text style={styles.brandCyan}>Book</Text>
+          <Text style={styles.brandPurple}>Vibes</Text>
         </View>
         <TouchableOpacity onPress={shareBook} style={styles.backBtn} testID="btn-share-book">
           <Ionicons name="share-social" size={18} color={colors.copper} />
@@ -801,7 +842,7 @@ function FlashCardModal({ visible, book, lang, onClose, onAuthorChat, isPremium 
 
             <TouchableOpacity style={[styles.iaBtn, !isPremium && styles.iaBtnLocked]} onPress={onAuthorChat} activeOpacity={0.85} testID="btn-flash-author-chat">
               <Ionicons name={isPremium ? "chatbubbles" : "lock-closed"} size={16} color={isPremium ? colors.bgBase : colors.gold} />
-              <Text style={[styles.iaBtnText, !isPremium && styles.iaBtnTextLocked]}>IA con el Autor {!isPremium && "(Premium)"}</Text>
+              <Text style={[styles.iaBtnText, !isPremium && styles.iaBtnTextLocked]}>Habla con ellos {!isPremium && "(Premium)"}</Text>
             </TouchableOpacity>
           </ScrollView>
         </View>

@@ -185,7 +185,6 @@ export default function CharacterChat() {
         {sending && (
           <View style={[styles.bubble, styles.bubbleAssistant, { flexDirection: "row", alignItems: "center", gap: 8 }]}>
             <TypingDots />
-            <Text style={styles.typing}>Escribiendo…</Text>
           </View>
         )}
       </ScrollView>

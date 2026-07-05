@@ -120,11 +120,11 @@ export default function Settings() {
           </View>
           <View style={styles.benefitRow}>
             <Ionicons name="chatbubbles" size={14} color={colors.gold} />
-            <Text style={styles.benefitText}>Chat con personajes</Text>
+            <Text style={styles.benefitText}>Habla con tus personajes favoritos</Text>
           </View>
           <View style={styles.benefitRow}>
             <Ionicons name="document-text" size={14} color={colors.gold} />
-            <Text style={styles.benefitText}>Resúmenes premium</Text>
+            <Text style={styles.benefitText}>Resúmenes completos y sin spoilers</Text>
           </View>
           <TouchableOpacity style={styles.downgradeBtn} onPress={downgrade} testID="btn-downgrade">
             <Text style={styles.downgradeText}>Cancelar (modo demo)</Text>
@@ -143,7 +143,7 @@ export default function Settings() {
           <View style={{ flex: 1 }}>
             <Text style={styles.premiumCtaTitle}>Hacerse Premium</Text>
             <Text style={styles.premiumCtaSub}>
-              Audios ilimitados · Chat con personajes · Resúmenes premium
+              Audios ilimitados · Habla con tus personajes favoritos · Resúmenes premium
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color={colors.gold} />
@@ -151,7 +151,7 @@ export default function Settings() {
       )}
 
       <View style={styles.section}>
-        <Text style={styles.sectionLabel}>MAZO</Text>
+        <Text style={styles.sectionLabel}></Text>
         <TouchableOpacity
           style={styles.row}
           testID="btn-clear-favorites"
