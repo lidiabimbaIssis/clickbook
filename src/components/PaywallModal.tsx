@@ -24,7 +24,7 @@ export default function PaywallModal({ visible, onClose, onUpgraded, reason = "l
   };
 
   const headline = reason === "limit" ? "Has alcanzado tu límite diario" : reason === "chat" ? "Chat IA con tus personajes favoritos" : "BookVibes Premium";
-  const sub = reason === "limit" ? `Ya escuchaste ${pricing?.free_daily_audio_limit ?? 3} audios hoy. Hazte Premium para seguir descubriendo sin límites.` : reason === "chat" ? "Hazte Premium para hablar con los personajes de cualquier libro.." : "Desbloquea todo BookVibes";
+  const sub = reason === "limit" ? `Ya escuchaste ${pricing?.free_daily_audio_limit ?? 3} audios hoy. Hazte Premium para seguir descubriendo sin límites.` : reason === "chat" ? "Desbloquea la experiencia completa de BookVibes" : "Desbloquea todo BookVibes";
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -39,8 +39,7 @@ export default function PaywallModal({ visible, onClose, onUpgraded, reason = "l
           <View style={styles.benefits}>
             <Benefit icon="infinite" text="Resúmenes con voz premium ilimitados." />
             <Benefit icon="headset" text="Hook ilimitado en cada libro." />
-            <Benefit icon="chatbubbles" text="Habla con los personajes del libro.
-" />
+            <Benefit icon="chatbubbles" text="Habla con los personajes del libro." />
           </View>
           {pricing && (
             <View style={styles.plans}>

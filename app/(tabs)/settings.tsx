@@ -151,7 +151,7 @@ export default function Settings() {
       )}
 
       <View style={styles.section}>
-        <Text style={styles.sectionLabel}></Text>
+        <Text style={styles.sectionLabel}>TU BIBLIOTECA</Text>
         <TouchableOpacity
           style={styles.row}
           testID="btn-clear-favorites"
