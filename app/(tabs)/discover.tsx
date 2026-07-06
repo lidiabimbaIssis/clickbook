@@ -739,21 +739,21 @@ function BookSlide({
         </View>
       </View>
 
-      <View style={styles.pillContainer}>
-        {(book.vibe_tags || []).map((tag, index) => (
-          <React.Fragment key={index}>
-            <Text style={styles.pillText}>
-              {tag.icon} {tag.label}
-            </Text>
-            {index < (book.vibe_tags || []).length - 1 && (
-              <Text style={styles.separator}>•</Text>
-            )}
-          </React.Fragment>
-        ))}
-      </View>
+<View style={styles.pillContainer}>
+  {(book.vibe_tags || []).map((tag, index) => (
+    <React.Fragment key={index}>
+      <Text style={styles.pillText}>
+        <Text>{tag.icon}</Text>{" "}<Text>{tag.label}</Text>
+      </Text>
+      {index < (book.vibe_tags || []).length - 1 && (
+        <Text style={styles.separator}>•</Text>
+      )}
+    </React.Fragment>
+  ))}
+</View>
 
-      <View style={{ height: reservedBottom + 6 }} pointerEvents="none" />
-    </View>
+   <View style={{ height: reservedBottom + 6 }} pointerEvents="none" />
+</View>
   );
 }
 
@@ -1011,7 +1011,7 @@ sideBtn: { width: 42, height: 42, borderRadius: 21, borderWidth: 1.5, alignItems
   alignItems: 'center',
   backgroundColor: 'rgba(255, 255, 255, 0.07)',
   paddingVertical: 5,
-  paddingHorizontal: 16,
+  paddingHorizontal: 8,
   borderRadius: 25,
   borderWidth: 1,
   borderColor: '#08a3fd3b',
