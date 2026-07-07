@@ -706,7 +706,7 @@ function BookSlide({
           <View style={styles.coverFrame}>
             <Image
               source={{ uri: `https://res.cloudinary.com/ddppclcl1/image/upload/v1780422197/${book.book_id}.webp` }}
-              resizeMode="cover"
+              resizeMode="contain"
               style={styles.coverImage}
               onError={(e) => console.log("Error cargando imagen:", e.nativeEvent.error)}
             />
@@ -926,7 +926,7 @@ const styles = StyleSheet.create({
   // transparente más grande — por eso ahora SÍ se ven las esquinas
   // redondeadas. maxWidth evita que en pantallas muy altas la portada se
   // vuelva demasiado ancha en proporción a su alto.
-  coverFrame: { width: "100%", maxWidth: SCREEN_W * 0.88, aspectRatio: 2 / 3, maxHeight: "100%", borderRadius: 15, overflow: "hidden" },
+  coverFrame: { width: "100%", maxWidth: SCREEN_W * 0.88, aspectRatio: 2 / 3, maxHeight: "100%", borderRadius: 15, overflow: "hidden", backgroundColor: colors.bgBase },
   coverImage: { width: "100%", height: "100%" },
   // hookBtn: deliberadamente sutil — circular, semitransparente, sin
   // borde llamativo, para que no desentone ni compita visualmente con los
