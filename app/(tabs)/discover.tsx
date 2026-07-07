@@ -4,7 +4,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { createAudioPlayer } from "expo-audio";
-import{  useLocalSearchParams, useRouter } from "expo-router";
 import { api, Book } from "../../src/lib/api";
 import { useAuth } from "../../src/providers/AuthProvider";
 import { colors } from "../../src/theme";
@@ -14,6 +13,7 @@ import { shareContent } from "../../src/lib/share";
 import ShareCard from "../../src/components/ShareCard";
 import { captureAndShare } from "../../src/lib/share";
 import { LinearGradient } from 'expo-linear-gradient';
+import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 
@@ -105,6 +105,13 @@ export default function Discover() {
     playerRef.current = null;
     setPlaying(false);
   }, []);
+  useFocusEffect(
+  useCallback(() => {
+    return () => {
+      stopAudio();
+    };
+  }, [stopAudio])
+);
 
 const fetchBooks = useCallback(async (initial: boolean, seedId?: string) => {
   if (initial) setLoading(true);
