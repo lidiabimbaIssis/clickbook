@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions, ActivityIndicator, Platform, Linking, ScrollView, Modal, FlatList, LayoutChangeEvent } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { createAudioPlayer } from "expo-audio";
 import { api, Book } from "../../src/lib/api";
@@ -39,27 +38,21 @@ export default function Discover() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  // Altura REAL del tab bar, medida en tiempo de ejecución por el propio
-  // react-navigation — ya incluye cualquier insets.bottom adicional que
-  // (tabs)/_layout.tsx sume internamente (ver ese archivo: ahora el
-  // tabBarStyle ya no usa números fijos, sino height/padding que crecen
-  // según insets.bottom real del dispositivo). Antes esto era una
-  // constante fija (TAB_BAR_HEIGHT = 90) que asumía un solo tipo de
-  // dispositivo; con este hook, SLIDE_H siempre coincide con el espacio
-  // real que el tab bar deja libre, sea cual sea el dispositivo.
-  const tabBarHeight = useBottomTabBarHeight();
-  const SLIDE_H = SCREEN_H - tabBarHeight;
+  const [slideH, setSlideH] = useState(SCREEN_H);
+  const onContainerLayout = useCallback((e: LayoutChangeEvent) => {
+    const h = e.nativeEvent.layout.height;
+    if (h > 0 && Math.abs(h - slideH) > 0.5) setSlideH(h);
+  }, [slideH]);
+  const SLIDE_H = slideH;
 
-  const params = useLocalSearchParams<{ q?: string; book_id?: string; mode?: string; t?: string; vibe?: string }>();
+  const params = useLocalSearchParams<{ q?: string; book_id?: string; mode?: string; t?: string; vibe?: string; authorQuery?: string }>();
   const query = (params.q || "").toString();
   const seedBookId = (params.book_id || "").toString();
   const isRandom = params.mode === "random";
   const isNovedades = params.mode === "novedades";
   const isVibe = params.vibe === "true";
-  // Timestamp único de cada navegación desde home.tsx — garantiza que el
-  // useEffect de carga inicial se vuelva a disparar aunque se pulse el
-  // MISMO botón dos veces seguidas (p. ej. Sorpréndeme, Sorpréndeme), algo
-  // que con solo "mode" como dependencia no se detectaría como cambio.
+  const isAuthorMode = params.mode === "author";
+  const authorQuery = (params.authorQuery || "").toString();
   const navKey = (params.t || "").toString();
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,26 +67,14 @@ export default function Discover() {
   const [playing, setPlaying] = useState(false);
   const [premiumSummaries, setPremiumSummaries] = useState<Record<string, string>>({});
   const playerRef = useRef<any>(null);
-  // Estado del botón del hook en la portada actual: cuántos hooks le
-  // quedan hoy al usuario free (null mientras no se sabe todavía, o si es
-  // premium no se usa este número — ver hookButtonState más abajo).
   const [hookRemaining, setHookRemaining] = useState<number | null>(null);
   const [hookIsPremium, setHookIsPremium] = useState(false);
   const [hookPlayingId, setHookPlayingId] = useState<string | null>(null);
-  // Feedback INSTANTÁNEO al pulsar el botón del hook: se marca en el
-  // mismo toque, antes de esperar respuesta del backend. Sin esto, el
-  // botón se sentía "muerto" durante el segundo o dos que tarda la
-  // petición — la gente impaciente pulsaba dos veces pensando que no
-  // había funcionado, gastando dos hooks sin haber escuchado ninguno.
   const [hookLoadingId, setHookLoadingId] = useState<string | null>(null);
   const listRef = useRef<FlatList<Book>>(null);
   const shareCardRef = useRef<View>(null);
   const [coverReady, setCoverReady] = useState(false);
 
-  // Altura real medida del buyRow flotante (botones de compra).
-  // Se mide UNA vez por montaje con onLayout — nunca se adivina a mano.
-  // Arranca en un valor razonable (evita un "salto" visual en el primer
-  // frame) y se corrige solo en cuanto el layout real está disponible.
   const [buyRowHeight, setBuyRowHeight] = useState(64);
   const onBuyRowLayout = useCallback((e: LayoutChangeEvent) => {
     const h = e.nativeEvent.layout.height;
@@ -104,6 +85,7 @@ export default function Discover() {
     try { playerRef.current?.pause?.(); playerRef.current?.remove?.(); } catch {}
     playerRef.current = null;
     setPlaying(false);
+    setHookPlayingId(null);
   }, []);
   useFocusEffect(
   useCallback(() => {
@@ -118,10 +100,6 @@ const fetchBooks = useCallback(async (initial: boolean, seedId?: string) => {
   try {
     const targetCount = 150;
 
-    // Modo "Novedades" (botón debajo de Sorpréndeme en home.tsx): solo se
-    // aplica en la carga INICIAL, no en las cargas de scroll infinito que
-    // van añadiendo más libros después (fetchBooks(false) sigue pidiendo
-    // /books/feed normal, igual que ya hacía).
     if (initial && isNovedades) {
       const [novedadesRes, feedRes] = await Promise.all([
         api<{ books: Book[] }>("/books/novedades"),
@@ -130,16 +108,8 @@ const fetchBooks = useCallback(async (initial: boolean, seedId?: string) => {
 
       const novedades = novedadesRes?.books || [];
       const novedadesIds = new Set(novedades.map((b) => b.book_id));
-      // El feed general también contiene los libros de novedades (nunca
-      // se "mueven" de colección, solo se filtran aparte) — los quitamos
-      // aquí para no verlos repetidos justo después del bloque destacado.
       const feedSinNovedades = (feedRes?.books || []).filter((b) => !novedadesIds.has(b.book_id));
 
-      // Empalme tipo "Sorpréndeme": el feed que sigue a las novedades no
-      // siempre arranca por el mismo libro (el primero de Mongo), sino por
-      // un punto aleatorio — rotamos el array en vez de concatenarlo tal
-      // cual, para que la sesión no se sienta repetitiva cada vez que se
-      // entra a Novedades.
       let feedRotado = feedSinNovedades;
       if (feedSinNovedades.length > 0) {
         const randomStart = Math.floor(Math.random() * feedSinNovedades.length);
@@ -151,16 +121,31 @@ const fetchBooks = useCallback(async (initial: boolean, seedId?: string) => {
       return;
     }
 
-    // CAMBIO AQUÍ: Si hay búsqueda, usamos /books/search, si no, /books/feed
+    if (initial && isAuthorMode && authorQuery) {
+      const [authorRes, feedRes] = await Promise.all([
+        api<{ books: Book[] }>(`/books/search?query=${encodeURIComponent(authorQuery)}`),
+        api<{ books: Book[] }>(`/books/feed?count=${targetCount}`),
+      ]);
+
+      const authorBooks = authorRes?.books || [];
+      const authorIds = new Set(authorBooks.map((b) => b.book_id));
+      const feedSinAutor = (feedRes?.books || []).filter((b) => !authorIds.has(b.book_id));
+
+      let feedRotado = feedSinAutor;
+      if (feedSinAutor.length > 0) {
+        const randomStart = Math.floor(Math.random() * feedSinAutor.length);
+        feedRotado = [...feedSinAutor.slice(randomStart), ...feedSinAutor.slice(0, randomStart)];
+      }
+
+      setBooks([...authorBooks, ...feedRotado]);
+      setCurrentIndex(0);
+      return;
+    }
+
 const endpoint = query
   ? `/books/search?query=${encodeURIComponent(query)}`
   : `/books/feed?count=${targetCount}`;
 
-    // Si venimos de un libro concreto (favoritos, compartir, etc.), lo
-    // pedimos en PARALELO con el feed — así podemos decidir el libro y el
-    // índice correctos ANTES de pintar nada en pantalla. Esto evita el
-    // "salto" de ver primero un libro aleatorio del feed y luego saltar
-    // al libro correcto un instante después.
     const seedPromise = initial && seedId
       ? api<any>(`/books/${seedId}`).catch((e) => {
           console.warn("seed book fetch failed", e);
@@ -174,14 +159,6 @@ const endpoint = query
     ]);
     let incomingBooks = res?.books || [];
 
-    // Las "vibes" (chips de mood en home.tsx) usan /books/search por
-    // texto libre, que ordena por relevancia (score) de MongoDB. En moods
-    // muy poblados (ej. "Intenso", "Romántico") muchos libros empatan en
-    // score y MongoDB devuelve siempre el mismo orden estable — se sentía
-    // como "siempre el mismo libro primero". Mezclamos aquí SOLO cuando
-    // initial && isVibe, para no tocar el orden de relevancia en
-    // búsquedas de texto libre reales (ahí sí interesa lo más relevante
-    // primero, sea por voz o escrito).
     if (initial && isVibe && incomingBooks.length > 1) {
       incomingBooks = [...incomingBooks];
       for (let i = incomingBooks.length - 1; i > 0; i--) {
@@ -190,24 +167,11 @@ const endpoint = query
       }
     }
 
-    // Si es "Sorpréndeme", calculamos el índice random ANTES de tocar el
-    // estado de books, y aplicamos books + currentIndex en el mismo ciclo.
-    // Antes, currentIndex se actualizaba en un paso aparte DESPUÉS de
-    // setBooks, lo que dejaba un frame intermedio visible con el libro en
-    // el índice 0 (el primero de Mongo) antes de saltar al random — ese
-    // era el "parpadeo" de un instante. Actualizando ambos juntos, React
-    // los aplica en el mismo render y el índice 0 nunca llega a pintarse.
     let randomIdx: number | null = null;
     if (initial && isRandom && incomingBooks.length > 0) {
       randomIdx = Math.floor(Math.random() * incomingBooks.length);
     }
 
-    // Mismo patrón que "Sorpréndeme", pero para el libro semilla (favoritos,
-    // compartir, etc.): si ya llegó el seedBook, lo colocamos en el array
-    // ANTES de hacer setBooks — si ya estaba en el lote del feed, usamos
-    // su índice real; si no estaba, lo insertamos al principio. Así
-    // books + currentIndex se fijan juntos, en el mismo render, y nunca
-    // se llega a pintar un libro random antes del correcto.
     let seedIdx: number | null = null;
     if (initial && seedBook && seedBook.book_id) {
       const existingIdx = incomingBooks.findIndex((b) => b.book_id === seedBook.book_id);
@@ -241,7 +205,7 @@ const endpoint = query
   } finally {
     setLoading(false);
   }
-}, [query, isRandom, isNovedades, isVibe, navKey]);
+}, [query, isRandom, isNovedades, isVibe, isAuthorMode, authorQuery, navKey]);
   const loadFavorites = useCallback(async () => {
     try { const res = await api<{ books: Book[] }>("/favorites"); setFavBookIds(new Set(res.books.map((b) => b.book_id))); } catch {}
   }, []);
@@ -249,19 +213,11 @@ const endpoint = query
 useEffect(() => {
   setBooks([]);
   setCurrentIndex(0);
-  setLoading(true); // Aseguramos que el estado de carga esté activo
-
+  setLoading(true);
 
   (async () => {
     try {
-      // 1. Cargamos primero los libros (si hay búsqueda, se usará el 'query').
-      // Le pasamos seedBookId para que, si venimos de un libro concreto
-      // (favoritos, compartir…), se resuelva junto con el feed y no haya
-      // que pintar primero un libro aleatorio.
       await fetchBooks(true, seedBookId);
-
-      // 2. Solo después, intentamos cargar favoritos.
-      // Si esto falla (401), NO afectará a los libros que ya cargaron arriba.
       loadFavorites();
     } catch (e) {
       console.error("Error crítico en carga inicial:", e);
@@ -270,8 +226,6 @@ useEffect(() => {
   })();
 
   return () => stopAudio();
-  // Eliminamos loadFavorites de las dependencias para que no se re-ejecute
-  // cuando no debe.
 }, [fetchBooks, stopAudio, seedBookId, navKey]);
 
 useEffect(() => {
@@ -281,7 +235,6 @@ useEffect(() => {
     listRef.current.scrollToIndex({ index: idx, animated: false });
     setCurrentIndex(idx);
   } else if (seedBookId && books.length > 0) {
-    // El libro no está en el batch actual — lo cargamos directamente
     (async () => {
       try {
         const res = await api<any>(`/books/${seedBookId}`);
@@ -305,11 +258,6 @@ useEffect(() => {
   const current = books[currentIndex];
   const isFav = current ? favBookIds.has(current.book_id) : false;
 
-  // ---- Hook manual: botón sutil en la portada que reproduce el "hook"
-  // del libro al pulsarlo. Para usuarios free, el botón muestra cuántos
-  // hooks le quedan hoy (3, 2, 1) ANTES de pulsar — solo se gasta uno si
-  // de verdad pulsa y escucha, nunca por pasar de largo una portada.
-  // Cuando se agotan, no se pinta ningún botón (silencio total, sin avisos).
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -319,8 +267,6 @@ useEffect(() => {
         setHookIsPremium(!!res.is_premium);
         setHookRemaining(res.remaining ?? null);
       } catch (e) {
-        // Si falla la consulta (red, sesión, etc.), no mostramos el botón
-        // en vez de arriesgarnos a mostrar un número incorrecto.
         if (!cancelled) {
           setHookIsPremium(false);
           setHookRemaining(null);
@@ -333,22 +279,18 @@ useEffect(() => {
   const playHook = useCallback(async () => {
     if (!current) return;
     const bookId = current.book_id;
-    if (hookLoadingId === bookId || hookPlayingId === bookId) return; // evita doble toque mientras ya está en curso
-    setHookLoadingId(bookId); // feedback instantáneo, antes de cualquier espera de red
+    if (hookLoadingId === bookId || hookPlayingId === bookId) return;
+    setHookLoadingId(bookId);
     try {
-      // El backend puede devolver el audio de dos formas según si el
-      // libro ya está migrado a Cloudinary o no:
-      // - audio_url: URL pública en Cloudinary (caso nuevo, preferido)
-      // - audio_base64: base64 legacy (libros aún no migrados)
       const res = await api<{ available: boolean; audio_url?: string; audio_base64?: string; mime?: string }>(
         `/books/${bookId}/hook-audio`
       );
       if (!res.available) {
         setHookLoadingId((id) => (id === bookId ? null : id));
-        return; // por si justo se agotó entre medias; silencio, sin aviso
+        return;
       }
 
-      stopAudio(); // por si quedaba sonando un resumen u otro hook
+      stopAudio();
       const uri = res.audio_url
         ? res.audio_url
         : `data:${res.mime};base64,${res.audio_base64}`;
@@ -365,8 +307,6 @@ useEffect(() => {
       p.play();
       setPlaying(true);
 
-      // El número solo baja AHORA, tras confirmar que se escuchó — no al
-      // entrar en la portada ni al pulsar antes de tener respuesta.
       if (!hookIsPremium) {
         setHookRemaining((prev) => (prev !== null ? Math.max(0, prev - 1) : prev));
       }
@@ -409,8 +349,6 @@ useEffect(() => {
         text = sumRes.summary;
         setPremiumSummaries((prev) => ({ ...prev, [current.book_id]: text! }));
       }
-      // Igual que en playHook: el backend devuelve audio_url (Cloudinary,
-      // caso nuevo) o audio_base64 (legacy, libros aún no migrados).
       const res = await api<{ audio_url?: string; audio_base64?: string; mime: string }>("/tts", { method: "POST", body: JSON.stringify({ text, voice: "fable", book_id: current.book_id, lang }) });
       const uri = res.audio_url
         ? res.audio_url
@@ -430,32 +368,22 @@ useEffect(() => {
   const openAuthorChat = async () => {
     if (!current) return;
     setInfoOpen(false);
-    // Consulta silenciosa de personajes antes de abrir cualquier modal:
-    // si el libro no tiene personajes (no ficción), va directo al chat
-    // con el narrador genérico sin mostrar ninguna pantalla intermedia.
-    // Si ya están cacheados en Mongo, esta llamada es instantánea.
     try {
       const res = await api<{ characters: { nombre: string }[] }>(`/books/${current.book_id}/characters`);
       const list = res?.characters || [];
       if (list.length === 0) {
-        // Sin personajes — narrador genérico directo, sin modal
         router.push({
           pathname: "/author-chat",
           params: { book_id: current.book_id, title: current.title },
         });
       } else {
-        // Hay personajes — abre el modal de selección
         setCharacterSelectOpen(true);
       }
     } catch (e) {
-      // Si falla la consulta, abre el modal igualmente como fallback
       setCharacterSelectOpen(true);
     }
   };
 
-  // Llamado por CharacterSelectModal: bien cuando el usuario elige un
-  // personaje concreto, bien automáticamente cuando el libro no tiene
-  // personajes detectados (modo Narrador Genérico, character = null).
   const onCharacterSelected = (character: string | null, colorIndex?: number) => {
     if (!current) return;
     setCharacterSelectOpen(false);
@@ -470,15 +398,22 @@ useEffect(() => {
     });
   };
 
+  const openAuthorFeed = (author: string) => {
+    if (!author) return;
+    setInfoOpen(false);
+    router.push({
+      pathname: "/discover",
+      params: { mode: "author", authorQuery: author, t: Date.now().toString() },
+    });
+  };
+
 const shareBook = async () => {
   if (!current) return;
   try {
     const fallback = lang === "es" ? current.summary_es : current.summary_en;
     const hookText = (premiumSummaries[current.book_id] || fallback || "").split(/\.\s/)[0];
-    // Precarga la imagen
 const coverUrl = `https://res.cloudinary.com/ddppclcl1/image/upload/v1780422197/${current.book_id}.webp`;
 await Image.prefetch(coverUrl);
-    // Espera un poco más para que se renderice
     await new Promise((r) => setTimeout(r, 500));
     await captureAndShare(shareCardRef.current, `clickbook-${current.book_id}`);
   } catch (e) {
@@ -514,7 +449,7 @@ await Image.prefetch(coverUrl);
   }
 
   return (
-    <View style={styles.container} testID="discover-screen">
+    <View style={styles.container} testID="discover-screen" onLayout={onContainerLayout}>
       <FlatList
         ref={listRef}
         data={books}
@@ -526,15 +461,6 @@ await Image.prefetch(coverUrl);
         decelerationRate="fast"
         onMomentumScrollEnd={onMomentumScrollEnd}
         getItemLayout={(_, index) => ({ length: SLIDE_H, offset: SLIDE_H * index, index })}
-        // initialScrollIndex: la causa real del "parpadeo" en Sorpréndeme
-        // no era el orden de los setState (eso ya estaba bien) — es que
-        // FlatList, al montar, SIEMPRE renderiza primero el índice 0 con
-        // initialNumToRender, y solo DESPUÉS salta a otro índice vía
-        // scrollToIndex. Ese primer frame en el índice 0 es lo que se veía.
-        // Con initialScrollIndex (que requiere getItemLayout, ya presente),
-        // FlatList monta directamente en el índice correcto, sin pasar
-        // nunca por el 0. Solo currentIndex > 0 lo necesita; en el resto
-        // de casos (feed normal, búsqueda) currentIndex ya es 0 de por sí.
         initialScrollIndex={currentIndex > 0 ? currentIndex : undefined}
         windowSize={3}
         maxToRenderPerBatch={2}
@@ -579,25 +505,12 @@ await Image.prefetch(coverUrl);
 
       </View>
 
-      {/*
-        buyRow sigue flotante y fijo, EXACTAMENTE igual que sideButtons:
-        position absolute, fuera del FlatList, no se mueve al pasar de libro.
-        IMPORTANTE: bottom ya NO suma insets.bottom aquí. Antes sí lo hacía,
-        pero ahora SLIDE_H (más arriba) ya resta tabBarHeight completo —
-        y tabBarHeight YA incluye su propio insets.bottom interno (ver
-        (tabs)/_layout.tsx). Sumar insets.bottom otra vez aquí contaba ese
-        espacio DOS veces, dejando un hueco negro de más entre buyRow y el
-        tab bar en dispositivos con barra de navegación clásica (insets.bottom
-        grande). Con solo un pequeño margen fijo de aire, queda igual de
-        seguro pero sin doble conteo.
-      */}
       <View
         style={[styles.buyRow, { bottom: 6 }]}
         pointerEvents="box-none"
         onLayout={onBuyRowLayout}
       >
 
-      {/* Botón de Amazon */}
 <TouchableOpacity testID="btn-buy-amazon" style={styles.buyBtn} onPress={() => {
   const q = encodeURIComponent(`${current.title} ${current.author}`);
   openStore(`https://www.amazon.es/s?k=${q}&i=stripbooks`);
@@ -606,7 +519,6 @@ await Image.prefetch(coverUrl);
   <Text style={[styles.buyText, { color: "#FF9900" }]}>Amazon</Text>
 </TouchableOpacity>
 
-{/* Botón de Casa del Libro */}
 <TouchableOpacity testID="btn-buy-casa" style={styles.buyBtn} onPress={() => {
   const q = encodeURIComponent(`${current.title} ${current.author}`);
   openStore(`https://www.casadellibro.com/busqueda-generica?query=${q}`);
@@ -617,7 +529,7 @@ await Image.prefetch(coverUrl);
 
       </View>
 
-      <FlashCardModal visible={infoOpen} book={current} lang={lang} onClose={() => setInfoOpen(false)} onAuthorChat={openAuthorChat} isPremium={!!user?.is_premium} />
+      <FlashCardModal visible={infoOpen} book={current} lang={lang} onClose={() => setInfoOpen(false)} onAuthorChat={openAuthorChat} onAuthorPress={openAuthorFeed} isPremium={!!user?.is_premium} />
       <AudioModal visible={audioOpen} book={current} lang={lang} playing={playing} loading={audioLoading} text={premiumSummaries[current.book_id]} onPlay={playAudio} onClose={() => { setAudioOpen(false); stopAudio(); }} />
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} reason={paywallReason} onUpgraded={async () => { await refreshAuth(); }} />
       {current && (
@@ -629,7 +541,6 @@ await Image.prefetch(coverUrl);
           onSelect={onCharacterSelected}
         />
       )}
-    {/* Tarjeta invisible para la captura PNG */}
       <View style={{ position: "absolute", left: -9999, top: -9999, width: 540, height: 960 }} pointerEvents="none">
         {current && (
           <ShareCard
@@ -665,8 +576,6 @@ function BookSlide({
   const topBarSpace = insets.top + 8 + 38 + 8;
   const slidePaddingTop = topBarSpace + 45;
 
-  // Botón del hook: se renderiza igual tanto en portadas normales como
-  // en novedades — lo extraemos aquí para no duplicarlo.
   const hookButton = isCurrent && (hookIsPremium || (hookRemaining ?? 0) > 0) ? (
     <TouchableOpacity
       onPress={onPressHook}
@@ -711,12 +620,6 @@ function BookSlide({
               onError={(e) => console.log("Error cargando imagen:", e.nativeEvent.error)}
             />
             {hookButton}
-            {/*
-              Icono de novedad: rayo flash con degradado cian->morado, solo
-              en portadas con fecha_novedad. Esquina superior izquierda,
-              tamaño 24px. MaskedView aplica el degradado al icono igual
-              que en home.tsx con GradientIcon.
-            */}
             {isNovedad && (
               <View style={styles.novedadBadge} pointerEvents="none">
                 <LinearGradient
@@ -807,9 +710,10 @@ function BuyBtn({ label, icon, onPress, testID }: { label: string; icon: any; on
   );
 }
 
-function FlashCardModal({ visible, book, lang, onClose, onAuthorChat, isPremium }: { visible: boolean; book: Book; lang: "es" | "en"; onClose: () => void; onAuthorChat: () => void; isPremium: boolean; }) {
+function FlashCardModal({ visible, book, lang, onClose, onAuthorChat, onAuthorPress, isPremium }: { visible: boolean; book: Book; lang: "es" | "en"; onClose: () => void; onAuthorChat: () => void; onAuthorPress?: (author: string) => void; isPremium: boolean; }) {
   const insets = useSafeAreaInsets();
   const ext = (book as any) || {};
+  const [authorPressed, setAuthorPressed] = useState(false);
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -820,7 +724,22 @@ function FlashCardModal({ visible, book, lang, onClose, onAuthorChat, isPremium 
           </TouchableOpacity>
           <ScrollView showsVerticalScrollIndicator={false}>
             <Text style={styles.flashTitle} numberOfLines={3}>{book.title}</Text>
-            <Text style={styles.flashAuthor}>{book.author}</Text>
+            {onAuthorPress ? (
+              <TouchableOpacity
+                onPress={() => {
+  setAuthorPressed(true);
+  setTimeout(() => {
+    onAuthorPress(book.author);
+  }, 150);
+}}
+                activeOpacity={0.7}
+                testID="btn-flash-author-name"
+              >
+                <Text style={[styles.flashAuthor, authorPressed && { color: "#ff01cc" }]}>{book.author}</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={styles.flashAuthor}>{book.author}</Text>
+            )}
             <View style={styles.statRow}>
               <StatBox icon="calendar" label="AÑO" value={String(book.year)} />
               <StatBox icon="book" label="PÁGINAS" value={String(book.pages)} />
@@ -840,7 +759,6 @@ function FlashCardModal({ visible, book, lang, onClose, onAuthorChat, isPremium 
               <DetailItem label="ESTILO" value={ext.ficha_lectura?.estilo || "—"} color={colors.brass} />
             </View>
 
-            {/* Bloque limpio sin título de la frase impactante */}
             {ext.hook && (
               <View style={styles.hookContainer}>
                 <Text style={styles.hookText}>"{ext.hook}"</Text>
@@ -914,23 +832,11 @@ const styles = StyleSheet.create({
   emptyTitle: { color: colors.textOnDark, fontSize: 18, marginTop: 12, textAlign: "center" },
   reloadBtn: { marginTop: 24, borderWidth: 1, borderColor: colors.brass, paddingHorizontal: 22, paddingVertical: 12, borderRadius: 999 },
   reloadText: { color: colors.brass, letterSpacing: 2, fontWeight: "700" },
-  // slide: ya NO usa justifyContent:"center". Es columna flex de arriba a
-  // abajo: paddingTop reserva sitio para topBadgesRow (absolute), luego
-  // coverArea (flex:1) se lleva el resto, luego pillContainer y el spacer.
   slide: { backgroundColor: colors.bgBase, alignItems: "center", flexDirection: "column" },
   coverArea: { flex: 1, width: "100%", alignItems: "center", justifyContent: "center" },
   coverWrap: { position: "relative", width: SCREEN_W * 0.88, height: "100%", alignItems: "center", justifyContent: "center" },
-  // coverFrame: contenedor con proporción fija 2:3 (estándar de tapa de
-  // libro) y altura máxima = el espacio real disponible. overflow:"hidden"
-  // recorta la imagen exactamente en su propio borde, no en un hueco
-  // transparente más grande — por eso ahora SÍ se ven las esquinas
-  // redondeadas. maxWidth evita que en pantallas muy altas la portada se
-  // vuelva demasiado ancha en proporción a su alto.
   coverFrame: { width: "100%", maxWidth: SCREEN_W * 0.88, aspectRatio: 2 / 3, maxHeight: "100%", borderRadius: 15, overflow: "hidden", backgroundColor: colors.bgBase },
   coverImage: { width: "100%", height: "100%" },
-  // hookBtn: deliberadamente sutil — circular, semitransparente, sin
-  // borde llamativo, para que no desentone ni compita visualmente con los
-  // botones laterales grandes (info, favorito, audio, chat, reseñas).
   hookBtn: {
     position: "absolute",
     bottom: 10,
@@ -943,9 +849,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   hookBtnNumber: { color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: "800" },
-  // Badge de novedad: rayo flash con degradado, esquina superior izquierda
-  // de la portada. Sin fondo — el icono flota sobre la imagen igual que
-  // el botón del hook.
   novedadBadge: {
     position: "absolute",
     top: 10,
@@ -980,9 +883,6 @@ const styles = StyleSheet.create({
   sideButtons: { position: "absolute", right: 10, top: "50%", marginTop: -90, gap: 16, alignItems: "center", zIndex: 10 },
   sideBtnWrap: { alignItems: "center" },
 sideBtn: { width: 42, height: 42, borderRadius: 21, borderWidth: 1.5, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(6,1,15,0.6)", shadowOpacity: 0.7, shadowRadius: 8, shadowOffset: { width: 0, height: 0 }, elevation: 5 },
-  // buyRow: igual que antes (flotante, absolute, fijo), solo cambia que
-  // `bottom` ya no es un número fijo (-23) sino que se inyecta dinámicamente
-  // con insets.bottom + 8 desde donde se usa el estilo (ver JSX de Discover).
   buyRow: { position: "absolute", left: 0, right: 0, flexDirection: "row", justifyContent: "space-between", gap: 8, paddingHorizontal: 12, zIndex: 10 },
   buyBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1.5, borderColor: colors.brassSoft, paddingHorizontal: 8, paddingVertical: 11, borderRadius: 12, backgroundColor: "rgba(0,0,0,0.6)", shadowColor: colors.brass, shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 0 }, elevation: 5 },
   buyText: { color: colors.gold, fontSize: 12, fontWeight: "800", letterSpacing: 0.5 },
