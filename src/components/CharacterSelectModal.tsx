@@ -79,13 +79,9 @@ export default function CharacterSelectModal({
           </View>
           <Text style={styles.title}>¿Con quién quieres hablar?</Text>
           <Text style={styles.sub} numberOfLines={1}>{bookTitle}</Text>
-
-          {loading ? (
-            <View style={{ paddingVertical: 24, alignItems: "center" }}>
-              <ActivityIndicator color={colors.brass} />
-            </View>
-          ) : (
-            <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
+       {loading ? null : (
+        <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
+       
             <View style={styles.list}>
               {characters.map((c, index) => {
                 const cl = avatarColor(index);
