@@ -300,6 +300,37 @@ async def get_my_hook_usage(user: User = Depends(get_current_user)):
         "is_premium": is_premium, "plays_today": plays_today, "limit": FREE_DAILY_HOOK_LIMIT,
         "remaining": max(0, FREE_DAILY_HOOK_LIMIT - plays_today) if not is_premium else None,
     }
+# Contador de preguntas gratis en Character Chat: a diferencia de los
+# hooks/resúmenes (límite DIARIO, se resetea cada día), este es un límite
+# DE POR VIDA — 3 preguntas gratis en total, nunca se resetean, sin
+# importar cuántos libros distintos pruebe el usuario. Por eso NO usa
+# _today_key() ni fecha, es un contador simple y acumulativo en su
+# propia colección, una fila por usuario.
+FREE_CHAT_QUESTIONS_LIMIT = int(os.environ.get("FREE_CHAT_QUESTIONS_LIMIT", "3"))
+
+async def _get_chat_questions_used(user_id: str) -> int:
+    doc = await db.chat_usage.find_one({"user_id": user_id})
+    return int(doc["questions_used"]) if doc else 0
+
+async def _increment_chat_questions_used(user_id: str) -> int:
+    res = await db.chat_usage.find_one_and_update(
+        {"user_id": user_id},
+        {"$inc": {"questions_used": 1}, "$set": {"updated_at": datetime.now(timezone.utc)}},
+        upsert=True, return_document=True,
+    )
+    return int(res.get("questions_used", 1)) if res else 1
+
+@api_router.get("/me/chat-usage")
+async def get_my_chat_usage(user: User = Depends(get_current_user)):
+    # Mismo patrón que /me/hook-usage: permite al frontend pintar el
+    # numerito de preguntas restantes ANTES de que el usuario escriba
+    # nada, sin tener que esperar a un 402 para saberlo.
+    used = await _get_chat_questions_used(user.user_id)
+    is_premium = _is_premium_active(user)
+    return {
+        "is_premium": is_premium,
+        "remaining": max(0, FREE_CHAT_QUESTIONS_LIMIT - used) if not is_premium else None,
+    }
 
 @api_router.get("/config/pricing")
 async def get_pricing():
@@ -1658,8 +1689,12 @@ async def get_character_questions(book_id: str, character: Optional[str] = None,
 
 @api_router.post("/books/{book_id}/character-chat")
 async def character_chat(book_id: str, req: CharacterChatRequest, user: User = Depends(get_current_user)):
-    if not _is_premium_active(user):
-        raise HTTPException(status_code=402, detail={"error": "premium_required", "message": "Este chat está disponible solo para usuarios Premium."})
+    is_premium = _is_premium_active(user)
+    if not is_premium:
+        questions_used = await _get_chat_questions_used(user.user_id)
+        if questions_used >= FREE_CHAT_QUESTIONS_LIMIT:
+            raise HTTPException(status_code=402, detail={"error": "premium_required", "message": "Este chat está disponible solo para usuarios Premium."})
+
     book = await db.books.find_one({"book_id": book_id}, {"_id": 0})
     if not book:
         raise HTTPException(404, "Book not found")
@@ -1699,7 +1734,12 @@ async def character_chat(book_id: str, req: CharacterChatRequest, user: User = D
             "user_id": user.user_id, "book_id": book_id, "character": req.character or "narrador",
             "user_message": req.message, "assistant_reply": reply_text, "created_at": datetime.now(timezone.utc),
         })
-        return {"reply": reply_text}
+        
+        chat_remaining = None
+        if not is_premium:
+            new_used = await _increment_chat_questions_used(user.user_id)
+            chat_remaining = max(0, FREE_CHAT_QUESTIONS_LIMIT - new_used)
+        return {"reply": reply_text, "chat_remaining": chat_remaining}
     except Exception as e:
         logger.error(f"Character chat failed — book={book_id} character={req.character} error={type(e).__name__}: {e}")
         raise HTTPException(500, f"Character chat failed: {e}")
