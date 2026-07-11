@@ -84,7 +84,7 @@ export default function LegalScreen() {
 
         <Text style={styles.h2}>Contacto</Text>
         <Text style={styles.body}>
-          Si tienes alguna pregunta o sugerencia sobre los Términos y Condiciones, no dudes en ponerte en contacto con el Proveedor del Servicio en: clickbookbook@gmail.com.
+          Si tienes alguna pregunta o sugerencia sobre los Términos y Condiciones, no dudes en ponerte en contacto con el Proveedor del Servicio en: bookvibes.app@gmail.com.
         </Text>
         <Text style={styles.footer}>
           Esta página de Términos y Condiciones fue generada por el App Privacy Policy Generator.
