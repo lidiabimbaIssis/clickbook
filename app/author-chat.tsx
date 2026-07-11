@@ -94,6 +94,14 @@ export default function CharacterChat() {
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [showDisclaimer, setShowDisclaimer] = useState(false);
 
+  // Límite de 3 preguntas gratis, de por vida (no por libro, no se
+  // resetea) para usuarios no premium. El contador real vive en el
+  // backend (igual que hookRemaining en Discover) — este estado solo
+  // refleja lo que el servidor nos dice, nunca decide por su cuenta.
+  // null mientras no se sabe todavía o si el usuario es premium
+  // (en cuyo caso no hay límite y no se muestra nada).
+  const [chatRemaining, setChatRemaining] = useState<number | null>(null);
+
   useEffect(() => {
     AsyncStorage.getItem("character_chat_disclaimer_seen").then((val) => {
       if (!val) setShowDisclaimer(true);
@@ -120,11 +128,35 @@ export default function CharacterChat() {
     })();
   }, [bookId, character, isNarrator]);
 
+  // Consulta cuántas preguntas gratis le quedan al usuario, ANTES de que
+  // intente escribir nada — así el guard de send() ya sabe si debe dejar
+  // pasar o mostrar el paywall directamente, sin esperar a un 402.
+  useEffect(() => {
+    if (user?.is_premium) return; // premium no tiene límite, no hace falta consultar
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api<{ is_premium: boolean; remaining: number | null }>("/me/chat-usage");
+        if (cancelled) return;
+        setChatRemaining(res.remaining ?? null);
+      } catch (e) {
+        console.warn("chat usage fetch failed", e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.is_premium]);
+
   const send = async (text?: string) => {
     const msg = (text ?? input).trim();
     if (!msg || sending) return;
 
-    if (!user?.is_premium) {
+    // Antes: si no eras premium, paywall directo, sin excepciones.
+    // Ahora: si no eres premium, se te dejan 3 preguntas gratis (de por
+    // vida, no por libro). Solo salta el paywall cuando chatRemaining
+    // llega a 0. Si chatRemaining es null (todavía no se ha consultado,
+    // o falló la consulta), dejamos pasar y es el backend quien decide
+    // con el 402 — nunca bloqueamos a ciegas por un dato que no tenemos.
+    if (!user?.is_premium && chatRemaining !== null && chatRemaining <= 0) {
       setPaywallOpen(true);
       return;
     }
@@ -135,7 +167,7 @@ export default function CharacterChat() {
     setSending(true);
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
     try {
-      const res = await api<{ reply: string }>(`/books/${bookId}/character-chat`, {
+      const res = await api<{ reply: string; chat_remaining?: number }>(`/books/${bookId}/character-chat`, {
         method: "POST",
         body: JSON.stringify({
           message: msg,
@@ -144,12 +176,23 @@ export default function CharacterChat() {
         }),
       });
       setMessages([...newHistory, { role: "assistant", content: res.reply }]);
+      // El backend es la única fuente de verdad del contador — si viene
+      // en la respuesta, actualizamos el estado local con ese valor real.
+      if (typeof res.chat_remaining === "number") {
+        setChatRemaining(res.chat_remaining);
+      }
     } catch (e: any) {
       const errStr = String(e?.message || "");
-      const errMsg = errStr.includes("402")
-        ? "Este chat es solo para usuarios Premium."
-        : "No he podido responder. Inténtalo de nuevo.";
-      setMessages([...newHistory, { role: "assistant", content: errMsg }]);
+      if (errStr.includes("402")) {
+        // El backend confirma que ya no quedan preguntas gratis — nos
+        // aseguramos de que el contador local también quede en 0, por si
+        // se nos había desincronizado, y mostramos el paywall.
+        setChatRemaining(0);
+        setPaywallOpen(true);
+      } else {
+        const errMsg = "No he podido responder. Inténtalo de nuevo.";
+        setMessages([...newHistory, { role: "assistant", content: errMsg }]);
+      }
     } finally {
       setSending(false);
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150);
@@ -163,6 +206,11 @@ export default function CharacterChat() {
     : `IA inspirada en el personaje · ${title}`;
   const inputPlaceholder = isNarrator ? "Pregunta sobre el libro…" : `Pregunta a ${character}…`;
 
+  // Aviso sutil de preguntas gratis restantes — solo se muestra si no
+  // eres premium y ya sabemos el número real (nunca durante el instante
+  // en que chatRemaining todavía es null).
+  const showRemainingBadge = !user?.is_premium && chatRemaining !== null;
+
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, backgroundColor: colors.bgBase }}>
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
@@ -174,7 +222,14 @@ export default function CharacterChat() {
           <Text style={styles.headerTitle} numberOfLines={1}>{headerName}</Text>
           <Text style={styles.headerSub} numberOfLines={1}>★ {headerSub}</Text>
         </View>
-        <View style={styles.live}><View style={styles.liveDot} /><Text style={styles.liveText}>EN VIVO</Text></View>
+        {showRemainingBadge ? (
+          <View style={styles.remainingBadge} testID="chat-remaining-badge">
+            <Ionicons name="diamond" size={11} color={colors.gold} />
+            <Text style={styles.remainingBadgeText}>{chatRemaining}</Text>
+          </View>
+        ) : (
+          <View style={styles.live}><View style={styles.liveDot} /><Text style={styles.liveText}>EN VIVO</Text></View>
+        )}
       </View>
       <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={styles.messages} showsVerticalScrollIndicator={false}>
         {messages.map((m, i) => (
@@ -256,6 +311,12 @@ const styles = StyleSheet.create({
   live: { flexDirection: "row", alignItems: "center", gap: 6 },
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.verdigris },
   liveText: { color: colors.verdigris, fontSize: 10, fontWeight: "900", letterSpacing: 1 },
+  // Badge de preguntas gratis restantes — mismo estilo "pill" oscuro que
+  // el resto de indicadores de la app, con el diamante dorado (icono ya
+  // usado en el paywall) para que se entienda de un vistazo que es algo
+  // relacionado con Premium.
+  remainingBadge: { flexDirection: "row", alignItems: "center", gap: 4, borderWidth: 1, borderColor: colors.brassSoft, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 },
+  remainingBadgeText: { color: colors.gold, fontSize: 11, fontWeight: "900" },
   messages: { padding: 16, gap: 10 },
   bubble: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 16, maxWidth: "85%" },
   bubbleUser: { alignSelf: "flex-end", backgroundColor: colors.brass, borderBottomRightRadius: 4 },

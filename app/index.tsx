@@ -10,6 +10,25 @@ import Logo from "../src/components/Logo";
 import { LinearGradient } from "expo-linear-gradient";
 import MaskedView from "@react-native-masked-view/masked-view";
 
+// Clave fija en AsyncStorage para el ID de dispositivo. A diferencia del
+// session_token (que se borra al cerrar sesión), este ID se guarda una
+// única vez y sobrevive a cerrar sesión / volver a entrar como invitado
+// — solo desaparece si se desinstala la app. Sirve para que el backend
+// pueda reconocer "este es el mismo teléfono de antes" y reutilizar la
+// misma cuenta invitada en vez de crear una nueva cada vez, evitando así
+// que se puedan resetear los límites diarios de audios/hooks solo con
+// cerrar sesión y volver a entrar como invitado.
+const DEVICE_ID_KEY = "bookvibes_device_id";
+
+async function getOrCreateDeviceId(): Promise<string> {
+  let id = await AsyncStorage.getItem(DEVICE_ID_KEY);
+  if (!id) {
+    id = `dev_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+    await AsyncStorage.setItem(DEVICE_ID_KEY, id);
+  }
+  return id;
+}
+
 function GradientWord({
   text,
   fontSize,
@@ -150,7 +169,13 @@ export default function LoginScreen() {
         onPress={async () => {
           setProcessing(true);
           try {
-            const data = await api<any>("/auth/guest", { method: "POST" });
+            // Se manda el device_id persistente junto con la petición —
+            // el backend lo usa para reconocer si este dispositivo ya
+            // tuvo una cuenta invitada antes y, si es así, reutilizarla
+            // en vez de crear una nueva (evita el bug de resetear los
+            // límites diarios cerrando y volviendo a entrar como invitado).
+            const deviceId = await getOrCreateDeviceId();
+            const data = await api<any>("/auth/guest", { method: "POST", body: JSON.stringify({ device_id: deviceId }) });
             if (data?.session_token) await setToken(data.session_token);
             await refresh();
             router.replace("/home");
