@@ -17,8 +17,8 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
-from emergentintegrations.llm.chat import LlmChat, UserMessage
-from emergentintegrations.llm.openai import OpenAITextToSpeech
+from google import genai
+from google.genai import types as genai_types
 
 import cloudinary
 import cloudinary.uploader
@@ -29,9 +29,10 @@ load_dotenv(ROOT_DIR / ".env")
 
 MONGO_URL = os.environ["MONGO_URL"]
 DB_NAME = os.environ["DB_NAME"]
-EMERGENT_LLM_KEY = os.environ["EMERGENT_LLM_KEY"]
+GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
+gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 GOOGLE_TTS_API_KEY = os.environ.get("GOOGLE_TTS_API_KEY", "")
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
 
 AFFILIATE_AMAZON_TAG = os.environ.get("AFFILIATE_AMAZON_TAG", "")
 AFFILIATE_CASA_LIBRO = os.environ.get("AFFILIATE_CASA_LIBRO", "")
@@ -904,10 +905,15 @@ async def get_book_characters(book_id: str, user: User = Depends(get_current_use
         '{"personajes": [{"nombre": "...", "descripcion": "...", "genero": "masculino|femenino|desconocido"}]}'
     )
 
-    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"characters-{book_id}", system_message="Eres un analista literario preciso, que nunca inventa información fuera del texto dado.").with_model("gemini", GEMINI_MODEL)
-
     try:
-        response_text = await chat.send_message(UserMessage(text=prompt))
+        response = await gemini_client.aio.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config=genai_types.GenerateContentConfig(
+                system_instruction="Eres un analista literario preciso, que nunca inventa información fuera del texto dado."
+            ),
+        )
+        response_text = response.text
         cleaned = re.sub(r"^```(?:json)?\s*", "", response_text.strip())
         cleaned = re.sub(r"\s*```$", "", cleaned)
         parsed = json.loads(cleaned)
@@ -968,10 +974,15 @@ async def get_character_questions(book_id: str, character: Optional[str] = None,
             'Responde solo en JSON: {"preguntas": ["...", "...", "..."]}'
         )
 
-    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"questions-{book_id}-{character or 'narrador'}", system_message="Generas preguntas breves y fieles al texto dado, sin inventar detalles de trama.").with_model("gemini", GEMINI_MODEL)
-
     try:
-        response_text = await chat.send_message(UserMessage(text=prompt))
+        response = await gemini_client.aio.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config=genai_types.GenerateContentConfig(
+                system_instruction="Generas preguntas breves y fieles al texto dado, sin inventar detalles de trama."
+            ),
+        )
+        response_text = response.text
         cleaned = re.sub(r"^```(?:json)?\s*", "", response_text.strip())
         cleaned = re.sub(r"\s*```$", "", cleaned)
         parsed = json.loads(cleaned)
@@ -1017,15 +1028,19 @@ async def character_chat(book_id: str, req: CharacterChatRequest, user: User = D
             f"Responde directamente y punto."
         )
 
-    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"character-chat-{user.user_id}-{book_id}-{session_suffix}", system_message=system_msg).with_model("gemini", "gemini-2.5-flash")
-
+    contents = []
     for h in req.history[-10:]:
-        if h.role == "user":
-            await chat.send_message(UserMessage(text=h.content))
+        role = "user" if h.role == "user" else "model"
+        contents.append({"role": role, "parts": [{"text": h.content}]})
+    contents.append({"role": "user", "parts": [{"text": req.message}]})
 
     try:
-        reply = await chat.send_message(UserMessage(text=req.message))
-        reply_text = reply.strip()
+        response = await gemini_client.aio.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=contents,
+            config=genai_types.GenerateContentConfig(system_instruction=system_msg),
+        )
+        reply_text = response.text.strip()
         await db.character_chats.insert_one({
             "user_id": user.user_id, "book_id": book_id, "character": req.character or "narrador",
             "user_message": req.message, "assistant_reply": reply_text, "created_at": datetime.now(timezone.utc),
@@ -1066,10 +1081,15 @@ async def premium_summary(book_id: str, lang: str = "es", user: User = Depends(g
 Empieza con una pregunta en segunda persona que implique al lector.
 Tono BookTok, directo, sin spoilers. Solo el texto, sin títulos."""
 
-    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"premium-{book_id}-{lang}", system_message="Eres un crítico literario experto.").with_model("gemini", GEMINI_MODEL)
-
     try:
-        response_text = await chat.send_message(UserMessage(text=prompt))
+        response = await gemini_client.aio.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config=genai_types.GenerateContentConfig(
+                system_instruction="Eres un crítico literario experto."
+            ),
+        )
+        response_text = response.text
         summary = response_text.strip()
         summary = re.sub(r"^```(?:\w+)?\s*", "", summary)
         summary = re.sub(r"\s*```$", "", summary)
