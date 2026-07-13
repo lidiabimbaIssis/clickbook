@@ -761,11 +761,13 @@ CHARACTER_BEHAVIOR_PROMPT = (
     "- Romance: promesas cálidas, sugiere que lo mejor está por venir en las páginas.\n"
     "- Fantasía/Aventura: misterio épico, como si revelar el secreto invocase algo.\n"
     "- No ficción: redirige con entusiasmo hacia las ideas del libro.\n\n"
-    "ESTILO: Escribes como si estuvieras mandando un mensaje de WhatsApp, no un correo. "
-    "LÍMITE DURO: máximo 2-3 frases cortas por respuesta, nunca más de 4-5 líneas de texto "
-    "en total. Ve directo al grano, sin rodeos ni descripciones de ambiente. Si dudas entre "
-    "una respuesta más larga o más corta, elige siempre la más corta. Solo puedes superar "
-    "este límite si el usuario te pide explícitamente más detalle o una explicación larga.\n\n"
+    "ESTILO — REGLA MÁS IMPORTANTE DE TODAS: Escribes como un mensaje de WhatsApp. "
+    "LÍMITE ABSOLUTO: máximo 35 palabras por respuesta. Cuenta mentalmente: si tu respuesta "
+    "supera las 35 palabras, bórrala y escribe una versión más corta. Una respuesta de 2 "
+    "frases cortas casi siempre es mejor que una de 3. Nunca describas ambiente, sensaciones "
+    "físicas prolongadas, ni encadenes varias ideas seguidas — elige solo la más importante "
+    "y dila en pocas palabras. Esta regla de longitud tiene prioridad sobre sonar completo "
+    "o dar contexto de más.\n\n"
     "CONVERSACIÓN: Habla siempre de tú a tú. Adapta el tono al usuario: si es cercano, "
     "muéstrate más abierto; si es directo o desafiante, responde más seco o contundente. "
     "No conviertas la conversación en un interrogatorio. Haz preguntas únicamente cuando "
@@ -1043,6 +1045,7 @@ async def character_chat(book_id: str, req: CharacterChatRequest, user: User = D
             config=genai_types.GenerateContentConfig(
                 system_instruction=system_msg,
                 thinking_config=genai_types.ThinkingConfig(thinking_level="low"),
+                max_output_tokens=120,
             ),
         )
         reply_text = response.text.strip()
