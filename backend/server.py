@@ -1045,9 +1045,9 @@ async def character_chat(book_id: str, req: CharacterChatRequest, user: User = D
             config=genai_types.GenerateContentConfig(
                 system_instruction=system_msg,
                 thinking_config=genai_types.ThinkingConfig(thinking_level="low"),
-                max_output_tokens=120,
             ),
         )
+        
         reply_text = response.text.strip()
         await db.character_chats.insert_one({
             "user_id": user.user_id, "book_id": book_id, "character": req.character or "narrador",
