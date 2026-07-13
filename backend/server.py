@@ -911,7 +911,8 @@ async def get_book_characters(book_id: str, user: User = Depends(get_current_use
             model=GEMINI_MODEL,
             contents=prompt,
             config=genai_types.GenerateContentConfig(
-                system_instruction="Eres un analista literario preciso, que nunca inventa información fuera del texto dado."
+                system_instruction="Eres un analista literario preciso, que nunca inventa información fuera del texto dado.",
+                thinking_config=genai_types.ThinkingConfig(thinking_level="low"),
             ),
         )
         response_text = response.text
@@ -1039,7 +1040,10 @@ async def character_chat(book_id: str, req: CharacterChatRequest, user: User = D
         response = await gemini_client.aio.models.generate_content(
             model=GEMINI_MODEL,
             contents=contents,
-            config=genai_types.GenerateContentConfig(system_instruction=system_msg),
+            config=genai_types.GenerateContentConfig(
+                system_instruction=system_msg,
+                thinking_config=genai_types.ThinkingConfig(thinking_level="low"),
+            ),
         )
         reply_text = response.text.strip()
         await db.character_chats.insert_one({
