@@ -17,8 +17,10 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
-from emergentintegrations.llm.chat import LlmChat, UserMessage
-from emergentintegrations.llm.openai import OpenAITextToSpeech
+from google import genai
+from google.genai import types as genai_types
+from google.oauth2 import id_token as google_id_token
+from google.auth.transport import requests as google_auth_requests
 
 import cloudinary
 import cloudinary.uploader
@@ -29,9 +31,11 @@ load_dotenv(ROOT_DIR / ".env")
 
 MONGO_URL = os.environ["MONGO_URL"]
 DB_NAME = os.environ["DB_NAME"]
-EMERGENT_LLM_KEY = os.environ["EMERGENT_LLM_KEY"]
+GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
+gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+GOOGLE_WEB_CLIENT_ID = os.environ["GOOGLE_WEB_CLIENT_ID"]
 GOOGLE_TTS_API_KEY = os.environ.get("GOOGLE_TTS_API_KEY", "")
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
 
 AFFILIATE_AMAZON_TAG = os.environ.get("AFFILIATE_AMAZON_TAG", "")
 AFFILIATE_CASA_LIBRO = os.environ.get("AFFILIATE_CASA_LIBRO", "")
@@ -126,6 +130,9 @@ class LangUpdate(BaseModel):
 
 class GuestLoginRequest(BaseModel):
     device_id: Optional[str] = None
+
+class GoogleAuthRequest(BaseModel):
+    id_token: str
 # ----------------- Auth helpers -----------------
 async def get_current_user(
     request: Request,
@@ -194,6 +201,47 @@ async def exchange_session(req: SessionExchangeRequest, response: Response):
         upsert=True,
     )
     response.set_cookie(key="session_token", value=session_token, max_age=7*24*60*60, path="/", httponly=True, secure=True, samesite="none")
+    return {"user": User(**user_doc).dict(), "session_token": session_token}
+
+
+@api_router.post("/auth/google")
+async def google_login(req: GoogleAuthRequest, response: Response):
+    # Verifica que el id_token que manda la app sea legítimo y venga
+    # realmente de Google, dirigido a nuestro Web Client ID (no a otra
+    # app). Si el token es falso, ha caducado, o es de otra app, esto
+    # lanza una excepción y lo capturamos como 401.
+    try:
+        idinfo = google_id_token.verify_oauth2_token(
+            req.id_token, google_auth_requests.Request(), GOOGLE_WEB_CLIENT_ID
+        )
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Token de Google inválido")
+
+    email = idinfo["email"]
+    name = idinfo.get("name") or email.split("@")[0]
+    picture = idinfo.get("picture")
+
+    existing = await db.users.find_one({"email": email}, {"_id": 0})
+    if existing:
+        user_id = existing["user_id"]
+        await db.users.update_one({"user_id": user_id}, {"$set": {"name": name, "picture": picture}})
+        user_doc = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    else:
+        user_id = f"user_{uuid.uuid4().hex[:12]}"
+        user_doc = {
+            "user_id": user_id, "email": email, "name": name, "picture": picture,
+            "lang": "es", "created_at": datetime.now(timezone.utc),
+        }
+        await db.users.insert_one(dict(user_doc))
+        user_doc.pop("_id", None)
+
+    session_token = f"google_{uuid.uuid4().hex}"
+    expires_at = datetime.now(timezone.utc) + timedelta(days=30)
+    await db.user_sessions.insert_one({
+        "user_id": user_id, "session_token": session_token,
+        "expires_at": expires_at, "created_at": datetime.now(timezone.utc),
+    })
+    response.set_cookie(key="session_token", value=session_token, max_age=30*24*60*60, path="/", httponly=True, secure=True, samesite="none")
     return {"user": User(**user_doc).dict(), "session_token": session_token}
 
 
@@ -760,10 +808,13 @@ CHARACTER_BEHAVIOR_PROMPT = (
     "- Romance: promesas cálidas, sugiere que lo mejor está por venir en las páginas.\n"
     "- Fantasía/Aventura: misterio épico, como si revelar el secreto invocase algo.\n"
     "- No ficción: redirige con entusiasmo hacia las ideas del libro.\n\n"
-    "ESTILO: Responde como si estuvieras en una conversación de mensajería. Las respuestas "
-    "deben ser normalmente breves: entre una y cuatro frases. Ve al grano. Evita "
-    "explicaciones largas o narraciones innecesarias. Solo escribe más si el usuario "
-    "lo pide o la conversación realmente lo requiere.\n\n"
+    "ESTILO — REGLA MÁS IMPORTANTE DE TODAS: Escribes como un mensaje de WhatsApp. "
+    "LÍMITE ABSOLUTO: máximo 35 palabras por respuesta. Cuenta mentalmente: si tu respuesta "
+    "supera las 35 palabras, bórrala y escribe una versión más corta. Una respuesta de 2 "
+    "frases cortas casi siempre es mejor que una de 3. Nunca describas ambiente, sensaciones "
+    "físicas prolongadas, ni encadenes varias ideas seguidas — elige solo la más importante "
+    "y dila en pocas palabras. Esta regla de longitud tiene prioridad sobre sonar completo "
+    "o dar contexto de más.\n\n"
     "CONVERSACIÓN: Habla siempre de tú a tú. Adapta el tono al usuario: si es cercano, "
     "muéstrate más abierto; si es directo o desafiante, responde más seco o contundente. "
     "No conviertas la conversación en un interrogatorio. Haz preguntas únicamente cuando "
@@ -904,10 +955,16 @@ async def get_book_characters(book_id: str, user: User = Depends(get_current_use
         '{"personajes": [{"nombre": "...", "descripcion": "...", "genero": "masculino|femenino|desconocido"}]}'
     )
 
-    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"characters-{book_id}", system_message="Eres un analista literario preciso, que nunca inventa información fuera del texto dado.").with_model("gemini", GEMINI_MODEL)
-
     try:
-        response_text = await chat.send_message(UserMessage(text=prompt))
+        response = await gemini_client.aio.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config=genai_types.GenerateContentConfig(
+                system_instruction="Eres un analista literario preciso, que nunca inventa información fuera del texto dado.",
+                thinking_config=genai_types.ThinkingConfig(thinking_level="low"),
+            ),
+        )
+        response_text = response.text
         cleaned = re.sub(r"^```(?:json)?\s*", "", response_text.strip())
         cleaned = re.sub(r"\s*```$", "", cleaned)
         parsed = json.loads(cleaned)
@@ -968,10 +1025,15 @@ async def get_character_questions(book_id: str, character: Optional[str] = None,
             'Responde solo en JSON: {"preguntas": ["...", "...", "..."]}'
         )
 
-    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"questions-{book_id}-{character or 'narrador'}", system_message="Generas preguntas breves y fieles al texto dado, sin inventar detalles de trama.").with_model("gemini", GEMINI_MODEL)
-
     try:
-        response_text = await chat.send_message(UserMessage(text=prompt))
+        response = await gemini_client.aio.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config=genai_types.GenerateContentConfig(
+                system_instruction="Generas preguntas breves y fieles al texto dado, sin inventar detalles de trama."
+            ),
+        )
+        response_text = response.text
         cleaned = re.sub(r"^```(?:json)?\s*", "", response_text.strip())
         cleaned = re.sub(r"\s*```$", "", cleaned)
         parsed = json.loads(cleaned)
@@ -1017,15 +1079,23 @@ async def character_chat(book_id: str, req: CharacterChatRequest, user: User = D
             f"Responde directamente y punto."
         )
 
-    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"character-chat-{user.user_id}-{book_id}-{session_suffix}", system_message=system_msg).with_model("gemini", "gemini-2.5-flash")
-
+    contents = []
     for h in req.history[-10:]:
-        if h.role == "user":
-            await chat.send_message(UserMessage(text=h.content))
+        role = "user" if h.role == "user" else "model"
+        contents.append({"role": role, "parts": [{"text": h.content}]})
+    contents.append({"role": "user", "parts": [{"text": req.message}]})
 
     try:
-        reply = await chat.send_message(UserMessage(text=req.message))
-        reply_text = reply.strip()
+        response = await gemini_client.aio.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=contents,
+            config=genai_types.GenerateContentConfig(
+                system_instruction=system_msg,
+                thinking_config=genai_types.ThinkingConfig(thinking_level="low"),
+            ),
+        )
+        
+        reply_text = response.text.strip()
         await db.character_chats.insert_one({
             "user_id": user.user_id, "book_id": book_id, "character": req.character or "narrador",
             "user_message": req.message, "assistant_reply": reply_text, "created_at": datetime.now(timezone.utc),
@@ -1066,10 +1136,15 @@ async def premium_summary(book_id: str, lang: str = "es", user: User = Depends(g
 Empieza con una pregunta en segunda persona que implique al lector.
 Tono BookTok, directo, sin spoilers. Solo el texto, sin títulos."""
 
-    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"premium-{book_id}-{lang}", system_message="Eres un crítico literario experto.").with_model("gemini", GEMINI_MODEL)
-
     try:
-        response_text = await chat.send_message(UserMessage(text=prompt))
+        response = await gemini_client.aio.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config=genai_types.GenerateContentConfig(
+                system_instruction="Eres un crítico literario experto."
+            ),
+        )
+        response_text = response.text
         summary = response_text.strip()
         summary = re.sub(r"^```(?:\w+)?\s*", "", summary)
         summary = re.sub(r"\s*```$", "", summary)
