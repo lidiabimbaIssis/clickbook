@@ -9,6 +9,7 @@ import { colors } from "../src/theme";
 import Logo from "../src/components/Logo";
 import { LinearGradient } from "expo-linear-gradient";
 import MaskedView from "@react-native-masked-view/masked-view";
+import { GoogleSignin } from "@react-native-google-signin/google-signin";
 
 // Clave fija en AsyncStorage para el ID de dispositivo. A diferencia del
 // session_token (que se borra al cerrar sesión), este ID se guarda una
@@ -28,6 +29,9 @@ async function getOrCreateDeviceId(): Promise<string> {
   }
   return id;
 }
+GoogleSignin.configure({
+  webClientId: "322089590785-m18kg46nbvsstgrdo5ctdu0jh1necg55.apps.googleusercontent.com",
+});
 
 function GradientWord({
   text,
@@ -102,14 +106,24 @@ export default function LoginScreen() {
     }
   }, [loading, user, router]);
 
-  const signIn = () => {
-    if (Platform.OS === "web" && typeof window !== "undefined") {
-      const redirectUrl = window.location.origin + "/";
-      window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
-    } else {
-      const WebBrowser = require("expo-web-browser");
-      const url = `https://auth.emergentagent.com/?redirect=${encodeURIComponent((process.env.EXPO_PUBLIC_BACKEND_URL || "") + "/")}`;
-      WebBrowser.openBrowserAsync(url);
+  const signIn = async () => {
+    setProcessing(true);
+    try {
+      await GoogleSignin.hasPlayServices();
+      const response = await GoogleSignin.signIn();
+      const idToken = (response as any)?.data?.idToken ?? (response as any)?.idToken;
+      if (!idToken) throw new Error("No se recibió idToken de Google");
+
+      const data = await api<any>("/auth/google", {
+        method: "POST",
+        body: JSON.stringify({ id_token: idToken }),
+      });
+      if (data?.session_token) await setToken(data.session_token);
+      await refresh();
+      router.replace("/home");
+    } catch (e: any) {
+      console.warn("Error en login de Google:", e);
+      setProcessing(false);
     }
   };
 
