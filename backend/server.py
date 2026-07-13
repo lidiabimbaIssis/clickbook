@@ -19,6 +19,8 @@ from pydantic import BaseModel, Field
 
 from google import genai
 from google.genai import types as genai_types
+from google.oauth2 import id_token as google_id_token
+from google.auth.transport import requests as google_auth_requests
 
 import cloudinary
 import cloudinary.uploader
@@ -31,6 +33,7 @@ MONGO_URL = os.environ["MONGO_URL"]
 DB_NAME = os.environ["DB_NAME"]
 GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
 gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+GOOGLE_WEB_CLIENT_ID = os.environ["GOOGLE_WEB_CLIENT_ID"]
 GOOGLE_TTS_API_KEY = os.environ.get("GOOGLE_TTS_API_KEY", "")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
 
@@ -127,6 +130,9 @@ class LangUpdate(BaseModel):
 
 class GuestLoginRequest(BaseModel):
     device_id: Optional[str] = None
+
+class GoogleAuthRequest(BaseModel):
+    id_token: str
 # ----------------- Auth helpers -----------------
 async def get_current_user(
     request: Request,
@@ -195,6 +201,47 @@ async def exchange_session(req: SessionExchangeRequest, response: Response):
         upsert=True,
     )
     response.set_cookie(key="session_token", value=session_token, max_age=7*24*60*60, path="/", httponly=True, secure=True, samesite="none")
+    return {"user": User(**user_doc).dict(), "session_token": session_token}
+
+
+@api_router.post("/auth/google")
+async def google_login(req: GoogleAuthRequest, response: Response):
+    # Verifica que el id_token que manda la app sea legítimo y venga
+    # realmente de Google, dirigido a nuestro Web Client ID (no a otra
+    # app). Si el token es falso, ha caducado, o es de otra app, esto
+    # lanza una excepción y lo capturamos como 401.
+    try:
+        idinfo = google_id_token.verify_oauth2_token(
+            req.id_token, google_auth_requests.Request(), GOOGLE_WEB_CLIENT_ID
+        )
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Token de Google inválido")
+
+    email = idinfo["email"]
+    name = idinfo.get("name") or email.split("@")[0]
+    picture = idinfo.get("picture")
+
+    existing = await db.users.find_one({"email": email}, {"_id": 0})
+    if existing:
+        user_id = existing["user_id"]
+        await db.users.update_one({"user_id": user_id}, {"$set": {"name": name, "picture": picture}})
+        user_doc = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    else:
+        user_id = f"user_{uuid.uuid4().hex[:12]}"
+        user_doc = {
+            "user_id": user_id, "email": email, "name": name, "picture": picture,
+            "lang": "es", "created_at": datetime.now(timezone.utc),
+        }
+        await db.users.insert_one(dict(user_doc))
+        user_doc.pop("_id", None)
+
+    session_token = f"google_{uuid.uuid4().hex}"
+    expires_at = datetime.now(timezone.utc) + timedelta(days=30)
+    await db.user_sessions.insert_one({
+        "user_id": user_id, "session_token": session_token,
+        "expires_at": expires_at, "created_at": datetime.now(timezone.utc),
+    })
+    response.set_cookie(key="session_token", value=session_token, max_age=30*24*60*60, path="/", httponly=True, secure=True, samesite="none")
     return {"user": User(**user_doc).dict(), "session_token": session_token}
 
 
