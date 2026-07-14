@@ -3,6 +3,7 @@ import { Modal, View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } fr
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "../theme";
 import { api } from "../lib/api";
+import Purchases from "react-native-purchases";
 
 type PricingConfig = { monthly_regular: string; monthly_launch: string; yearly_regular: string; yearly_launch: string; launch_promo_active: boolean; launch_promo_label: string; free_daily_audio_limit: number; };
 
@@ -19,8 +20,34 @@ export default function PaywallModal({ visible, onClose, onUpgraded, reason = "l
 
   const upgrade = async () => {
     setLoading(true);
-    try { await api("/me/upgrade", { method: "POST" }); onUpgraded?.(); onClose(); }
-    catch (e) { console.warn(e); } finally { setLoading(false); }
+    try {
+      const offerings = await Purchases.getOfferings();
+      const current = offerings.current;
+      if (!current) throw new Error("No hay ofertas disponibles en RevenueCat todavía");
+
+      // selectedPlan ya existe en este componente ("yearly" | "monthly"),
+      // lo mapeamos a los paquetes reales que vienen de RevenueCat.
+      const pkg = selectedPlan === "yearly" ? current.annual : current.monthly;
+      if (!pkg) throw new Error(`No se encontró el paquete "${selectedPlan}" en la oferta actual`);
+
+      const { customerInfo } = await Purchases.purchasePackage(pkg);
+      const isActive = !!customerInfo.entitlements.active["BookVibes Pro"];
+
+      if (isActive) {
+        // Avisamos a nuestro backend de que la compra se completó, para
+        // que verifique con RevenueCat (no se fía solo del cliente) y
+        // marque al usuario como premium de verdad en nuestra base de datos.
+        await api("/me/upgrade-verified", { method: "POST" });
+        onUpgraded?.();
+        onClose();
+      }
+    } catch (e: any) {
+      // El usuario cancelando la compra también entra por aquí — no es
+      // un error real, así que no mostramos nada raro en ese caso.
+      if (!e?.userCancelled) console.warn("Error en la compra:", e);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const headline = reason === "limit" ? "Has alcanzado tu límite diario" : reason === "chat" ? "Chat IA con tus personajes favoritos" : "BookVibes Premium";
@@ -59,7 +86,7 @@ export default function PaywallModal({ visible, onClose, onUpgraded, reason = "l
           <TouchableOpacity style={styles.cta} onPress={upgrade} disabled={loading} testID="btn-upgrade">
             {loading ? <ActivityIndicator color={colors.bgBase} /> : (<><Ionicons name="flash" size={18} color={colors.bgBase} /><Text style={styles.ctaText}>HACERSE PREMIUM</Text></>)}
           </TouchableOpacity>
-          <Text style={styles.disclaimer}>Modo demo · cancelar en cualquier momento</Text>
+          <Text style={styles.disclaimer}>Se renueva automáticamente · cancela en cualquier momento</Text>
         </View>
       </View>
     </Modal>
