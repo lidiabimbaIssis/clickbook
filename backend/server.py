@@ -34,6 +34,8 @@ DB_NAME = os.environ["DB_NAME"]
 GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
 gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 GOOGLE_WEB_CLIENT_ID = os.environ["GOOGLE_WEB_CLIENT_ID"]
+REVENUECAT_SECRET_KEY = os.environ["REVENUECAT_SECRET_KEY"]
+REVENUECAT_PROJECT_ID = os.environ.get("REVENUECAT_PROJECT_ID", "proj86d45ddf")
 GOOGLE_TTS_API_KEY = os.environ.get("GOOGLE_TTS_API_KEY", "")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
 
@@ -404,11 +406,44 @@ async def get_my_chat_usage(user: User = Depends(get_current_user)):
 async def get_pricing():
     return PRICING
 
-@api_router.post("/me/upgrade")
-async def upgrade_to_premium(user: User = Depends(get_current_user)):
-    until = datetime.now(timezone.utc) + timedelta(days=30)
-    await db.users.update_one({"user_id": user.user_id}, {"$set": {"is_premium": True, "premium_until": until}})
-    return {"ok": True, "is_premium": True, "premium_until": until.isoformat()}
+@api_router.post("/me/upgrade-verified")
+async def upgrade_to_premium_verified(user: User = Depends(get_current_user)):
+    # A diferencia de /me/upgrade (que se fía ciegamente de lo que diga
+    # el cliente), este endpoint verifica DIRECTAMENTE con RevenueCat que
+    # el usuario tiene de verdad una suscripción activa antes de marcarlo
+    # como premium. El customer_id en RevenueCat es el mismo user_id de
+    # nuestro backend, porque el frontend hace Purchases.logIn(user_id).
+    url = f"https://api.revenuecat.com/v2/projects/{REVENUECAT_PROJECT_ID}/customers/{user.user_id}/active_entitlements"
+    headers = {"Authorization": f"Bearer {REVENUECAT_SECRET_KEY}"}
+
+    async with httpx.AsyncClient(timeout=15.0) as http_client:
+        resp = await http_client.get(url, headers=headers)
+
+    if resp.status_code == 404:
+        raise HTTPException(status_code=402, detail="No se encontró ninguna suscripción activa")
+
+    if resp.status_code != 200:
+        logger.error(f"RevenueCat verification failed for user={user.user_id}: {resp.status_code} {resp.text}")
+        raise HTTPException(status_code=502, detail="No se pudo verificar la compra con RevenueCat")
+
+    data = resp.json()
+    active_items = data.get("items", [])
+
+    if not active_items:
+        raise HTTPException(status_code=402, detail="No hay ninguna suscripción activa para este usuario")
+
+    # Tomamos la fecha de caducidad real de la suscripción, si viene en
+    # la respuesta; si no, ponemos un plazo largo de respaldo. Más
+    # adelante, un webhook de RevenueCat debería mantener esto
+    # actualizado automáticamente ante renovaciones/cancelaciones.
+    expires_at_ms = active_items[0].get("expires_at")
+    premium_until = (
+        datetime.fromtimestamp(expires_at_ms / 1000, tz=timezone.utc)
+        if expires_at_ms else datetime.now(timezone.utc) + timedelta(days=400)
+    )
+
+    await db.users.update_one({"user_id": user.user_id}, {"$set": {"is_premium": True, "premium_until": premium_until}})
+    return {"ok": True, "is_premium": True}
 
 @api_router.post("/me/downgrade")
 async def downgrade_from_premium(user: User = Depends(get_current_user)):
