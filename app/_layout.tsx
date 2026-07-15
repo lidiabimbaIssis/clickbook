@@ -9,9 +9,13 @@ import { useFonts } from "expo-font";
 import { Ionicons } from "@expo/vector-icons";
 import { AuthProvider } from "../src/providers/AuthProvider";
 import { colors } from "../src/theme";
-
+import Purchases from "react-native-purchases";
 // Mantén el splash hasta que las fuentes carguen
 SplashScreen.preventAutoHideAsync().catch(() => {});
+// Inicializa RevenueCat una sola vez, al arrancar la app. Clave PÚBLICA de
+// PRODUCCIÓN de la app "BookVibes (Play Store)" en RevenueCat (proyecto
+// 86d45ddf). Sustituye a la clave de test usada durante el desarrollo.
+Purchases.configure({ apiKey: "goog_XYySCsTPFMckLwLJgMzjRStYsob" });
 
 export default function RootLayout() {
   // Precarga las fuentes de Ionicons para que se vean en el build nativo

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { api, setToken, clearToken, SESSION_KEY, User } from "../lib/api";
 import * as SecureStore from "expo-secure-store";
+import Purchases from "react-native-purchases";
 
 type AuthState = {
   user: User | null;
@@ -29,6 +30,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (token) {
         const me = await api<User>("/auth/me");
         setUser(me);
+        // Le decimos a RevenueCat quién es este usuario (su user_id de
+        // nuestro backend), para que las compras queden asociadas a él
+        // y no a un ID anónimo temporal generado por el propio SDK.
+        try {
+          await Purchases.logIn(me.user_id);
+        } catch {}
       } else {
         setUser(null);
       }
@@ -39,9 +46,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const signOut = useCallback(async () => {
+ const signOut = useCallback(async () => {
     try {
       await api("/auth/logout", { method: "POST" });
+    } catch {}
+    try {
+      await Purchases.logOut();
     } catch {}
     await clearToken();
     setUser(null);
