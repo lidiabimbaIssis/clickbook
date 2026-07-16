@@ -299,7 +299,32 @@ async def logout(response: Response, authorization: Optional[str] = Header(None)
         await db.user_sessions.delete_one({"session_token": token})
     response.delete_cookie("session_token", path="/")
     return {"ok": True}
+@api_router.delete("/me/account")
+async def delete_my_account(response: Response, user: User = Depends(get_current_user)):
+    """Borra la cuenta del usuario y TODOS sus datos asociados en Mongo.
+    Cumple con la promesa hecha en Play Console (Seguridad de los datos /
+    Eliminación de cuenta): el usuario puede pedirlo por email y, cuando
+    se ejecute este endpoint a mano o desde la app, no debe quedar ningún
+    rastro suyo en ninguna colección."""
+    user_id = user.user_id
 
+    # Colecciones que guardan datos ligados a este user_id.
+    # Si se añaden nuevas funciones en el futuro que generen datos por
+    # usuario (nueva colección), hay que añadirlas aquí también.
+    await db.user_sessions.delete_many({"user_id": user_id})
+    await db.chat_usage.delete_many({"user_id": user_id})
+    await db.daily_audio_usage.delete_many({"user_id": user_id})
+    await db.daily_hook_usage.delete_many({"user_id": user_id})
+    await db.user_interactions.delete_many({"user_id": user_id})
+    await db.character_chats.delete_many({"user_id": user_id})
+
+    # El documento del propio usuario se borra el último, por si algo
+    # falla a mitad de camino es más fácil detectar que quedó a medias
+    # (el usuario seguiría existiendo) que al revés.
+    await db.users.delete_one({"user_id": user_id})
+
+    response.delete_cookie("session_token", path="/")
+    return {"ok": True, "message": "Cuenta y datos asociados eliminados correctamente."}
 
 @api_router.patch("/auth/lang")
 async def update_lang(body: LangUpdate, user: User = Depends(get_current_user)):
