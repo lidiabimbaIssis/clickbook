@@ -393,8 +393,10 @@ const styles = StyleSheet.create({
   waveformWrap: { flexDirection: "row", alignItems: "center", gap: 4, width: 32 },
   waveformBar: { width: 4, borderRadius: 2, shadowRadius: 6, shadowOpacity: 0.8, shadowOffset: { width: 0, height: 0 } },
   timerOuter: { position: "absolute", width: HERO - 20, height: HERO - 20, borderRadius: (HERO - 20) / 2, borderWidth: 3, borderColor: colors.brass, shadowColor: colors.brass, shadowRadius: 30, shadowOffset: { width: 0, height: 0 }, elevation: 14 },
-  timerRing: { position: "absolute", width: HERO - 60, height: HERO - 60, borderRadius: (HERO - 60) / 2, borderWidth: 1, borderColor: "rgba(0,240,255,0.25)" },
-  timerRingInner: { position: "absolute", width: HERO - 38, height: HERO - 38, borderRadius: (HERO - 38) / 2, borderWidth: 1, borderColor: "rgba(0,240,255,0.4)" },
+  // Antes: rgba(0,240,255,...) — brass MUY antiguo. Ahora sobre el brass
+  // definitivo actual (#07a6fb = 7,166,251), misma opacidad de siempre.
+  timerRing: { position: "absolute", width: HERO - 60, height: HERO - 60, borderRadius: (HERO - 60) / 2, borderWidth: 1, borderColor: "rgba(7,166,251,0.25)" },
+  timerRingInner: { position: "absolute", width: HERO - 38, height: HERO - 38, borderRadius: (HERO - 38) / 2, borderWidth: 1, borderColor: "rgba(7,166,251,0.4)" },
   headphonesBadge: { position: "absolute", bottom: 2, right: 2, width: 36, height: 36, borderRadius: 18, backgroundColor: colors.brass, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: colors.bgBase, shadowColor: colors.brass, shadowOpacity: 0.6, shadowRadius: 10, shadowOffset: { width: 0, height: 0 }, elevation: 8 },
   timerInner: { alignItems: "center", justifyContent: "center" },
   timer60: { fontSize: 110, fontWeight: "900", color: colors.brass, letterSpacing: -4, ...Platform.select({ web: { textShadow: `0 0 30px ${colors.brass}` as any }, default: { textShadowColor: colors.brass, textShadowRadius: 22 } }) },
@@ -411,12 +413,14 @@ const styles = StyleSheet.create({
   sparkleBottomLeft: { bottom: 4, left: -8 },
   authorWrap: { width: HERO, height: HERO, alignItems: "center", justifyContent: "center" },
   authorGlowRing: { position: "absolute", width: HERO - 20, height: HERO - 20, borderRadius: (HERO - 20) / 2, borderWidth: 3, borderColor: colors.copper, shadowColor: colors.copper, shadowRadius: 30, shadowOffset: { width: 0, height: 0 }, elevation: 14 },
-  authorRingInner: { position: "absolute", width: HERO - 38, height: HERO - 38, borderRadius: (HERO - 38) / 2, borderWidth: 1, borderColor: "rgba(176,38,255,0.4)" },
+  // Antes: rgba(176,38,255,...) — copper MUY antiguo. Ahora sobre el
+  // copper definitivo actual (#7003ae = 112,3,174), misma opacidad.
+  authorRingInner: { position: "absolute", width: HERO - 38, height: HERO - 38, borderRadius: (HERO - 38) / 2, borderWidth: 1, borderColor: "rgba(112,3,174,0.4)" },
   authorAvatar: { width: HERO - 80, height: HERO - 80, borderRadius: (HERO - 80) / 2, borderWidth: 3, borderColor: colors.copper, backgroundColor: colors.bgSurface, alignItems: "center", justifyContent: "center", shadowColor: colors.copper, shadowRadius: 30, shadowOpacity: 0.7, shadowOffset: { width: 0, height: 0 }, elevation: 14 },
   authorPremiumBadge: { position: "absolute", bottom: 4, right: 10, width: 38, height: 38, borderRadius: 19, backgroundColor: colors.gold, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: colors.bgBase },
-  bubbleAssistant: { position: "absolute", left: 4, top: 10, backgroundColor: colors.bgSurface, borderWidth: 1, borderColor: "rgba(176,38,255,0.45)", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 14, borderBottomLeftRadius: 4, maxWidth: 190 },
+  bubbleAssistant: { position: "absolute", left: 4, top: 10, backgroundColor: colors.bgSurface, borderWidth: 1, borderColor: "rgba(112,3,174,0.45)", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 14, borderBottomLeftRadius: 4, maxWidth: 190 },
   bubbleText: { color: colors.textOnDark, fontSize: 13, fontStyle: "italic" },
-  typingBubble: { position: "absolute", left: 30, top: 64, flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: colors.bgSurface, borderWidth: 1, borderColor: "rgba(176,38,255,0.45)", paddingHorizontal: 12, paddingVertical: 9, borderRadius: 14, borderTopLeftRadius: 4 },
+  typingBubble: { position: "absolute", left: 30, top: 64, flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: colors.bgSurface, borderWidth: 1, borderColor: "rgba(112,3,174,0.45)", paddingHorizontal: 12, paddingVertical: 9, borderRadius: 14, borderTopLeftRadius: 4 },
   typingDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.copper },
   bubbleUser: { position: "absolute", right: 14, bottom: 18, backgroundColor: colors.brass, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14, borderBottomRightRadius: 4 },
   bottom: { position: "absolute", bottom: 0, left: 0, right: 0, paddingHorizontal: 28, paddingTop: 12, gap: 16, zIndex: 20, backgroundColor: colors.bgBase },

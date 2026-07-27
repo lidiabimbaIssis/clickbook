@@ -13,9 +13,11 @@ type Character = {
 // Colores por posición (índice) — independiente del género.
 // Ciclo de 5 colores usando la paleta neón de la app:
 // cian, morado, rosa, verde, amarillo — y vuelve a empezar.
+// Solo se actualizaron cian y morado a los colores definitivos
+// (#07a6fb y #7003ae); rosa, verde y amarillo se quedan igual.
 const POSITION_COLORS = [
-  { fg: colors.brass,    bg: "rgba(0,240,255,0.12)",  border: "rgba(0,240,255,0.3)"  },  // cian
-  { fg: colors.copper,   bg: "rgba(176,38,255,0.12)", border: "rgba(176,38,255,0.3)" },  // morado
+  { fg: colors.brass,    bg: "rgba(7,166,251,0.12)",  border: "rgba(7,166,251,0.3)"  },  // cian
+  { fg: colors.copper,   bg: "rgba(112,3,174,0.12)", border: "rgba(112,3,174,0.3)" },  // morado
   { fg: colors.iron,     bg: "rgba(255,46,120,0.12)", border: "rgba(255,46,120,0.3)" },  // rosa
   { fg: colors.verdigris,bg: "rgba(0,255,163,0.12)",  border: "rgba(0,255,163,0.3)"  },  // verde
   { fg: colors.gold,     bg: "rgba(255,210,63,0.12)", border: "rgba(255,210,63,0.3)"  },  // amarillo

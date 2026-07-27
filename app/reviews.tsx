@@ -151,7 +151,6 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
                   {data.topics.slice(0, 3).map((t, i) => (
                     <View key={i} style={[styles.topicPill, { borderColor: t.color }]}>
                       <View style={styles.topicLeft}>
-                        <DynamicIcon name={t.icon} size={13} color={t.color} />
                         <Text style={[styles.topicLabel, { color: t.color }]}>{capitalize(t.label)}</Text>
                       </View>
                       <Text style={[styles.topicPct, { color: t.color }]}>{t.percent}%</Text>
@@ -162,7 +161,7 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
             </View>
           </View>
 
-          <View style={[styles.card, { borderColor: "#4b017c", alignSelf: 'center', width: '100%' }]}>
+          <View style={styles.card}>
             <Text style={styles.cardLabel}>QUE SENTIRÁS LEYENDO ESTE LIBRO✨</Text>
             <View style={styles.emotionsContainer}>
               {(data as any).emotions?.slice(0, 3).map((e: any, i: number) => (
@@ -175,7 +174,20 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
             </View>
           </View>
 
-          <View style={[styles.card, { borderColor: "#002988" }]}>
+          {/* leelo si — en tercer lugar */}
+          <View style={styles.card}>
+            <Text style={styles.cardLabel}>LÉELO SI... ✨</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+              {(data as any).leer_si?.map((tag: any, i: number) => (
+                <View key={i} style={styles.leerSiPill}>
+                  <Text style={styles.leerSiText} numberOfLines={2}>{capitalize(tag.label)}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          {/* reacciones de lectores — en cuarto lugar */}
+          <View style={styles.card}>
             <Text style={styles.cardLabel}>REACCIONES DE LECTORES ✨</Text>
             {data.collective_feelings.map((f: any, i: number) => (
               <View key={i} style={styles.feelRow}>
@@ -185,19 +197,6 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
               </View>
             ))}
           </View>
-
-          {/* leelo si */}
-<View style={[styles.card, { borderColor: "#971d76" }]}>
-  <Text style={styles.cardLabel}>LÉELO SI... ✨</Text>
-  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
-    {(data as any).leer_si?.map((tag: any, i: number) => (
-      <View key={i} style={[styles.topicPill, { borderColor: "#570e43"  }]}>
-        <Text style={{ fontSize: 14, marginRight: 4 }}>{tag.emoji}</Text>
-<Text style={[styles.topicLabel, { color: "#E8E4FF", flexShrink: 1 }]}>{capitalize(tag.label)}</Text>
-      </View>
-    ))}
-  </View>
-</View>
         </ScrollView>
       )}
     </View>
@@ -223,11 +222,14 @@ const styles = StyleSheet.create({
   retryBtn: { marginTop: 18, borderWidth: 1, borderColor: colors.brass, paddingHorizontal: 22, paddingVertical: 10, borderRadius: 999 },
   retryText: { color: colors.brass, fontWeight: "800", letterSpacing: 2 },
   header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingBottom: 14, gap: 8 },
-  backBtn: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, borderColor: colors.brassSoft, alignItems: "center", justifyContent: "center" },
+  backBtn: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
   titleRow: { flexDirection: "row", alignItems: "center" },
   titleText: { color: colors.textOnDark, fontWeight: "900", letterSpacing: 8, fontSize: 18 },
   subtitle: { color: colors.copper, fontSize: 12, marginTop: 4, letterSpacing: 0.5 },
-  card: { borderWidth: 1, borderColor: colors.brassSoft, borderRadius: 14, padding: 14, marginBottom: 12, backgroundColor: colors.bgSurface },
+  // Las 4 tarjetas comparten un único borde: morado oscuro (copperDark),
+  // muy fino y sutil — antes cada una tenía su propio hex suelto
+  // (#4b017c, #002988, #971d76…) sin relación entre sí.
+  card: { borderWidth: 1, borderColor: "rgba(78,2,122,0.55)", borderRadius: 14, padding: 14, marginBottom: 12, backgroundColor: colors.bgSurface },
   cardCols: { flexDirection: "row" },
   cardHead: { flexDirection: "row", alignItems: "center" },
   cardLabel: { color: colors.brass, fontSize: 12, fontWeight: "900", letterSpacing: 2 },
@@ -235,13 +237,13 @@ const styles = StyleSheet.create({
   ratingNumber: { color: colors.textOnDark, fontSize: 48, fontWeight: "900", letterSpacing: -2 },
   starsRow: { flexDirection: "row", marginTop: 4 },
   totalLabel: { color: colors.textOnDarkMuted, fontSize: 12, marginTop: 8 },
-  topicPill: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 5, paddingVertical: 8, borderWidth: 1, borderRadius: 999, backgroundColor: "rgba(0,0,0,0.3)", flexShrink: 1 },
+  topicPill: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 10, paddingVertical: 9, borderWidth: 1, borderRadius: 999, backgroundColor: "rgba(0,0,0,0.3)", flexShrink: 1 },
 topicLeft: { flexDirection: "row", alignItems: "center", gap: 6, flex: 1, minWidth: 0 },
 topicLabel: { fontSize: 15, fontWeight: "300", flexShrink: 1 },
 topicPct: { fontSize: 13, fontWeight: "900", marginLeft: 6, flexShrink: 0 },
-  feelRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "rgba(176,38,255,0.12)", gap: 12 },
-  feelEmoji: { fontSize: 22 },
-  feelLabel: { color: colors.textOnDark, fontSize: 15, flex: 1, fontWeight: "600" },
+  feelRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "rgba(78,2,122,0.12)", gap: 12 },
+  feelEmoji: { fontSize: 18 },
+  feelLabel: { color: colors.textOnDark, fontSize: 15, flex: 1, fontWeight: "300" },
   feelCount: { color: colors.textOnDarkMuted, fontSize: 12, fontWeight: "800", letterSpacing: 0.5 },
   compatCard: { width: 120, alignItems: "center" },
   compatCover: { width: 120, height: 180, borderRadius: 10, backgroundColor: colors.bgSurfaceLight, borderWidth: 1, borderColor: colors.brassSoft },
@@ -250,5 +252,10 @@ topicPct: { fontSize: 13, fontWeight: "900", marginLeft: 6, flexShrink: 0 },
   emotionItem: { alignItems: "center" },
   emotionPct: { fontSize: 20, fontWeight: "900", marginTop: 8 },
   emotionLabel: { color:"#E8E4FF", fontSize: 13, marginTop: 4, textAlign: "center" },
-  compatAuthor: { color: colors.brass, fontSize: 10, marginTop: 2, fontStyle: "italic" }
+  compatAuthor: { color: colors.brass, fontSize: 10, marginTop: 2, fontStyle: "italic" },
+  // "Léelo si": borde casi invisible (mismo morado oscuro pero muy
+  // transparente) y texto con el mismo estilo que "Reacciones de
+  // lectores" (feelLabel: 15px / weight 600 / textOnDark).
+  leerSiPill: { borderWidth: 1, borderColor: "rgba(78,2,122,0.22)", borderRadius: 999, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: "rgba(78,2,122,0.08)" },
+  leerSiText: { color: colors.textOnDark, fontSize: 15, fontWeight: "300" },
 });
