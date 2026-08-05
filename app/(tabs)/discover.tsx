@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions, ActivityIn
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { createAudioPlayer } from "expo-audio";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api, Book } from "../../src/lib/api";
 import { useAuth } from "../../src/providers/AuthProvider";
 import { colors } from "../../src/theme";
@@ -80,6 +81,24 @@ export default function Discover() {
     const h = e.nativeEvent.layout.height;
     if (Math.abs(h - buyRowHeight) > 0.5) setBuyRowHeight(h);
   }, [buyRowHeight]);
+
+  // Pista de swipe (flechitas en cascada) que se muestra solo la primera
+  // vez que el usuario abre el feed, para enseñarle el gesto de deslizar
+  // hacia arriba. Se guarda por dispositivo (AsyncStorage), no por cuenta,
+  // así también la ven los invitados solo una vez.
+  const [showSwipeHint, setShowSwipeHint] = useState(false);
+  useEffect(() => {
+    (async () => {
+      try {
+        const seen = await AsyncStorage.getItem("hasSeenSwipeHint");
+        if (!seen) setShowSwipeHint(true);
+      } catch {}
+    })();
+  }, []);
+  const dismissSwipeHint = useCallback(() => {
+    setShowSwipeHint(false);
+    AsyncStorage.setItem("hasSeenSwipeHint", "true").catch(() => {});
+  }, []);
 
   const stopAudio = useCallback(() => {
     try { playerRef.current?.pause?.(); playerRef.current?.remove?.(); } catch {}
@@ -460,6 +479,7 @@ await Image.prefetch(coverUrl);
         snapToAlignment="start"
         decelerationRate="fast"
         onMomentumScrollEnd={onMomentumScrollEnd}
+        onScrollBeginDrag={() => { if (showSwipeHint) dismissSwipeHint(); }}
         getItemLayout={(_, index) => ({ length: SLIDE_H, offset: SLIDE_H * index, index })}
         // Arregla el bug donde el primer libro de "Sorpréndeme" (o de
         // abrir un libro concreto por seed) aparecía descolocado: si el
@@ -545,6 +565,10 @@ await Image.prefetch(coverUrl);
 </TouchableOpacity>
 
       </View>
+
+      {showSwipeHint && currentIndex === 0 && (
+        <SwipeHint bottom={buyRowHeight + 24} />
+      )}
 
       <FlashCardModal visible={infoOpen} book={current} lang={lang} onClose={() => setInfoOpen(false)} onAuthorChat={openAuthorChat} onAuthorPress={openAuthorFeed} isPremium={!!user?.is_premium} />
       <AudioModal visible={audioOpen} book={current} lang={lang} playing={playing} loading={audioLoading} text={premiumSummaries[current.book_id]} onPlay={playAudio} onClose={() => { setAudioOpen(false); stopAudio(); }} />
@@ -679,14 +703,16 @@ function BookSlide({
             {hookButton}
             {isNovedad && (
               <View style={styles.novedadBadge} pointerEvents="none">
-                <LinearGradient
-                  colors={[colors.brass, colors.copper]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.novedadGradient}
-                >
-                  <Text style={styles.novedadText}>NEW</Text>
-                </LinearGradient>
+                <View style={styles.novedadInner}>
+                  <LinearGradient
+                    colors={[colors.brass, colors.copper]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.novedadGradient}
+                  >
+                    <Text style={styles.novedadText}>NEW</Text>
+                  </LinearGradient>
+                </View>
               </View>
             )}
           </View>
@@ -747,6 +773,49 @@ function BuyBtn({ label, icon, onPress, testID }: { label: string; icon: any; on
       <Ionicons name={icon} size={16} color={colors.gold} />
       <Text style={styles.buyText}>{label}</Text>
     </TouchableOpacity>
+  );
+}
+
+// Pista de swipe: tres flechitas ("chevron-up") en cascada, cada una
+// arrancando su ciclo con un pequeño retraso respecto a la anterior, para
+// dar el efecto de "ola" subiendo. Muy sutil (opacity baja), pensada para
+// enseñar el gesto sin gritar. Solo se monta cuando showSwipeHint es true
+// y currentIndex === 0, así que el loop no corre de fondo el resto del
+// tiempo.
+function SwipeHint({ bottom }: { bottom: number }) {
+  const anims = useRef([0, 1, 2].map(() => new Animated.Value(0))).current;
+
+  useEffect(() => {
+    const loops = anims.map((anim, i) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(i * 150),
+          Animated.timing(anim, {
+            toValue: 1,
+            duration: 900,
+            easing: Easing.out(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.delay((2 - i) * 150 + 300),
+        ])
+      )
+    );
+    loops.forEach((l) => l.start());
+    return () => loops.forEach((l) => l.stop());
+  }, [anims]);
+
+  return (
+    <View style={[styles.swipeHintWrap, { bottom }]} pointerEvents="none" testID="swipe-hint">
+      {anims.map((anim, i) => {
+        const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [0, -22] });
+        const opacity = anim.interpolate({ inputRange: [0, 0.15, 0.8, 1], outputRange: [0, 0.55, 0.25, 0] });
+        return (
+          <Animated.View key={i} style={{ transform: [{ translateY }], opacity }}>
+            <Ionicons name="chevron-up" size={22} color="rgba(255,255,255,0.7)" />
+          </Animated.View>
+        );
+      })}
+    </View>
   );
 }
 
@@ -900,13 +969,15 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 10,
     left: 10,
+    shadowColor: "#000",
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 8,
+  },
+  novedadInner: {
     borderRadius: 999,
     overflow: "hidden",
-    shadowColor: colors.copper,
-    shadowOpacity: 0.6,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 6,
   },
   novedadGradient: {
     paddingHorizontal: 10,
@@ -933,6 +1004,16 @@ sideBtn: { width: 42, height: 42, borderRadius: 21, borderWidth: 1.5, alignItems
   buyRow: { position: "absolute", left: 0, right: 0, flexDirection: "row", justifyContent: "space-between", gap: 8, paddingHorizontal: 12, zIndex: 10 },
   buyBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1.5, borderColor: colors.brassMuted, paddingHorizontal: 8, paddingVertical: 11, borderRadius: 12, backgroundColor: "rgba(0,0,0,0.6)" },
   buyText: { color: colors.gold, fontSize: 12, fontWeight: "800", letterSpacing: 0.5 },
+  swipeHintWrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    justifyContent: "flex-end",
+    height: 40,
+    gap: -8,
+    zIndex: 9,
+  },
   modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.85)", justifyContent: "flex-end" },
   flashCard: { backgroundColor: colors.bgSurface, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderTopWidth: 2, borderColor: colors.copper, paddingHorizontal: 22, maxHeight: SCREEN_H * 0.92 },
   flashClose: { position: "absolute", top: 12, right: 12, padding: 8, zIndex: 5 },

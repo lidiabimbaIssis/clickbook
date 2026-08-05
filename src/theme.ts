@@ -4,9 +4,9 @@ export const colors = {
   bgSurfaceLight: "#15082A",
   parchment: "#070210",
   parchmentSurface: "#0F0520",
-  brass: "#00a2fa",          // azul hielo
+  brass: "#45b7f5",          // azul hielo
   brassMuted: "#007bbe",      // azul hielo oscuro/apagado — botones de compra
-  copper: "#962fd2",          // morado oscuro
+  copper: "#9a3cd1",          // morado oscuro
   copperDark: "#4E027A",      // morado aún más oscuro — tags/rating, para que pasen desapercibidos frente a la botonera lateral
   textOnDark: "#E8E4FF",
   textOnDarkMuted: "#9183B8",
