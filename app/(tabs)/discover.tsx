@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions, ActivityIndicator, Platform, Linking, ScrollView, Modal, FlatList, LayoutChangeEvent } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions, ActivityIndicator, Platform, Linking, ScrollView, Modal, FlatList, LayoutChangeEvent, Animated, Easing } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { createAudioPlayer } from "expo-audio";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api, Book } from "../../src/lib/api";
 import { useAuth } from "../../src/providers/AuthProvider";
 import { colors } from "../../src/theme";
@@ -80,6 +81,24 @@ export default function Discover() {
     const h = e.nativeEvent.layout.height;
     if (Math.abs(h - buyRowHeight) > 0.5) setBuyRowHeight(h);
   }, [buyRowHeight]);
+
+  // Pista de swipe (flechitas en cascada) que se muestra solo la primera
+  // vez que el usuario abre el feed, para enseñarle el gesto de deslizar
+  // hacia arriba. Se guarda por dispositivo (AsyncStorage), no por cuenta,
+  // así también la ven los invitados solo una vez.
+  const [showSwipeHint, setShowSwipeHint] = useState(false);
+  useEffect(() => {
+    (async () => {
+      try {
+        const seen = await AsyncStorage.getItem("hasSeenSwipeHint");
+        if (!seen) setShowSwipeHint(true);
+      } catch {}
+    })();
+  }, []);
+  const dismissSwipeHint = useCallback(() => {
+    setShowSwipeHint(false);
+    AsyncStorage.setItem("hasSeenSwipeHint", "true").catch(() => {});
+  }, []);
 
   const stopAudio = useCallback(() => {
     try { playerRef.current?.pause?.(); playerRef.current?.remove?.(); } catch {}
@@ -193,12 +212,12 @@ const endpoint = query
       setCurrentIndex(seedIdx);
       setTimeout(() => {
         listRef.current?.scrollToIndex({ index: seedIdx!, animated: false });
-      }, 100);
+      }, 250);
     } else if (randomIdx !== null) {
       setCurrentIndex(randomIdx);
       setTimeout(() => {
         listRef.current?.scrollToIndex({ index: randomIdx!, animated: false });
-      }, 100);
+      }, 250);
     }
   } catch (e) {
     console.warn("feed error", e);
@@ -460,7 +479,20 @@ await Image.prefetch(coverUrl);
         snapToAlignment="start"
         decelerationRate="fast"
         onMomentumScrollEnd={onMomentumScrollEnd}
+        onScrollBeginDrag={() => { if (showSwipeHint) dismissSwipeHint(); }}
         getItemLayout={(_, index) => ({ length: SLIDE_H, offset: SLIDE_H * index, index })}
+        // Arregla el bug donde el primer libro de "Sorpréndeme" (o de
+        // abrir un libro concreto por seed) aparecía descolocado: si el
+        // scrollToIndex se dispara antes de que la lista haya medido bien
+        // su altura real (típico justo al arrancar la app), el salto
+        // "falla" internamente y deja el layout roto. Con este manejador,
+        // React Native reintenta el salto automáticamente un poco más
+        // tarde, ya con las medidas correctas, en vez de dejarlo mal.
+        onScrollToIndexFailed={(info) => {
+          setTimeout(() => {
+            listRef.current?.scrollToIndex({ index: info.index, animated: false });
+          }, 300);
+        }}
         initialScrollIndex={currentIndex > 0 ? currentIndex : undefined}
         windowSize={3}
         maxToRenderPerBatch={2}
@@ -490,19 +522,24 @@ await Image.prefetch(coverUrl);
           <Text style={styles.brandPurple}>Vibes</Text>
         </View>
         <TouchableOpacity onPress={shareBook} style={styles.backBtn} testID="btn-share-book">
-          <Ionicons name="share-social" size={18} color={colors.copper} />
+          <Ionicons name="share-social" size={18} color={colors.brass} />
         </TouchableOpacity>
       </View>
 
-
+      {/*
+        Botonera lateral: protagonista de la pantalla. Todos comparten
+        borde+glow en colors.copper (morado vivo), icono blanco por defecto.
+        Favorito y Audio cambian a fucsia (colors.iron) cuando están activos
+        (favorito marcado / audio sonando) — el resto (info, chat, reviews)
+        no tiene estado persistente que marcar, así que se quedan siempre
+        en el estilo por defecto.
+      */}
       <View style={styles.sideButtons} pointerEvents="box-none">
-<SideButton icon="information-circle" color="#2cbb04" borderColor="#2cbb04" onPress={() => setInfoOpen(true)} testID="btn-info" />
-<SideButton icon={isFav ? "heart" : "heart-outline"} color="#ff01cc" borderColor="#ff01cc" onPress={toggleFavorite} testID="btn-favorite" />
-<SideButton icon={playing ? "pause" : "headset"} color="#04d3fc" borderColor="#04d3fc" onPress={() => { setAudioOpen(true); playAudio(); }} loading={audioLoading} testID="btn-audio" />
-<SideButton icon="chatbubbles" color="#B026FF" borderColor="#B026FF" onPress={openAuthorChat} testID="btn-author-ia" />
-<SideButton icon="star" color="#d0fe00" borderColor="#d0fe00" onPress={() => router.push({ pathname: "/reviews", params: { book_id: current.book_id, title: current.title, author: current.author } })} testID="btn-reviews" />
-
-
+        <SideButton icon="information-circle" onPress={() => setInfoOpen(true)} testID="btn-info" />
+        <SideButton icon={isFav ? "heart" : "heart-outline"} active={isFav} onPress={toggleFavorite} testID="btn-favorite" />
+        <SideButton icon={playing ? "pause" : "headset"} active={playing} onPress={() => { setAudioOpen(true); playAudio(); }} loading={audioLoading} testID="btn-audio" />
+        <SideButton icon="chatbubbles" onPress={openAuthorChat} testID="btn-author-ia" />
+        <SideButton icon="star" onPress={() => router.push({ pathname: "/reviews", params: { book_id: current.book_id, title: current.title, author: current.author } })} testID="btn-reviews" />
       </View>
 
       <View
@@ -528,6 +565,10 @@ await Image.prefetch(coverUrl);
 </TouchableOpacity>
 
       </View>
+
+      {showSwipeHint && currentIndex === 0 && (
+        <SwipeHint bottom={buyRowHeight + 24} />
+      )}
 
       <FlashCardModal visible={infoOpen} book={current} lang={lang} onClose={() => setInfoOpen(false)} onAuthorChat={openAuthorChat} onAuthorPress={openAuthorFeed} isPremium={!!user?.is_premium} />
       <AudioModal visible={audioOpen} book={current} lang={lang} playing={playing} loading={audioLoading} text={premiumSummaries[current.book_id]} onPlay={playAudio} onClose={() => { setAudioOpen(false); stopAudio(); }} />
@@ -576,25 +617,52 @@ function BookSlide({
   const topBarSpace = insets.top + 8 + 38 + 8;
   const slidePaddingTop = topBarSpace + 45;
 
+  // Pulso suave ("respiración") para que el hook (el numerito 3/2/1) se
+  // note un poco más sin gritar — solo late mientras está en reposo
+  // (nadie lo está usando en ese momento); en cuanto se reproduce o
+  // carga, se queda quieto porque ya cambia a fucsia y eso basta como
+  // señal de que está activo.
+  const hookPulse = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(hookPulse, { toValue: 1, duration: 850, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(hookPulse, { toValue: 0, duration: 850, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [hookPulse]);
+  const hookScale = hookPulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.14] });
+  const hookOpacity = hookPulse.interpolate({ inputRange: [0, 1], outputRange: [0.65, 1] });
+  const hookIdle = !(hookLoading || hookPlaying);
+
   const hookButton = isCurrent && (hookIsPremium || (hookRemaining ?? 0) > 0) ? (
-    <TouchableOpacity
-      onPress={onPressHook}
-      style={styles.hookBtn}
-      activeOpacity={0.7}
-      testID="btn-hook"
+    <Animated.View
+      style={[
+        styles.hookBtn,
+        hookIdle && { transform: [{ scale: hookScale }], opacity: hookOpacity },
+      ]}
     >
-      {hookIsPremium ? (
-        <Ionicons
-          name={hookPlaying ? "pause" : "play"}
-          size={16}
-          color={hookLoading || hookPlaying ? colors.iron : "rgba(255,255,255,0.85)"}
-        />
-      ) : (
-        <Text style={[styles.hookBtnNumber, (hookLoading || hookPlaying) && { color: colors.iron }]}>
-          {hookRemaining}
-        </Text>
-      )}
-    </TouchableOpacity>
+      <TouchableOpacity
+        onPress={onPressHook}
+        style={styles.hookBtnTouchable}
+        activeOpacity={0.7}
+        testID="btn-hook"
+      >
+        {hookIsPremium ? (
+          <Ionicons
+            name={hookPlaying ? "pause" : "play"}
+            size={16}
+            color={hookLoading || hookPlaying ? colors.iron : "rgba(255,255,255,0.85)"}
+          />
+        ) : (
+          <Text style={[styles.hookBtnNumber, (hookLoading || hookPlaying) && { color: colors.iron }]}>
+            {hookRemaining}
+          </Text>
+        )}
+      </TouchableOpacity>
+    </Animated.View>
   ) : null;
 
   return (
@@ -602,10 +670,23 @@ function BookSlide({
       <View style={styles.coverArea}>
         <View style={styles.coverWrap}>
           <View style={styles.topBadgesRow} pointerEvents="box-none">
+            {/*
+              Mood pill ("Épico"/"Intenso"...) — antes el borde era cian
+              (brassSoft) y el texto variaba de color según la categoría
+              (mood.color). Ahora todo en copperDark, un morado más oscuro
+              y apagado, para que quede en segundo plano frente a la
+              botonera lateral, que es la que debe destacar.
+            */}
             <View style={styles.moodPill}>
               <Text style={styles.moodPillIcon}>{mood.icon}</Text>
               <Text style={[styles.moodPillLabel, { color: mood.color }]} numberOfLines={1}>{mood.label}</Text>
             </View>
+            {/*
+              Rating pill (estrellas + número) — antes borde "#031588"
+              (azul marino suelto, resto de una versión anterior) y texto
+              en copper vivo. Ahora también en copperDark, igual de
+              apagado que el mood pill, mismo criterio.
+            */}
             <View style={styles.ratingPill}>
               {renderStarsCompact(book.rating)}
               <Text style={styles.ratingValue}>{book.rating.toFixed(1)}</Text>
@@ -622,41 +703,31 @@ function BookSlide({
             {hookButton}
             {isNovedad && (
               <View style={styles.novedadBadge} pointerEvents="none">
-                <LinearGradient
-                  colors={[colors.brass, colors.copper]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.novedadGradient}
-                >
-                  <Text style={styles.novedadText}>NEW</Text>
-                </LinearGradient>
+                <View style={styles.novedadInner}>
+                  <LinearGradient
+                    colors={[colors.brass, colors.copper]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.novedadGradient}
+                  >
+                    <Text style={styles.novedadText}>NEW</Text>
+                  </LinearGradient>
+                </View>
               </View>
             )}
           </View>
 
-          <LinearGradient
-            colors={['transparent', 'rgb(0, 0, 0)']}
-            start={{ x: 0.9, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={{
-              position: 'absolute',
-              top: 0,
-              bottom: 0,
-              right: 0,
-              width: '60%',
-            }}
-          />
         </View>
       </View>
 
 <View style={styles.pillContainer}>
   {(book.vibe_tags || []).map((tag, index) => (
     <React.Fragment key={index}>
-      <Text style={styles.pillText}>
-        <Text>{tag.icon}</Text>{" "}<Text>{tag.label}</Text>
+      <Text style={styles.pillText} allowFontScaling={false}>
+        <Text allowFontScaling={false}>{tag.icon}</Text>{" "}<Text allowFontScaling={false}>{tag.label}</Text>
       </Text>
       {index < (book.vibe_tags || []).length - 1 && (
-        <Text style={styles.separator}>•</Text>
+        <Text style={styles.separator} allowFontScaling={false}>•</Text>
       )}
     </React.Fragment>
   ))}
@@ -680,22 +751,17 @@ function renderStarsCompact(rating: number) {
   }
   return <View style={{ flexDirection: "row" }}>{arr}</View>;
 }
-function SideButtonMC({ icon, color, onPress, testID }: { icon: any; color: string; onPress: () => void; testID?: string; }) {
-  return (
-    <TouchableOpacity testID={testID} onPress={onPress} activeOpacity={0.7} style={styles.sideBtnWrap}>
-      <View style={[styles.sideBtn, { borderColor: color, shadowColor: color, shadowOpacity: 0.6, shadowRadius: 5 }]}>
-        <MaterialCommunityIcons name={icon} size={22} color={color} />
-      </View>
-    </TouchableOpacity>
-  );
-}
 
-function SideButton({ icon, color, borderColor, onPress, loading, testID }: { icon: any; color: string; borderColor?: string; onPress: () => void; loading?: boolean; testID?: string; }) {
-  const border = borderColor || color;
+// Botón lateral unificado: borde+glow en colors.copper (morado vivo),
+// icono blanco por defecto. Cuando `active` es true (favorito marcado /
+// audio sonando) pasa a fucsia (colors.iron) en borde e icono.
+function SideButton({ icon, active, onPress, loading, testID }: { icon: any; active?: boolean; onPress: () => void; loading?: boolean; testID?: string; }) {
+  const accent = active ? colors.iron : colors.copper;
+  const iconColor = active ? colors.iron : "#FFFFFF";
   return (
     <TouchableOpacity testID={testID} onPress={onPress} activeOpacity={0.7} style={styles.sideBtnWrap}>
-      <View style={[styles.sideBtn, { borderColor: border, shadowColor: border }]}>
-        {loading ? <ActivityIndicator size="small" color={color} /> : <Ionicons name={icon} size={22} color={color} />}
+      <View style={[styles.sideBtn, { borderColor: accent, shadowColor: accent }]}>
+        {loading ? <ActivityIndicator size="small" color={iconColor} /> : <Ionicons name={icon} size={22} color={iconColor} />}
       </View>
     </TouchableOpacity>
   );
@@ -707,6 +773,49 @@ function BuyBtn({ label, icon, onPress, testID }: { label: string; icon: any; on
       <Ionicons name={icon} size={16} color={colors.gold} />
       <Text style={styles.buyText}>{label}</Text>
     </TouchableOpacity>
+  );
+}
+
+// Pista de swipe: tres flechitas ("chevron-up") en cascada, cada una
+// arrancando su ciclo con un pequeño retraso respecto a la anterior, para
+// dar el efecto de "ola" subiendo. Muy sutil (opacity baja), pensada para
+// enseñar el gesto sin gritar. Solo se monta cuando showSwipeHint es true
+// y currentIndex === 0, así que el loop no corre de fondo el resto del
+// tiempo.
+function SwipeHint({ bottom }: { bottom: number }) {
+  const anims = useRef([0, 1, 2].map(() => new Animated.Value(0))).current;
+
+  useEffect(() => {
+    const loops = anims.map((anim, i) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(i * 150),
+          Animated.timing(anim, {
+            toValue: 1,
+            duration: 900,
+            easing: Easing.out(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.delay((2 - i) * 150 + 300),
+        ])
+      )
+    );
+    loops.forEach((l) => l.start());
+    return () => loops.forEach((l) => l.stop());
+  }, [anims]);
+
+  return (
+    <View style={[styles.swipeHintWrap, { bottom }]} pointerEvents="none" testID="swipe-hint">
+      {anims.map((anim, i) => {
+        const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [0, -22] });
+        const opacity = anim.interpolate({ inputRange: [0, 0.15, 0.8, 1], outputRange: [0, 0.55, 0.25, 0] });
+        return (
+          <Animated.View key={i} style={{ transform: [{ translateY }], opacity }}>
+            <Ionicons name="chevron-up" size={22} color="rgba(255,255,255,0.7)" />
+          </Animated.View>
+        );
+      })}
+    </View>
   );
 }
 
@@ -848,18 +957,27 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  hookBtnTouchable: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   hookBtnNumber: { color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: "800" },
   novedadBadge: {
     position: "absolute",
     top: 10,
     left: 10,
+    shadowColor: "#000",
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 8,
+  },
+  novedadInner: {
     borderRadius: 999,
     overflow: "hidden",
-    shadowColor: colors.copper,
-    shadowOpacity: 0.6,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 6,
   },
   novedadGradient: {
     paddingHorizontal: 10,
@@ -868,13 +986,13 @@ const styles = StyleSheet.create({
   },
   novedadText: { color: "#ffffff", fontSize: 11, fontWeight: "900", letterSpacing: 1.5 },
   topBadgesRow: { position: "absolute", top: -45, left: 0, right: 0, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 4, zIndex: 8 },
-  moodPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 15, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: colors.brassSoft, backgroundColor: "rgba(6,1,15,0.85)" },
+  moodPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 15, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: "rgba(6,1,15,0.85)" },
   moodPillIcon: { fontSize: 14 },
   moodPillLabel: { fontSize: 11, fontWeight: "800", letterSpacing: 1 },
-  ratingPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1.5, borderColor: "#031588", backgroundColor: "rgba(6,1,15,0.85)" },
-  ratingValue: { color: colors.copper, fontSize: 12, fontWeight: "900", letterSpacing: 0.5 },
+  ratingPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1.5, borderColor: colors.border, backgroundColor: "rgba(6,1,15,0.85)" },
+  ratingValue: { color:"#962fd2ad", fontSize: 12, fontWeight: "900", letterSpacing: 0.5 },
   topBar: { position: "absolute", top: 0, left: 0, right: 0, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, zIndex: 10 },
-  backBtn: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, borderColor: colors.brassSoft, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.4)" },
+  backBtn: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.4)" },
   brandRow: { flexDirection: "row" },
   brandCyan: { color: colors.brass, fontWeight: "900", fontSize: 18 },
   brandPurple: { color: colors.copper, fontWeight: "900", fontSize: 18 },
@@ -882,10 +1000,20 @@ const styles = StyleSheet.create({
   queryHint: { color: colors.copper, fontSize: 12, fontWeight: "600", letterSpacing: 1, maxWidth: 240 },
   sideButtons: { position: "absolute", right: 10, top: "50%", marginTop: -90, gap: 16, alignItems: "center", zIndex: 10 },
   sideBtnWrap: { alignItems: "center" },
-sideBtn: { width: 42, height: 42, borderRadius: 21, borderWidth: 1.5, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(6,1,15,0.6)", shadowOpacity: 0.7, shadowRadius: 8, shadowOffset: { width: 0, height: 0 }, elevation: 5 },
+sideBtn: { width: 42, height: 42, borderRadius: 21, borderWidth: 1.5, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(6,1,15,0.6)", shadowOpacity: 0.9, shadowRadius: 12, shadowOffset: { width: 0, height: 0 }, elevation: 8 },
   buyRow: { position: "absolute", left: 0, right: 0, flexDirection: "row", justifyContent: "space-between", gap: 8, paddingHorizontal: 12, zIndex: 10 },
-  buyBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1.5, borderColor: colors.brassSoft, paddingHorizontal: 8, paddingVertical: 11, borderRadius: 12, backgroundColor: "rgba(0,0,0,0.6)", shadowColor: colors.brass, shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 0 }, elevation: 5 },
+  buyBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1.5, borderColor: colors.brassMuted, paddingHorizontal: 8, paddingVertical: 11, borderRadius: 12, backgroundColor: "rgba(0,0,0,0.6)" },
   buyText: { color: colors.gold, fontSize: 12, fontWeight: "800", letterSpacing: 0.5 },
+  swipeHintWrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    justifyContent: "flex-end",
+    height: 40,
+    gap: -8,
+    zIndex: 9,
+  },
   modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.85)", justifyContent: "flex-end" },
   flashCard: { backgroundColor: colors.bgSurface, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderTopWidth: 2, borderColor: colors.copper, paddingHorizontal: 22, maxHeight: SCREEN_H * 0.92 },
   flashClose: { position: "absolute", top: 12, right: 12, padding: 8, zIndex: 5 },
@@ -921,9 +1049,9 @@ sideBtn: { width: 42, height: 42, borderRadius: 21, borderWidth: 1.5, alignItems
   paddingHorizontal: 8,
   borderRadius: 25,
   borderWidth: 1,
-  borderColor: '#08a3fd3b',
-  marginTop: 8,
-  marginBottom: 10,
+  borderColor:colors.border,
+  marginTop: 4,
+  marginBottom: 18,
 },
 pillText: {
   color: '#ffffff',
@@ -932,7 +1060,7 @@ pillText: {
   fontWeight: '500',
 },
 separator: {
-  color: 'rgba(57, 138, 243, 0.64)',
+  color: 'rgba(112,3,174,0.64)',
   fontSize: 12,
 },
   hookContainer: { marginTop: 24, padding: 16, backgroundColor: 'rgba(255, 255, 255, 0.05)', borderRadius: 16, borderLeftWidth: 3, borderLeftColor: colors.copper },

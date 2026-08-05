@@ -11,9 +11,12 @@ import PaywallModal from "../src/components/PaywallModal";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
+// Antes estos rgba estaban calculados sobre el brass/copper ANTIGUOS
+// (#00F0FF y #B026FF). Ahora usan los valores oficiales actuales
+// (#25CFFF y #A020F0), misma opacidad de siempre.
 const POSITION_COLORS = [
-  { fg: colors.brass,     bg: "rgba(0,240,255,0.12)",  border: "rgba(0,240,255,0.3)"  },
-  { fg: colors.copper,    bg: "rgba(176,38,255,0.12)", border: "rgba(176,38,255,0.3)" },
+  { fg: colors.brass,     bg: "rgba(37,207,255,0.12)",  border: "rgba(37,207,255,0.3)"  },
+  { fg: colors.copper,    bg: "rgba(160,32,240,0.12)", border: "rgba(160,32,240,0.3)" },
   { fg: colors.iron,      bg: "rgba(255,46,120,0.12)", border: "rgba(255,46,120,0.3)" },
   { fg: colors.verdigris, bg: "rgba(0,255,163,0.12)",  border: "rgba(0,255,163,0.3)"  },
   { fg: colors.gold,      bg: "rgba(255,210,63,0.12)", border: "rgba(255,210,63,0.3)"  },
@@ -71,8 +74,10 @@ function TypingDots() {
   );
 }
 
+// Antes: "#B026FF" (copper antiguo) a pelo. Ahora referencia colors.copper
+// directamente, así queda sincronizado si el theme vuelve a cambiar.
 const typingDotStyle = {
-  width: 8, height: 8, borderRadius: 4, backgroundColor: "#B026FF",
+  width: 8, height: 8, borderRadius: 4, backgroundColor: colors.copper,
 };
 
 export default function CharacterChat() {
@@ -303,7 +308,7 @@ export default function CharacterChat() {
 
 const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.border, gap: 10 },
-  backBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: colors.brassSoft, alignItems: "center", justifyContent: "center" },
+  backBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
   headerAvatar: { width: 36, height: 36, borderRadius: 18, overflow: "hidden", alignItems: "center", justifyContent: "center" },
   headerAvatarInitial: { fontSize: 18, fontWeight: "900" },
   headerTitle: { color: colors.textOnDark, fontSize: 16, fontWeight: "800" },
@@ -320,19 +325,22 @@ const styles = StyleSheet.create({
   messages: { padding: 16, gap: 10 },
   bubble: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 16, maxWidth: "85%" },
   bubbleUser: { alignSelf: "flex-end", backgroundColor: colors.brass, borderBottomRightRadius: 4 },
-  bubbleAssistant: { alignSelf: "flex-start", backgroundColor: colors.bgSurface, borderWidth: 1, borderColor: "rgba(176,38,255,0.4)", borderBottomLeftRadius: 4 },
+  // Antes: borderColor "rgba(176,38,255,0.4)" (copper antiguo). Ahora usa
+  // el copper oficial (#A020F0 = 160,32,240) en la misma opacidad.
+  bubbleAssistant: { alignSelf: "flex-start", backgroundColor: colors.bgSurface, borderWidth: 1, borderColor: "rgba(160,32,240,0.4)", borderBottomLeftRadius: 4 },
   textUser: { color: colors.bgBase, fontSize: 14, lineHeight: 20, fontWeight: "600" },
   textAssistant: { color: colors.textOnDark, fontSize: 14, lineHeight: 20 },
   typingBubble: { flexDirection: "row", alignItems: "center", gap: 8 },
   typing: { color: colors.copper, fontSize: 12, fontStyle: "italic" },
   suggestions: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 12, paddingVertical: 8 },
-  chip: { borderWidth: 1, borderColor: colors.brassSoft, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 999, backgroundColor: "rgba(0,240,255,0.06)" },
+  chip: { borderWidth: 1, borderColor: colors.brassSoft, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 999, backgroundColor: "rgba(7, 166, 251, 0.1)" },
   chipText: { color: colors.brass, fontSize: 12, fontWeight: "700" },
   inputRow: { flexDirection: "row", gap: 10, paddingHorizontal: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border, alignItems: "center" },
   input: { flex: 1, backgroundColor: colors.bgSurface, borderWidth: 1, borderColor: colors.brassSoft, borderRadius: 999, paddingHorizontal: 16, paddingVertical: Platform.OS === "web" ? 12 : 10, color: colors.textOnDark, fontSize: 14, outlineWidth: 0 as any },
-  sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brass, alignItems: "center", justifyContent: "center" },
+sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brass, alignItems: "center", justifyContent: "center", shadowColor: colors.brass, shadowOpacity: 0.5, shadowRadius: 14, shadowOffset: { width: 0, height: 0 }, elevation: 8 },
   sendBtnSending: { backgroundColor: colors.iron },
-  disclaimer: { margin: 16, padding: 16, backgroundColor: "rgba(176,38,255,0.15)", borderRadius: 12, borderWidth: 1, borderColor: "rgba(176,38,255,0.4)", gap: 12 },
+  // Antes: rgba(176,38,255,...) (copper antiguo). Ahora el copper oficial.
+  disclaimer: { margin: 16, padding: 16, backgroundColor: "rgba(160,32,240,0.15)", borderRadius: 12, borderWidth: 1, borderColor: "rgba(160,32,240,0.4)", gap: 12 },
   disclaimerText: { color: colors.textOnDark, fontSize: 13, lineHeight: 20, textAlign: "center" },
   disclaimerBtn: { color: colors.copper, fontSize: 14, fontWeight: "800", textAlign: "center" },
 });

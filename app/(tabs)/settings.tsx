@@ -173,7 +173,7 @@ export default function Settings() {
         onPress={() => router.push("/legal")}
         style={{ marginTop: 20, alignItems: "center" }}
       >
-        <Text style={{ color: "#02666d", fontSize: 12, textAlign: "center" }}>
+        <Text style={{ color: colors.border, fontSize: 12, textAlign: "center" }}>
           Términos y Condiciones
         </Text>
       </TouchableOpacity>
@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
   },
   sectionLabel: { color: colors.textOnDarkMuted, fontSize: 11, letterSpacing: 2, fontWeight: "800", marginBottom: 10 },
   langRow: { flexDirection: "row", gap: 10 },
-  langBtn: { flex: 1, paddingVertical: 12, borderRadius: 999, borderWidth: 1, borderColor: colors.brassSoft, alignItems: "center" },
+  langBtn: { flex: 1, paddingVertical: 12, borderRadius: 999, borderWidth: 1, borderColor: "#4E027A", alignItems: "center" },
   langBtnActive: { backgroundColor: colors.brass, borderColor: colors.brass },
   langText: { color: colors.brass, fontWeight: "700", letterSpacing: 1 },
   langTextActive: { color: colors.bgBase },

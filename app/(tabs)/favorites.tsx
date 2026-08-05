@@ -177,7 +177,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     backgroundColor: colors.bgSurface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: "#4E027A",
     borderRadius: 14,
     overflow: "hidden",
     padding: 10,
