@@ -57,7 +57,13 @@ export default function Onboarding() {
   const isLast = index === 2;
 
   return (
-    <View style={styles.container} testID="onboarding-screen">
+    <LinearGradient
+      colors={colors.bgGradient}
+      start={{ x: 0.5, y: 0 }}
+      end={{ x: 0.5, y: 1 }}
+      style={styles.container}
+      testID="onboarding-screen"
+    >
       <TouchableOpacity
         onPress={finish}
         style={[styles.skipBtn, { top: insets.top + 14 }]}
@@ -86,23 +92,40 @@ export default function Onboarding() {
           ))}
         </View>
 
+        {/*
+          Botón CONTINUAR/EMPEZAR: antes dos estilos distintos (borde
+          sólido copper con fondo transparente para los dos primeros
+          slides, relleno sólido brass para el último). Ahora un único
+          estilo unificado en los tres: fondo oscuro + borde en degradado
+          brass→copper (misma técnica que el resto de la app), sin relleno
+          sólido en ningún caso.
+        */}
         <TouchableOpacity
-          style={[styles.cta, isLast && styles.ctaLast]}
           onPress={next}
           activeOpacity={0.85}
+          style={styles.ctaWrap}
           testID={isLast ? "btn-finish-onboarding" : "btn-next-onboarding"}
         >
-          <Text style={[styles.ctaText, isLast && styles.ctaTextLast]}>
-            {isLast ? "EMPEZAR" : "CONTINUAR"}
-          </Text>
-          <Ionicons
-            name={isLast ? "flash" : "chevron-forward"}
-            size={18}
-            color={isLast ? colors.bgBase : colors.textOnDark}
-          />
+          <LinearGradient
+            colors={[colors.brass, colors.copper]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.ctaBorder}
+          >
+            <View style={styles.ctaInner}>
+              <Text style={styles.ctaText}>
+                {isLast ? "EMPEZAR" : "CONTINUAR"}
+              </Text>
+              <Ionicons
+                name={isLast ? "flash" : "chevron-forward"}
+                size={18}
+                color={colors.textOnDark}
+              />
+            </View>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
-    </View>
+    </LinearGradient>
   );
 }
 
@@ -378,7 +401,7 @@ function SlideAuthor() {
 /* ---------- STYLES ---------- */
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bgBase },
+  container: { flex: 1 },
   skipBtn: { position: "absolute", right: 18, zIndex: 30, padding: 6 },
   skipText: { color: colors.textOnDarkMuted, fontSize: 13, letterSpacing: 1 },
   slide: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 28, paddingTop: 60, paddingBottom: 180 },
@@ -423,12 +446,25 @@ const styles = StyleSheet.create({
   typingBubble: { position: "absolute", left: 30, top: 64, flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: colors.bgSurface, borderWidth: 1, borderColor: "rgba(112,3,174,0.45)", paddingHorizontal: 12, paddingVertical: 9, borderRadius: 14, borderTopLeftRadius: 4 },
   typingDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.copper },
   bubbleUser: { position: "absolute", right: 14, bottom: 18, backgroundColor: colors.brass, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14, borderBottomRightRadius: 4 },
-  bottom: { position: "absolute", bottom: 0, left: 0, right: 0, paddingHorizontal: 28, paddingTop: 12, gap: 16, zIndex: 20, backgroundColor: colors.bgBase },
+  bottom: { position: "absolute", bottom: 0, left: 0, right: 0, paddingHorizontal: 28, paddingTop: 12, gap: 16, zIndex: 20 },
   dots: { flexDirection: "row", justifyContent: "center", gap: 8 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.2)" },
   dotActive: { backgroundColor: colors.brass, width: 24 },
-  cta: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, borderWidth: 2, borderColor: colors.copper, paddingVertical: 16, borderRadius: 999, backgroundColor: "transparent", shadowColor: colors.copper, shadowOpacity: 0.5, shadowRadius: 16, shadowOffset: { width: 0, height: 0 }, elevation: 10 },
-  ctaLast: { backgroundColor: colors.brass, borderColor: colors.brass, shadowColor: colors.brass },
+  // Borde en degradado: wrapper sin padding + LinearGradient con 1.5px
+  // de padding actuando de borde + View interior con fondo oscuro
+  // semitransparente. Mismo estilo tanto para "CONTINUAR" como
+  // "EMPEZAR" — antes eran dos estilos distintos (borde sólido / relleno
+  // sólido), ahora unificados.
+  ctaWrap: { borderRadius: 999 },
+  ctaBorder: { borderRadius: 999, padding: 1.5 },
+  ctaInner: {
+    borderRadius: 997.5,
+    backgroundColor: "rgba(10,4,20,0.75)",
+    paddingVertical: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
   ctaText: { color: colors.textOnDark, fontWeight: "900", letterSpacing: 3, fontSize: 14 },
-  ctaTextLast: { color: colors.bgBase },
 });

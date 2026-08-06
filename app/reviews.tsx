@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { api } from "../src/lib/api";
 import { colors } from "../src/theme";
 
@@ -120,7 +121,13 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 8 }]} testID="vibes-screen">
+    <LinearGradient
+      colors={colors.bgGradient}
+      start={{ x: 0.5, y: 0 }}
+      end={{ x: 0.5, y: 1 }}
+      style={[styles.container, { paddingTop: insets.top + 8 }]}
+      testID="vibes-screen"
+    >
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} testID="btn-back-vibes">
           <Ionicons name="chevron-back" size={22} color={colors.brass} />
@@ -128,7 +135,7 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
         <View style={{ flex: 1, alignItems: "center" }}>
           <View style={styles.titleRow}>
             <Text style={styles.titleText}>VIBES</Text>
-            <Ionicons name="sparkles" size={16} color={colors.copper} style={{ marginLeft: 6 }} />
+            <Ionicons name="sparkles" size={16} color={hexToRgba(colors.copper, 0.75)} style={{ marginLeft: 6 }} />
           </View>
           {bookTitle ? <Text style={styles.subtitle} numberOfLines={1}>{bookTitle}</Text> : null}
         </View>
@@ -156,7 +163,7 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
                 <Text style={styles.cardLabel}>CALIFICACIÓN GENERAL</Text>
                 <View style={styles.ratingRow}>
                   <Text style={styles.ratingNumber}>{data.overall_rating.toFixed(1)}</Text>
-                  <Ionicons name="star" size={22} color={colors.copper} style={{ marginLeft: 6, marginTop: 8 }} />
+                  <Ionicons name="star" size={22} color={hexToRgba(colors.copper, 0.75)} style={{ marginLeft: 6, marginTop: 8 }} />
                 </View>
                 <View style={styles.starsRow}>
                   {[1, 2, 3, 4, 5].map((i) => (
@@ -173,16 +180,16 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
                     return (
                       <View key={i}>
                         <View style={styles.topicRow}>
-                          <Text style={[styles.topicLabel, { color: hexToRgba(accent, 0.95) }]} numberOfLines={1}>
+                          <Text style={[styles.topicLabel, { color: hexToRgba(accent, 0.65) }]} numberOfLines={1}>
                             {capitalize(t.label)}
                           </Text>
-                          <Text style={[styles.topicPct, { color: accent }]}>{t.percent}%</Text>
+                          <Text style={[styles.topicPct, { color: hexToRgba(accent, 0.75) }]}>{t.percent}%</Text>
                         </View>
                         <View style={styles.topicBarTrack}>
                           <View
                             style={[
                               styles.topicBarFill,
-                              { width: `${Math.max(0, Math.min(100, t.percent))}%`, backgroundColor: hexToRgba(accent, 0.85) },
+                              { width: `${Math.max(0, Math.min(100, t.percent))}%`, backgroundColor: hexToRgba(accent, 0.55) },
                             ]}
                           />
                         </View>
@@ -203,8 +210,8 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
                 return (
                   <React.Fragment key={i}>
                     <View style={styles.emotionItem}>
-                      <DynamicIcon name={e.icon} size={42} color={hexToRgba(accent, 0.9)} />
-                      <Text style={[styles.emotionPct, { color: accent }]}>{e.percent}%</Text>
+                      <DynamicIcon name={e.icon} size={42} color={hexToRgba(accent, 0.65)} />
+                      <Text style={[styles.emotionPct, { color: hexToRgba(accent, 0.75) }]}>{e.percent}%</Text>
                       <Text style={styles.emotionLabel}>{capitalize(e.label)}</Text>
                     </View>
                     {!isLast && <View style={styles.emotionDivider} />}
@@ -221,7 +228,7 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
               {(data as any).leer_si?.map((tag: any, i: number) => (
                 <View key={i} style={styles.leerSiPill}>
                   <View style={styles.leerSiCheck}>
-                    <Ionicons name="checkmark" size={13} color={colors.copper} />
+                    <Ionicons name="checkmark" size={13} color={hexToRgba(colors.copper, 0.75)} />
                   </View>
                   <Text style={styles.leerSiText} numberOfLines={2}>{capitalize(tag.label)}</Text>
                 </View>
@@ -242,7 +249,7 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
           </View>
         </ScrollView>
       )}
-    </View>
+    </LinearGradient>
   );
 }
 
@@ -258,14 +265,17 @@ function DynamicIcon({ name, size, color }: { name: string; size: number; color:
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bgBase },
+  container: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 30 },
   loadingText: { color: colors.textOnDarkMuted, marginTop: 14, letterSpacing: 1.5 },
   emptyText: { color: colors.textOnDark, marginTop: 14, fontSize: 15 },
   retryBtn: { marginTop: 18, borderWidth: 1, borderColor: colors.brass, paddingHorizontal: 22, paddingVertical: 10, borderRadius: 999 },
   retryText: { color: colors.brass, fontWeight: "800", letterSpacing: 2 },
   header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingBottom: 14, gap: 8 },
-  backBtn: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
+  // Cambiado de círculo (borderRadius 19) a cuadrado con esquinas
+  // redondeadas (borderRadius 13), mismo criterio que el resto de
+  // botones de icono en toda la app. Color sin tocar.
+  backBtn: { width: 38, height: 38, borderRadius: 13, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
   titleRow: { flexDirection: "row", alignItems: "center" },
   titleText: { color: colors.textOnDark, fontWeight: "900", letterSpacing: 8, fontSize: 18 },
   subtitle: { color: colors.copper, fontSize: 12, marginTop: 4, letterSpacing: 0.5 },
@@ -291,7 +301,7 @@ const styles = StyleSheet.create({
   feelRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "rgba(78,2,122,0.12)", gap: 12 },
   feelEmoji: { fontSize: 18 },
   feelLabel: { color: colors.textOnDark, fontSize: 15, flex: 1, fontWeight: "300" },
-feelCount: { color: colors.copper, fontSize: 12, fontWeight: "800", letterSpacing: 0.5 },
+feelCount: { color: "rgba(160,32,240,0.75)", fontSize: 12, fontWeight: "800", letterSpacing: 0.5 },
   compatCard: { width: 120, alignItems: "center" },
   compatCover: { width: 120, height: 180, borderRadius: 10, backgroundColor: colors.bgSurfaceLight, borderWidth: 1, borderColor: colors.brassSoft },
   compatTitle: { color: colors.textOnDark, fontSize: 12, fontWeight: "800", marginTop: 8, textAlign: "center" },
@@ -309,6 +319,6 @@ feelCount: { color: colors.copper, fontSize: 12, fontWeight: "800", letterSpacin
   // lectores" (feelLabel: 15px / weight 600 / textOnDark). Ahora con un
   // check circular a la izquierda, borde copper, relleno transparente.
   leerSiPill: { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderColor: "rgba(78,2,122,0.22)", borderRadius: 999, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: "rgba(78,2,122,0.08)" },
-  leerSiCheck: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: colors.copper, alignItems: "center", justifyContent: "center" },
+  leerSiCheck: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: "rgba(160,32,240,0.75)", alignItems: "center", justifyContent: "center" },
   leerSiText: { color: colors.textOnDark, fontSize: 15, fontWeight: "300", flex: 1 },
 });
