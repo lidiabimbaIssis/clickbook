@@ -1238,19 +1238,33 @@ app.add_middleware(
 )
 @app.on_event("startup")
 async def ensure_indexes():
+    index_name = "book_search_text_index"
+    index_fields = [
+        ("title", "text"),
+        ("author", "text"),
+        ("genre", "text"),
+        ("tema", "text"),
+        ("tono", "text"),
+        ("subgenero", "text"),
+        ("mood", "text"),
+        ("trope", "text"),
+        ("vibe_tags.label", "text"),
+        ("leer_si.label", "text"),
+    ]
     try:
-        await db.books.create_index([
-            ("title", "text"),
-            ("author", "text"),
-            ("genre", "text"),
-            ("tema", "text"),
-            ("tono", "text"),
-            ("subgenero", "text"),
-            ("mood", "text"),
-        ], name="book_search_text_index")
+        await db.books.create_index(index_fields, name=index_name, default_language="spanish")
         logger.info("Text index ensured on books collection")
     except Exception:
-        logger.exception("Failed to create text index")
+        # Si ya existe un índice con este mismo nombre pero con otros
+        # campos o idioma (el que había hasta ahora, en inglés), Mongo
+        # NO lo actualiza solo — hay que borrarlo y volver a crearlo con
+        # la definición nueva.
+        try:
+            await db.books.drop_index(index_name)
+            await db.books.create_index(index_fields, name=index_name, default_language="spanish")
+            logger.info("Text index recreated with Spanish language + trope/vibe_tags fields")
+        except Exception:
+            logger.exception("Failed to (re)create text index")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
