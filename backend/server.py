@@ -562,12 +562,30 @@ async def books_novedades(count: int = 50):
 async def search_books(query: str, user: User = Depends(get_current_user)):
     search_exclude_fields = dict(BOOK_LIST_EXCLUDE_FIELDS)
     search_exclude_fields["score"] = {"$meta": "textScore"}
+
+    # 1º intento: frase exacta entre comillas. En MongoDB, envolver el
+    # término entre comillas dentro de $search prioriza mucho más la
+    # coincidencia literal de la frase completa (en cualquier orden de
+    # las palabras que la componen) frente al modo "OR de palabras
+    # sueltas" que usa por defecto — así el libro con el título exacto
+    # sube al primer puesto en vez de perder frente a coincidencias
+    # parciales dispersas en otros campos.
+    phrase_query = f'"{query}"'
     books = await db.books.find(
-        {"$text": {"$search": query}},
+        {"$text": {"$search": phrase_query}},
         search_exclude_fields
     ).sort([("score", {"$meta": "textScore"})]).to_list(length=100)
-    books = [_strip_dynamic_cache_fields(b) for b in books]
 
+    # 2º intento (fallback): si la frase exacta no encuentra nada, se
+    # cae al modo de palabras sueltas de siempre — mejor unos resultados
+    # aproximados que ninguno.
+    if not books:
+        books = await db.books.find(
+            {"$text": {"$search": query}},
+            search_exclude_fields
+        ).sort([("score", {"$meta": "textScore"})]).to_list(length=100)
+
+    books = [_strip_dynamic_cache_fields(b) for b in books]
     return {"books": books}
 
 
