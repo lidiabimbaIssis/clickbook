@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Keyboa
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
 import { api } from "../src/lib/api";
 import { colors } from "../src/theme";
 import { useAuth } from "../src/providers/AuthProvider";
@@ -217,99 +218,111 @@ export default function CharacterChat() {
   const showRemainingBadge = !user?.is_premium && chatRemaining !== null;
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, backgroundColor: colors.bgBase }}>
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} testID="btn-back-chat">
-          <Ionicons name="chevron-back" size={22} color={colors.brass} />
-        </TouchableOpacity>
-        <CharacterAvatar character={character} isNarrator={isNarrator} colorIndex={colorIndex} />
-        <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle} numberOfLines={1}>{headerName}</Text>
-          <Text style={styles.headerSub} numberOfLines={1}>★ {headerSub}</Text>
+    <LinearGradient
+      colors={colors.bgGradient}
+      start={{ x: 0.5, y: 0 }}
+      end={{ x: 0.5, y: 1 }}
+      style={{ flex: 1 }}
+    >
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+        <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} testID="btn-back-chat">
+            <Ionicons name="chevron-back" size={22} color={colors.brass} />
+          </TouchableOpacity>
+          <CharacterAvatar character={character} isNarrator={isNarrator} colorIndex={colorIndex} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.headerTitle} numberOfLines={1}>{headerName}</Text>
+            <Text style={styles.headerSub} numberOfLines={1}>★ {headerSub}</Text>
+          </View>
+          {showRemainingBadge ? (
+            <View style={styles.remainingBadge} testID="chat-remaining-badge">
+              <Ionicons name="diamond" size={11} color={colors.gold} />
+              <Text style={styles.remainingBadgeText}>{chatRemaining}</Text>
+            </View>
+          ) : (
+            <View style={styles.live}><View style={styles.liveDot} /><Text style={styles.liveText}>EN VIVO</Text></View>
+          )}
         </View>
-        {showRemainingBadge ? (
-          <View style={styles.remainingBadge} testID="chat-remaining-badge">
-            <Ionicons name="diamond" size={11} color={colors.gold} />
-            <Text style={styles.remainingBadgeText}>{chatRemaining}</Text>
-          </View>
-        ) : (
-          <View style={styles.live}><View style={styles.liveDot} /><Text style={styles.liveText}>EN VIVO</Text></View>
-        )}
-      </View>
-      <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={styles.messages} showsVerticalScrollIndicator={false}>
-        {messages.map((m, i) => (
-          <View key={i} style={[styles.bubble, m.role === "user" ? styles.bubbleUser : styles.bubbleAssistant]}>
-            <Text style={m.role === "user" ? styles.textUser : styles.textAssistant}>{m.content}</Text>
-          </View>
-        ))}
-        {sending && (
-          <View style={[styles.bubble, styles.bubbleAssistant, { flexDirection: "row", alignItems: "center", gap: 8 }]}>
-            <TypingDots />
-          </View>
-        )}
-      </ScrollView>
-      {messages.length <= 1 && suggestions.length > 0 && (
-        <View style={styles.suggestions}>
-          {suggestions.map((s) => (
-            <TouchableOpacity key={s} style={styles.chip} onPress={() => send(s)} testID={`chip-${s}`}>
-              <Text style={styles.chipText}>{s}</Text>
-            </TouchableOpacity>
+        <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={styles.messages} showsVerticalScrollIndicator={false}>
+          {messages.map((m, i) => (
+            <View key={i} style={[styles.bubble, m.role === "user" ? styles.bubbleUser : styles.bubbleAssistant]}>
+              <Text style={m.role === "user" ? styles.textUser : styles.textAssistant}>{m.content}</Text>
+            </View>
           ))}
-        </View>
-      )}
-      <View style={[styles.inputRow, { paddingBottom: insets.bottom + 10 }]}>
-        <TextInput
-          testID="input-character-chat"
-          value={input}
-          onChangeText={setInput}
-          placeholder={inputPlaceholder}
-          placeholderTextColor={colors.textOnDarkMuted}
-          style={styles.input}
-          returnKeyType="send"
-          onSubmitEditing={() => send()}
-          editable={!sending}
-          multiline={true}
-        />
-        {/* Botón enviar: rosa cuando está enviando, cian cuando está listo */}
-        <TouchableOpacity
-          style={[styles.sendBtn, sending && styles.sendBtnSending, (!input.trim() && !sending) && { opacity: 0.5 }]}
-          onPress={() => send()}
-          disabled={!input.trim() || sending}
-          testID="btn-send-chat"
-        >
-          {sending
-            ? <ActivityIndicator size="small" color={colors.bgBase} />
-            : <Ionicons name="send" size={18} color={colors.bgBase} />
-          }
-        </TouchableOpacity>
-      </View>
-      {showDisclaimer && (
-        <View style={styles.disclaimer}>
-          <Text style={styles.disclaimerText}>
-            Esta conversación es generada por IA y no representa declaraciones reales del autor.
-          </Text>
-          <TouchableOpacity onPress={async () => {
-            await AsyncStorage.setItem("character_chat_disclaimer_seen", "true");
-            setShowDisclaimer(false);
-          }}>
-            <Text style={styles.disclaimerBtn}>Entendido</Text>
+          {sending && (
+            <View style={[styles.bubble, styles.bubbleAssistant, { flexDirection: "row", alignItems: "center", gap: 8 }]}>
+              <TypingDots />
+            </View>
+          )}
+        </ScrollView>
+        {messages.length <= 1 && suggestions.length > 0 && (
+          <View style={styles.suggestions}>
+            {suggestions.map((s) => (
+              <TouchableOpacity key={s} style={styles.chip} onPress={() => send(s)} testID={`chip-${s}`}>
+                <Text style={styles.chipText}>{s}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+        <View style={[styles.inputRow, { paddingBottom: insets.bottom + 10 }]}>
+          <TextInput
+            testID="input-character-chat"
+            value={input}
+            onChangeText={setInput}
+            placeholder={inputPlaceholder}
+            placeholderTextColor={colors.textOnDarkMuted}
+            style={styles.input}
+            returnKeyType="send"
+            onSubmitEditing={() => send()}
+            editable={!sending}
+            multiline={true}
+          />
+          {/* Botón enviar: rosa cuando está enviando, cian cuando está listo */}
+          <TouchableOpacity
+            style={[styles.sendBtn, sending && styles.sendBtnSending, (!input.trim() && !sending) && { opacity: 0.5 }]}
+            onPress={() => send()}
+            disabled={!input.trim() || sending}
+            testID="btn-send-chat"
+          >
+            {sending
+              ? <ActivityIndicator size="small" color={colors.bgBase} />
+              : <Ionicons name="send" size={18} color={colors.bgBase} />
+            }
           </TouchableOpacity>
         </View>
-      )}
-      <PaywallModal
-        visible={paywallOpen}
-        reason="chat"
-        onClose={() => setPaywallOpen(false)}
-        onUpgraded={async () => { await refresh(); }}
-      />
-    </KeyboardAvoidingView>
+        {showDisclaimer && (
+          <View style={styles.disclaimer}>
+            <Text style={styles.disclaimerText}>
+              Esta conversación es generada por IA y no representa declaraciones reales del autor.
+            </Text>
+            <TouchableOpacity onPress={async () => {
+              await AsyncStorage.setItem("character_chat_disclaimer_seen", "true");
+              setShowDisclaimer(false);
+            }}>
+              <Text style={styles.disclaimerBtn}>Entendido</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        <PaywallModal
+          visible={paywallOpen}
+          reason="chat"
+          onClose={() => setPaywallOpen(false)}
+          onUpgraded={async () => { await refresh(); }}
+        />
+      </KeyboardAvoidingView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.border, gap: 10 },
-  backBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
-  headerAvatar: { width: 36, height: 36, borderRadius: 18, overflow: "hidden", alignItems: "center", justifyContent: "center" },
+  // Cambiado de círculo (borderRadius 18) a cuadrado con esquinas
+  // redondeadas (borderRadius 13), mismo criterio que el resto de
+  // botones de icono en toda la app. Color sin tocar.
+  backBtn: { width: 36, height: 36, borderRadius: 13, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
+  // Avatar del personaje: mismo cambio de forma, de círculo (borderRadius
+  // 18) a cuadrado con esquinas redondeadas (borderRadius 13).
+  headerAvatar: { width: 36, height: 36, borderRadius: 13, overflow: "hidden", alignItems: "center", justifyContent: "center" },
   headerAvatarInitial: { fontSize: 18, fontWeight: "900" },
   headerTitle: { color: colors.textOnDark, fontSize: 16, fontWeight: "800" },
   headerSub: { color: colors.copper, fontSize: 11, marginTop: 2, letterSpacing: 0.5 },

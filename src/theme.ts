@@ -18,6 +18,9 @@ export const colors = {
   brassSoft: "rgba(3, 167, 255, 0.2)",
   gold: "#FFD23F",            // neon yellow (compras)
   goldSoft: "rgba(255,210,63,0.35)",
+
+  // Degradado de fondo: negro → morado muy oscuro
+  bgGradient: ["#000000", "#0A0414", "#12071F"] as const,
 };
 
 export const fonts = {

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Modal, View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { colors } from "../theme";
 import { api } from "../lib/api";
 import Purchases from "react-native-purchases";
@@ -83,8 +84,23 @@ export default function PaywallModal({ visible, onClose, onUpgraded, reason = "l
               </TouchableOpacity>
             </View>
           )}
-          <TouchableOpacity style={styles.cta} onPress={upgrade} disabled={loading} testID="btn-upgrade">
-            {loading ? <ActivityIndicator color={colors.bgBase} /> : (<><Ionicons name="flash" size={18} color={colors.bgBase} /><Text style={styles.ctaText}>HACERSE PREMIUM</Text></>)}
+          {/*
+            Botón "HACERSE PREMIUM": antes relleno sólido colors.brass
+            (el "azul chungo"). Ahora borde en degradado brass→copper,
+            misma técnica que el botón de Google en el login (LinearGradient
+            exterior con padding + View interior con fondo oscuro).
+          */}
+          <TouchableOpacity onPress={upgrade} disabled={loading} testID="btn-upgrade" activeOpacity={0.85} style={styles.ctaWrap}>
+            <LinearGradient
+              colors={[colors.brass, colors.copper]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.ctaBorder}
+            >
+              <View style={styles.ctaInner}>
+                {loading ? <ActivityIndicator color={colors.textOnDark} /> : (<><Ionicons name="flash" size={18} color={colors.textOnDark} /><Text style={styles.ctaText}>HACERSE PREMIUM</Text></>)}
+              </View>
+            </LinearGradient>
           </TouchableOpacity>
           <Text style={styles.disclaimer}>Se renueva automáticamente · cancela en cualquier momento</Text>
         </View>
@@ -126,7 +142,20 @@ const styles = StyleSheet.create({
   planMeta: { color: colors.gold, fontSize: 10, fontWeight: "700", marginTop: 4 },
   badge: { position: "absolute", top: -10, backgroundColor: colors.gold, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
   badgeText: { fontSize: 9, fontWeight: "900", color: colors.bgBase, letterSpacing: 0.5 },
-  cta: { marginTop: 20, backgroundColor: colors.brass, paddingVertical: 14, borderRadius: 999, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, shadowColor: colors.brass, shadowOpacity: 0.7, shadowRadius: 18, shadowOffset: { width: 0, height: 0 }, elevation: 10 },
-  ctaText: { color: colors.bgBase, fontWeight: "900", letterSpacing: 2, fontSize: 14 },
+  // Borde en degradado: wrapper sin padding + LinearGradient con 1.5px
+  // de padding actuando de borde + View interior con fondo oscuro
+  // semitransparente, mismo patrón usado en el resto de la app.
+  ctaWrap: { marginTop: 20, borderRadius: 999 },
+  ctaBorder: { borderRadius: 999, padding: 1.5 },
+  ctaInner: {
+    borderRadius: 997.5,
+    backgroundColor: "rgba(10,4,20,0.75)",
+    paddingVertical: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  ctaText: { color: colors.textOnDark, fontWeight: "900", letterSpacing: 2, fontSize: 14 },
   disclaimer: { color: colors.textOnDarkMuted, fontSize: 10, textAlign: "center", marginTop: 10, fontStyle: "italic" },
 });

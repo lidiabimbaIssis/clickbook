@@ -12,10 +12,32 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import MaskedView from "@react-native-masked-view/masked-view";
 import { api } from "../../src/lib/api";
 import { useAuth } from "../../src/providers/AuthProvider";
 import { colors } from "../../src/theme";
 import PaywallModal from "../../src/components/PaywallModal";
+
+// Texto en degradado brass→copper, mismo patrón usado en el resto de la
+// app — el icono de al lado (engranaje) se queda en brass sólido, solo
+// el título de la pantalla pasa a degradado.
+function GradientTitle({ text, fontSize, letterSpacing }: { text: string; fontSize: number; letterSpacing?: number }) {
+  return (
+    <MaskedView
+      style={{ height: fontSize * 1.25 }}
+      maskElement={
+        <Text style={{ fontSize, fontWeight: "900", letterSpacing, backgroundColor: "transparent" }}>
+          {text}
+        </Text>
+      }
+    >
+      <LinearGradient colors={[colors.brass, colors.copper]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ flex: 1 }}>
+        <Text style={{ fontSize, fontWeight: "900", letterSpacing, opacity: 0 }}>{text}</Text>
+      </LinearGradient>
+    </MaskedView>
+  );
+}
 
 export default function Settings() {
   const { user, refresh, signOut } = useAuth();
@@ -81,113 +103,128 @@ export default function Settings() {
   };
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: colors.bgBase }}
-      contentContainerStyle={[styles.container, { paddingTop: insets.top + 20, paddingBottom: 40 }]}
-      testID="settings-screen"
-    >
-      <View style={styles.header}>
-        <Ionicons name="cog" size={20} color={colors.brass} />
-        <Text style={styles.title}>AJUSTES</Text>
-      </View>
+    <LinearGradient colors={colors.bgGradient} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={{ flex: 1 }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={[styles.container, { paddingTop: insets.top + 20, paddingBottom: 40 }]}
+        testID="settings-screen"
+      >
+        <View style={styles.header}>
+          <Ionicons name="cog" size={20} color={colors.brass} />
+          <GradientTitle text="AJUSTES" fontSize={16} letterSpacing={5} />
+        </View>
 
-      <View style={styles.profile}>
-        {user?.picture ? (
-          <Image source={{ uri: user.picture }} style={styles.avatar} />
+        <View style={styles.profile}>
+          {/*
+            Anillo del avatar: antes borderWidth+borderColor sólido en
+            brass. Ahora un LinearGradient circular (padding-trick, mismo
+            patrón que el resto de la app) actúa de borde, con la foto
+            (o el placeholder) dentro en un círculo algo más pequeño.
+          */}
+          <LinearGradient
+            colors={[colors.brass, colors.copper]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.avatarRing}
+          >
+            {user?.picture ? (
+              <Image source={{ uri: user.picture }} style={styles.avatar} />
+            ) : (
+              <View style={[styles.avatar, styles.avatarPh]}>
+                <Ionicons name="person" size={30} color={colors.brass} />
+              </View>
+            )}
+          </LinearGradient>
+          <Text style={styles.name} numberOfLines={1}>{user?.name}</Text>
+          <Text style={styles.email} numberOfLines={1}>{user?.email}</Text>
+          {isPremium && (
+            <View style={styles.premiumBadge}>
+              <Ionicons name="diamond" size={12} color={colors.bgBase} />
+              <Text style={styles.premiumBadgeText}>PREMIUM</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Premium Card */}
+        {isPremium ? (
+          // Usuario premium: recuadro limpio con beneficios activos,
+          // sin repetir "Premium" ni el diamante (ya están arriba en el badge).
+          <View style={styles.premiumActiveCard} testID="premium-active-card">
+            <View style={styles.benefitRow}>
+              <Ionicons name="headset" size={14} color={colors.gold} />
+              <Text style={styles.benefitText}>Audios ilimitados</Text>
+            </View>
+            <View style={styles.benefitRow}>
+              <Ionicons name="chatbubbles" size={14} color={colors.gold} />
+              <Text style={styles.benefitText}>Habla con tus personajes favoritos</Text>
+            </View>
+            <View style={styles.benefitRow}>
+              <Ionicons name="document-text" size={14} color={colors.gold} />
+              <Text style={styles.benefitText}>Resúmenes completos y sin spoilers</Text>
+            </View>
+            <TouchableOpacity style={styles.downgradeBtn} onPress={downgrade} testID="btn-downgrade">
+              <Text style={styles.downgradeText}>Cancelar (modo demo)</Text>
+            </TouchableOpacity>
+          </View>
         ) : (
-          <View style={[styles.avatar, styles.avatarPh]}>
-            <Ionicons name="person" size={30} color={colors.brass} />
-          </View>
+          <TouchableOpacity
+            style={styles.premiumCta}
+            onPress={() => setPaywallOpen(true)}
+            activeOpacity={0.9}
+            testID="btn-go-premium"
+          >
+            <View style={styles.premiumCtaLeft}>
+              <Ionicons name="diamond" size={28} color={colors.gold} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.premiumCtaTitle}>Hacerse Premium</Text>
+              <Text style={styles.premiumCtaSub}>
+                Audios ilimitados · Habla con tus personajes favoritos · Resúmenes premium
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.gold} />
+          </TouchableOpacity>
         )}
-        <Text style={styles.name} numberOfLines={1}>{user?.name}</Text>
-        <Text style={styles.email} numberOfLines={1}>{user?.email}</Text>
-        {isPremium && (
-          <View style={styles.premiumBadge}>
-            <Ionicons name="diamond" size={12} color={colors.bgBase} />
-            <Text style={styles.premiumBadgeText}>PREMIUM</Text>
-          </View>
-        )}
-      </View>
 
-      {/* Premium Card */}
-      {isPremium ? (
-        // Usuario premium: recuadro limpio con beneficios activos,
-        // sin repetir "Premium" ni el diamante (ya están arriba en el badge).
-        <View style={styles.premiumActiveCard} testID="premium-active-card">
-          <View style={styles.benefitRow}>
-            <Ionicons name="headset" size={14} color={colors.gold} />
-            <Text style={styles.benefitText}>Audios ilimitados</Text>
-          </View>
-          <View style={styles.benefitRow}>
-            <Ionicons name="chatbubbles" size={14} color={colors.gold} />
-            <Text style={styles.benefitText}>Habla con tus personajes favoritos</Text>
-          </View>
-          <View style={styles.benefitRow}>
-            <Ionicons name="document-text" size={14} color={colors.gold} />
-            <Text style={styles.benefitText}>Resúmenes completos y sin spoilers</Text>
-          </View>
-          <TouchableOpacity style={styles.downgradeBtn} onPress={downgrade} testID="btn-downgrade">
-            <Text style={styles.downgradeText}>Cancelar (modo demo)</Text>
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>TU BIBLIOTECA</Text>
+          <TouchableOpacity
+            style={styles.row}
+            testID="btn-clear-favorites"
+            onPress={doClearFavorites}
+            disabled={clearingFavorites}
+          >
+            <Ionicons name="trash-outline" size={18} color={colors.brass} />
+            <Text style={styles.rowText}>
+              {clearingFavorites ? "Vaciando favoritos…" : "Vaciar favoritos"}
+            </Text>
           </TouchableOpacity>
         </View>
-      ) : (
-        <TouchableOpacity
-          style={styles.premiumCta}
-          onPress={() => setPaywallOpen(true)}
-          activeOpacity={0.9}
-          testID="btn-go-premium"
-        >
-          <View style={styles.premiumCtaLeft}>
-            <Ionicons name="diamond" size={28} color={colors.gold} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.premiumCtaTitle}>Hacerse Premium</Text>
-            <Text style={styles.premiumCtaSub}>
-              Audios ilimitados · Habla con tus personajes favoritos · Resúmenes premium
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={colors.gold} />
-        </TouchableOpacity>
-      )}
 
-      <View style={styles.section}>
-        <Text style={styles.sectionLabel}>TU BIBLIOTECA</Text>
+        <TouchableOpacity style={styles.logoutBtn} onPress={doSignOut} testID="btn-logout">
+          <Ionicons name="log-out-outline" size={18} color={colors.iron} />
+          <Text style={styles.logoutText}>Cerrar sesión</Text>
+        </TouchableOpacity>
         <TouchableOpacity
-          style={styles.row}
-          testID="btn-clear-favorites"
-          onPress={doClearFavorites}
-          disabled={clearingFavorites}
+          onPress={() => router.push("/legal")}
+          style={{ marginTop: 20, alignItems: "center" }}
         >
-          <Ionicons name="trash-outline" size={18} color={colors.brass} />
-          <Text style={styles.rowText}>
-            {clearingFavorites ? "Vaciando favoritos…" : "Vaciar favoritos"}
+          <Text style={{ color: colors.border, fontSize: 12, textAlign: "center" }}>
+            Términos y Condiciones
           </Text>
         </TouchableOpacity>
-      </View>
 
-      <TouchableOpacity style={styles.logoutBtn} onPress={doSignOut} testID="btn-logout">
-        <Ionicons name="log-out-outline" size={18} color={colors.iron} />
-        <Text style={styles.logoutText}>Cerrar sesión</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        onPress={() => router.push("/legal")}
-        style={{ marginTop: 20, alignItems: "center" }}
-      >
-        <Text style={{ color: colors.border, fontSize: 12, textAlign: "center" }}>
-          Términos y Condiciones
-        </Text>
-      </TouchableOpacity>
+        <Text style={styles.footer}>BookVibes · MMXXVI</Text>
 
-      <Text style={styles.footer}>BookVibes · MMXXVI</Text>
-
-      <PaywallModal
-        visible={paywallOpen}
-        onClose={() => setPaywallOpen(false)}
-        onUpgraded={async () => {
-          await refresh();
-        }}
-      />
-    </ScrollView>
+        <PaywallModal
+          visible={paywallOpen}
+          onClose={() => setPaywallOpen(false)}
+          onUpgraded={async () => {
+            await refresh();
+          }}
+        />
+      </ScrollView>
+    </LinearGradient>
   );
 }
 
@@ -206,9 +243,9 @@ function LangBtn({ label, active, onPress, testID }: { label: string; active: bo
 const styles = StyleSheet.create({
   container: { paddingHorizontal: 20 },
   header: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 20 },
-  title: { color: colors.brass, fontWeight: "900", letterSpacing: 5, fontSize: 16 },
   profile: { alignItems: "center", padding: 20, marginBottom: 14 },
-  avatar: { width: 80, height: 80, borderRadius: 40, borderWidth: 2, borderColor: colors.brass },
+  avatarRing: { width: 86, height: 86, borderRadius: 43, padding: 3, alignItems: "center", justifyContent: "center" },
+  avatar: { width: 80, height: 80, borderRadius: 40 },
   avatarPh: { alignItems: "center", justifyContent: "center", backgroundColor: colors.bgSurface },
   name: { color: colors.textOnDark, fontSize: 18, fontWeight: "700", marginTop: 10 },
   email: { color: colors.textOnDarkMuted, fontSize: 12, marginTop: 2 },

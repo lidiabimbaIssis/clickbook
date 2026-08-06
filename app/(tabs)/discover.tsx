@@ -383,6 +383,7 @@ useEffect(() => {
   };
 
   const [characterSelectOpen, setCharacterSelectOpen] = useState(false);
+  const [buyModalOpen, setBuyModalOpen] = useState(false);
 
   const openAuthorChat = async () => {
     if (!current) return;
@@ -448,27 +449,27 @@ await Image.prefetch(coverUrl);
 
   if (loading && books.length === 0) {
     return (
-      <View style={styles.center} testID="discover-loading">
+      <LinearGradient colors={colors.bgGradient} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={styles.center} testID="discover-loading">
         <ActivityIndicator size="large" color={colors.brass} />
         <Text style={styles.loadingText}>Conectando…</Text>
-      </View>
+      </LinearGradient>
     );
   }
 
   if (!current) {
     return (
-      <View style={styles.center} testID="discover-empty">
+      <LinearGradient colors={colors.bgGradient} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={styles.center} testID="discover-empty">
         <Ionicons name="sparkles-outline" size={64} color={colors.copper} />
         <Text style={styles.emptyTitle}>No hay libros</Text>
         <TouchableOpacity style={styles.reloadBtn} testID="btn-reload-feed" onPress={() => fetchBooks(true)}>
           <Text style={styles.reloadText}>Reintentar</Text>
         </TouchableOpacity>
-      </View>
+      </LinearGradient>
     );
   }
 
   return (
-    <View style={styles.container} testID="discover-screen" onLayout={onContainerLayout}>
+    <LinearGradient colors={colors.bgGradient} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={styles.container} testID="discover-screen" onLayout={onContainerLayout}>
       <FlatList
         ref={listRef}
         data={books}
@@ -481,13 +482,6 @@ await Image.prefetch(coverUrl);
         onMomentumScrollEnd={onMomentumScrollEnd}
         onScrollBeginDrag={() => { if (showSwipeHint) dismissSwipeHint(); }}
         getItemLayout={(_, index) => ({ length: SLIDE_H, offset: SLIDE_H * index, index })}
-        // Arregla el bug donde el primer libro de "Sorpréndeme" (o de
-        // abrir un libro concreto por seed) aparecía descolocado: si el
-        // scrollToIndex se dispara antes de que la lista haya medido bien
-        // su altura real (típico justo al arrancar la app), el salto
-        // "falla" internamente y deja el layout roto. Con este manejador,
-        // React Native reintenta el salto automáticamente un poco más
-        // tarde, ya con las medidas correctas, en vez de dejarlo mal.
         onScrollToIndexFailed={(info) => {
           setTimeout(() => {
             listRef.current?.scrollToIndex({ index: info.index, animated: false });
@@ -527,12 +521,12 @@ await Image.prefetch(coverUrl);
       </View>
 
       {/*
-        Botonera lateral: protagonista de la pantalla. Todos comparten
-        borde+glow en colors.copper (morado vivo), icono blanco por defecto.
-        Favorito y Audio cambian a fucsia (colors.iron) cuando están activos
-        (favorito marcado / audio sonando) — el resto (info, chat, reviews)
-        no tiene estado persistente que marcar, así que se quedan siempre
-        en el estilo por defecto.
+        Botonera lateral: ahora con borde en degradado brass→copper (misma
+        técnica de la home: LinearGradient exterior + 1.5px de padding +
+        View interior con fondo oscuro), icono blanco por defecto. Cuando
+        un botón está "activo" (favorito marcado / audio sonando) se
+        cambia a borde SÓLIDO fucsia (colors.iron), sin degradado, para
+        que siga distinguiéndose de un vistazo cuál está encendido.
       */}
       <View style={styles.sideButtons} pointerEvents="box-none">
         <SideButton icon="information-circle" onPress={() => setInfoOpen(true)} testID="btn-info" />
@@ -542,28 +536,34 @@ await Image.prefetch(coverUrl);
         <SideButton icon="star" onPress={() => router.push({ pathname: "/reviews", params: { book_id: current.book_id, title: current.title, author: current.author } })} testID="btn-reviews" />
       </View>
 
+      {/*
+        Antes: dos botones fijos (Amazon, Casa del Libro) en la misma
+        fila. Ahora: un único botón "COMPRAR" que abre BuyStoreModal con
+        la lista de tiendas — así, cuando te afilies a BuscaLibre, FNAC,
+        etc., solo hay que añadir una fila más dentro del modal, sin
+        tocar nada del diseño de esta pantalla. El aviso de afiliados va
+        justo debajo, pequeño y siempre visible (no solo dentro del
+        modal), para que cumpla igual con cualquier tienda que se añada.
+      */}
       <View
         style={[styles.buyRow, { bottom: 6 }]}
         pointerEvents="box-none"
         onLayout={onBuyRowLayout}
       >
-
-<TouchableOpacity testID="btn-buy-amazon" style={styles.buyBtn} onPress={() => {
-  const q = encodeURIComponent(`${current.title} ${current.author}`);
-  openStore(`https://www.amazon.es/s?k=${q}&i=stripbooks`);
-}} activeOpacity={0.85}>
-  <Ionicons name="logo-amazon" size={16} color="#f2fafdec" />
-  <Text style={[styles.buyText, { color: "#FF9900" }]}>Amazon</Text>
-</TouchableOpacity>
-
-<TouchableOpacity testID="btn-buy-casa" style={styles.buyBtn} onPress={() => {
-  const q = encodeURIComponent(`${current.title} ${current.author}`);
-  openStore(`https://www.casadellibro.com/busqueda-generica?query=${q}`);
-}} activeOpacity={0.85}>
-  <Ionicons name="book" size={16} color="#ffffff" />
-  <Text style={[styles.buyText, { color: "#00FF66" }]}>Casa del Libro</Text>
-</TouchableOpacity>
-
+        <TouchableOpacity testID="btn-comprar" onPress={() => setBuyModalOpen(true)} activeOpacity={0.85} style={styles.buyMainWrap}>
+          <LinearGradient
+            colors={[colors.brass, colors.copper]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.buyMainBorder}
+          >
+            <View style={styles.buyMainInner}>
+              <Ionicons name="cart" size={17} color={colors.textOnDark} />
+              <Text style={styles.buyMainText}>VER DÓNDE COMPRAR</Text>
+            </View>
+          </LinearGradient>
+        </TouchableOpacity>
+        <Text style={styles.affiliateDisclosure}>Algunas compras pueden generar una pequeña comisión sin coste para ti</Text>
       </View>
 
       {showSwipeHint && currentIndex === 0 && (
@@ -582,6 +582,15 @@ await Image.prefetch(coverUrl);
           onSelect={onCharacterSelected}
         />
       )}
+      {current && (
+        <BuyStoreModal
+          visible={buyModalOpen}
+          onClose={() => setBuyModalOpen(false)}
+          onOpenStore={openStore}
+          title={current.title}
+          author={current.author}
+        />
+      )}
       <View style={{ position: "absolute", left: -9999, top: -9999, width: 540, height: 960 }} pointerEvents="none">
         {current && (
           <ShareCard
@@ -597,7 +606,7 @@ await Image.prefetch(coverUrl);
           />
         )}
       </View>
-    </View>
+    </LinearGradient>
   );
 }
 
@@ -617,11 +626,6 @@ function BookSlide({
   const topBarSpace = insets.top + 8 + 38 + 8;
   const slidePaddingTop = topBarSpace + 45;
 
-  // Pulso suave ("respiración") para que el hook (el numerito 3/2/1) se
-  // note un poco más sin gritar — solo late mientras está en reposo
-  // (nadie lo está usando en ese momento); en cuanto se reproduce o
-  // carga, se queda quieto porque ya cambia a fucsia y eso basta como
-  // señal de que está activo.
   const hookPulse = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const loop = Animated.loop(
@@ -670,51 +674,40 @@ function BookSlide({
       <View style={styles.coverArea}>
         <View style={styles.coverWrap}>
           <View style={styles.topBadgesRow} pointerEvents="box-none">
-            {/*
-              Mood pill ("Épico"/"Intenso"...) — antes el borde era cian
-              (brassSoft) y el texto variaba de color según la categoría
-              (mood.color). Ahora todo en copperDark, un morado más oscuro
-              y apagado, para que quede en segundo plano frente a la
-              botonera lateral, que es la que debe destacar.
-            */}
             <View style={styles.moodPill}>
               <Text style={styles.moodPillIcon}>{mood.icon}</Text>
               <Text style={[styles.moodPillLabel, { color: mood.color }]} numberOfLines={1}>{mood.label}</Text>
             </View>
-            {/*
-              Rating pill (estrellas + número) — antes borde "#031588"
-              (azul marino suelto, resto de una versión anterior) y texto
-              en copper vivo. Ahora también en copperDark, igual de
-              apagado que el mood pill, mismo criterio.
-            */}
             <View style={styles.ratingPill}>
               {renderStarsCompact(book.rating)}
               <Text style={styles.ratingValue}>{book.rating.toFixed(1)}</Text>
             </View>
           </View>
 
-          <View style={styles.coverFrame}>
-            <Image
-              source={{ uri: `https://res.cloudinary.com/ddppclcl1/image/upload/v1780422197/${book.book_id}.webp` }}
-              resizeMode="contain"
-              style={styles.coverImage}
-              onError={(e) => console.log("Error cargando imagen:", e.nativeEvent.error)}
-            />
-            {hookButton}
-            {isNovedad && (
-              <View style={styles.novedadBadge} pointerEvents="none">
-                <View style={styles.novedadInner}>
+          <View style={styles.coverFrameShadow}>
+            <View style={styles.coverFrame}>
+              <Image
+                source={{ uri: `https://res.cloudinary.com/ddppclcl1/image/upload/v1780422197/${book.book_id}.webp` }}
+                resizeMode="contain"
+                style={styles.coverImage}
+                onError={(e) => console.log("Error cargando imagen:", e.nativeEvent.error)}
+              />
+              {hookButton}
+              {isNovedad && (
+                <View style={styles.novedadBadge} pointerEvents="none">
                   <LinearGradient
                     colors={[colors.brass, colors.copper]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
-                    style={styles.novedadGradient}
+                    style={styles.novedadBorder}
                   >
-                    <Text style={styles.novedadText}>NEW</Text>
+                    <View style={styles.novedadInner}>
+                      <Text style={styles.novedadText}>NEW</Text>
+                    </View>
                   </LinearGradient>
                 </View>
-              </View>
-            )}
+              )}
+            </View>
           </View>
 
         </View>
@@ -752,17 +745,41 @@ function renderStarsCompact(rating: number) {
   return <View style={{ flexDirection: "row" }}>{arr}</View>;
 }
 
-// Botón lateral unificado: borde+glow en colors.copper (morado vivo),
-// icono blanco por defecto. Cuando `active` es true (favorito marcado /
-// audio sonando) pasa a fucsia (colors.iron) en borde e icono.
+// Botón lateral: por defecto, borde en degradado brass→copper (misma
+// técnica que la tarjeta hero de la home). Cuando `active` es true
+// (favorito marcado / audio sonando), cambia a borde SÓLIDO fucsia
+// (colors.iron), sin degradado — así se distingue de un vistazo el
+// estado activo frente al resto de botones en reposo.
 function SideButton({ icon, active, onPress, loading, testID }: { icon: any; active?: boolean; onPress: () => void; loading?: boolean; testID?: string; }) {
-  const accent = active ? colors.iron : colors.copper;
   const iconColor = active ? colors.iron : "#FFFFFF";
+  const content = loading ? (
+    <ActivityIndicator size="small" color={iconColor} />
+  ) : (
+    <Ionicons name={icon} size={22} color={iconColor} />
+  );
+
+  if (active) {
+    return (
+      <TouchableOpacity testID={testID} onPress={onPress} activeOpacity={0.7} style={styles.sideBtnWrap}>
+        <View style={[styles.sideBtn, { borderColor: colors.iron, shadowColor: colors.iron }]}>
+          {content}
+        </View>
+      </TouchableOpacity>
+    );
+  }
+
   return (
     <TouchableOpacity testID={testID} onPress={onPress} activeOpacity={0.7} style={styles.sideBtnWrap}>
-      <View style={[styles.sideBtn, { borderColor: accent, shadowColor: accent }]}>
-        {loading ? <ActivityIndicator size="small" color={iconColor} /> : <Ionicons name={icon} size={22} color={iconColor} />}
-      </View>
+      <LinearGradient
+        colors={[colors.brass, colors.copper]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.sideBtnGradientBorder}
+      >
+        <View style={styles.sideBtnInner}>
+          {content}
+        </View>
+      </LinearGradient>
     </TouchableOpacity>
   );
 }
@@ -776,12 +793,6 @@ function BuyBtn({ label, icon, onPress, testID }: { label: string; icon: any; on
   );
 }
 
-// Pista de swipe: tres flechitas ("chevron-up") en cascada, cada una
-// arrancando su ciclo con un pequeño retraso respecto a la anterior, para
-// dar el efecto de "ola" subiendo. Muy sutil (opacity baja), pensada para
-// enseñar el gesto sin gritar. Solo se monta cuando showSwipeHint es true
-// y currentIndex === 0, así que el loop no corre de fondo el resto del
-// tiempo.
 function SwipeHint({ bottom }: { bottom: number }) {
   const anims = useRef([0, 1, 2].map(() => new Animated.Value(0))).current;
 
@@ -885,6 +896,93 @@ function FlashCardModal({ visible, book, lang, onClose, onAuthorChat, onAuthorPr
   );
 }
 
+// Modal de tiendas — bottom sheet con el mismo lenguaje visual que
+// FlashCardModal/AudioModal. Amazon y Casa del Libro activas ya mismo.
+// Para añadir una tienda nueva cuando te afilies (BuscaLibre, FNAC...),
+// solo hace falta un <StoreRow> más con su propia URL — no hay que tocar
+// nada del resto de la pantalla.
+function BuyStoreModal({
+  visible, onClose, onOpenStore, title, author,
+}: { visible: boolean; onClose: () => void; onOpenStore: (url: string) => void; title: string; author: string; }) {
+  const insets = useSafeAreaInsets();
+  const q = encodeURIComponent(`${title} ${author}`);
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <View style={[styles.flashCard, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 24 }]}>
+          <TouchableOpacity onPress={onClose} style={styles.flashClose} testID="btn-close-buy">
+            <Ionicons name="close" size={22} color={colors.textOnDarkMuted} />
+          </TouchableOpacity>
+          <Text style={styles.flashTitle}>Elige tu tienda favorita</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <Text style={styles.affiliateDisclosureModal}>Gracias por apoyar BookVibes</Text>
+            <Ionicons name="heart" size={11} color={colors.textOnDarkMuted} />
+          </View>
+
+          <View style={{ gap: 10, marginTop: 18 }}>
+            <StoreRow
+              icon="logo-amazon"
+              iconColor="#FF9900"
+              label="Amazon"
+              subtitle="Entrega rápida"
+              onPress={() => { onOpenStore(`https://www.amazon.es/s?k=${q}&i=stripbooks`); onClose(); }}
+              testID="btn-buy-amazon"
+            />
+            <StoreRow
+              icon="book"
+              iconColor={colors.verdigris}
+              label="Casa del Libro"
+              subtitle="Librería especializada"
+              onPress={() => { onOpenStore(`https://www.casadellibro.com/busqueda-generica?query=${q}`); onClose(); }}
+              testID="btn-buy-casa"
+            />
+            {/*
+              BuscaLibre y FNAC: activas ya mismo con enlaces normales de
+              búsqueda (SIN parámetro de afiliado todavía, porque aún no
+              hay afiliación aprobada en ninguna de las dos). En cuanto
+              te aprueben cada programa, sustituye solo la URL de
+              onOpenStore por la de afiliado real que te den — el resto
+              del componente no hay que tocarlo.
+            */}
+            <StoreRow
+              icon="book-outline"
+              iconColor="#ff5a00"
+              label="BuscaLibre"
+              subtitle="Catálogo internacional"
+              onPress={() => { onOpenStore(`https://www.buscalibre.es/libros/search?q=${q}`); onClose(); }}
+              testID="btn-buy-buscalibre"
+            />
+            <StoreRow
+              icon="storefront-outline"
+              iconColor={colors.copper}
+              label="FNAC"
+              subtitle="Recogida en tienda"
+              onPress={() => { onOpenStore(`http://busqueda.fnac.es/SearchResult/ResultList.aspx?Search=${q}`); onClose(); }}
+              testID="btn-buy-fnac"
+            />
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function StoreRow({ icon, iconColor, label, subtitle, onPress, testID }: { icon: any; iconColor: string; label: string; subtitle?: string; onPress: () => void; testID?: string }) {
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={styles.storeRow} testID={testID}>
+      <View style={styles.storeRowIconBox}>
+        <Ionicons name={icon} size={20} color={iconColor} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.storeRowLabel}>{label}</Text>
+        {subtitle ? <Text style={styles.storeRowSub}>{subtitle}</Text> : null}
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={colors.textOnDarkMuted} />
+    </TouchableOpacity>
+  );
+}
+
 function StatBox({ icon, label, value, small }: { icon: any; label: string; value: string; small?: boolean }) {
   return (
     <View style={styles.statBox}>
@@ -935,16 +1033,28 @@ function AudioModal({ visible, book, lang, playing, loading, text, onPlay, onClo
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bgBase },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bgBase, padding: 24 },
+  container: { flex: 1 },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
   loadingText: { color: colors.textOnDarkMuted, marginTop: 14, letterSpacing: 1 },
   emptyTitle: { color: colors.textOnDark, fontSize: 18, marginTop: 12, textAlign: "center" },
   reloadBtn: { marginTop: 24, borderWidth: 1, borderColor: colors.brass, paddingHorizontal: 22, paddingVertical: 12, borderRadius: 999 },
   reloadText: { color: colors.brass, letterSpacing: 2, fontWeight: "700" },
-  slide: { backgroundColor: colors.bgBase, alignItems: "center", flexDirection: "column" },
+  slide: { alignItems: "center", flexDirection: "column" },
   coverArea: { flex: 1, width: "100%", alignItems: "center", justifyContent: "center" },
   coverWrap: { position: "relative", width: SCREEN_W * 0.88, height: "100%", alignItems: "center", justifyContent: "center" },
-  coverFrame: { width: "100%", maxWidth: SCREEN_W * 0.88, aspectRatio: 2 / 3, maxHeight: "100%", borderRadius: 15, overflow: "hidden", backgroundColor: colors.bgBase },
+  coverFrameShadow: {
+    width: "100%",
+    maxWidth: SCREEN_W * 0.88,
+    aspectRatio: 2 / 3,
+    maxHeight: "100%",
+    borderRadius: 15,
+    shadowColor: "#000000",
+    shadowOpacity: 0.5,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 14 },
+    elevation: 18,
+  },
+  coverFrame: { width: "100%", height: "100%", borderRadius: 15, overflow: "hidden", backgroundColor: colors.bgBase },
   coverImage: { width: "100%", height: "100%" },
   hookBtn: {
     position: "absolute",
@@ -975,14 +1085,19 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     elevation: 8,
   },
-  novedadInner: {
+  // Borde en degradado (misma técnica que el resto de la app): el
+  // LinearGradient exterior lleva 1.5px de padding y actúa de borde; el
+  // View interior tiene fondo oscuro semitransparente, y dentro va el
+  // texto "NEW" también en degradado (GradientText).
+  novedadBorder: {
     borderRadius: 999,
-    overflow: "hidden",
+    padding: 1.5,
   },
-  novedadGradient: {
+  novedadInner: {
+    borderRadius: 997.5,
+    backgroundColor: "rgba(6,1,15,0.85)",
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 999,
   },
   novedadText: { color: "#ffffff", fontSize: 11, fontWeight: "900", letterSpacing: 1.5 },
   topBadgesRow: { position: "absolute", top: -45, left: 0, right: 0, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 4, zIndex: 8 },
@@ -992,7 +1107,7 @@ const styles = StyleSheet.create({
   ratingPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1.5, borderColor: colors.border, backgroundColor: "rgba(6,1,15,0.85)" },
   ratingValue: { color:"#962fd2ad", fontSize: 12, fontWeight: "900", letterSpacing: 0.5 },
   topBar: { position: "absolute", top: 0, left: 0, right: 0, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, zIndex: 10 },
-  backBtn: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.4)" },
+  backBtn: { width: 38, height: 38, borderRadius: 13, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.4)" },
   brandRow: { flexDirection: "row" },
   brandCyan: { color: colors.brass, fontWeight: "900", fontSize: 18 },
   brandPurple: { color: colors.copper, fontWeight: "900", fontSize: 18 },
@@ -1000,8 +1115,24 @@ const styles = StyleSheet.create({
   queryHint: { color: colors.copper, fontSize: 12, fontWeight: "600", letterSpacing: 1, maxWidth: 240 },
   sideButtons: { position: "absolute", right: 10, top: "50%", marginTop: -90, gap: 16, alignItems: "center", zIndex: 10 },
   sideBtnWrap: { alignItems: "center" },
-sideBtn: { width: 42, height: 42, borderRadius: 21, borderWidth: 1.5, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(6,1,15,0.6)", shadowOpacity: 0.9, shadowRadius: 12, shadowOffset: { width: 0, height: 0 }, elevation: 8 },
-  buyRow: { position: "absolute", left: 0, right: 0, flexDirection: "row", justifyContent: "space-between", gap: 8, paddingHorizontal: 12, zIndex: 10 },
+  // Botón por defecto (sin active): wrapper de borde en degradado, mismo
+  // patrón que gradientBorder/gradientBorderWrap de home.tsx.
+  sideBtnGradientBorder: { width: 42, height: 42, borderRadius: 14, padding: 1.5 },
+  sideBtnInner: { flex: 1, borderRadius: 12.5, backgroundColor: "rgba(6,1,15,0.75)", alignItems: "center", justifyContent: "center" },
+  // Botón activo (favorito marcado / audio sonando): borde sólido fucsia,
+  // sin degradado, para diferenciarse claramente del resto.
+  sideBtn: { width: 42, height: 42, borderRadius: 14, borderWidth: 1.5, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(6,1,15,0.6)", shadowOpacity: 0.9, shadowRadius: 12, shadowOffset: { width: 0, height: 0 }, elevation: 8 },
+  buyRow: { position: "absolute", left: 0, right: 0, alignItems: "center", gap: 4, paddingHorizontal: 12, zIndex: 10 },
+  buyMainWrap: { borderRadius: 14 },
+  buyMainBorder: { borderRadius: 14, padding: 1.5 },
+  buyMainInner: { borderRadius: 12.5, backgroundColor: "rgba(6,1,15,0.75)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 26, paddingVertical: 12 },
+  buyMainText: { color: colors.textOnDark, fontSize: 13, fontWeight: "900", letterSpacing: 1.5 },
+  affiliateDisclosure: { color: colors.textOnDarkMuted, fontSize: 9.5, textAlign: "center" },
+  affiliateDisclosureModal: { color: colors.textOnDarkMuted, fontSize: 11, marginTop: 4 },
+  storeRow: { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 13, backgroundColor: "rgba(255,255,255,0.03)" },
+  storeRowIconBox: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.05)" },
+  storeRowLabel: { color: colors.textOnDark, fontSize: 15, fontWeight: "700" },
+  storeRowSub: { color: colors.textOnDarkMuted, fontSize: 11, marginTop: 2 },
   buyBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1.5, borderColor: colors.brassMuted, paddingHorizontal: 8, paddingVertical: 11, borderRadius: 12, backgroundColor: "rgba(0,0,0,0.6)" },
   buyText: { color: colors.gold, fontSize: 12, fontWeight: "800", letterSpacing: 0.5 },
   swipeHintWrap: {

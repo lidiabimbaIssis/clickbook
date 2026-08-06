@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ImageBackground, Platform } from "react-native";
+import Svg, { Path } from "react-native-svg";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -62,6 +63,39 @@ function GradientWord({
         <Text style={{ fontSize, fontWeight, fontFamily, opacity: 0, lineHeight: fontSize * 1.2 }}>{text}</Text>
       </LinearGradient>
     </MaskedView>
+  );
+}
+
+// Logo oficial de Google ("G" multicolor), dibujado con sus 4 colores de
+// marca reales — en vez del icono monocromo "logo-google" de Ionicons,
+// que queda plano y no se identifica tan rápido como el botón oficial de
+// Google que la mayoría de apps usan.
+function GoogleLogo({ size = 20 }: { size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 48 48">
+      <Path
+        fill="#FFC107"
+        d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12
+        c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24
+        c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"
+      />
+      <Path
+        fill="#FF3D00"
+        d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039
+        l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"
+      />
+      <Path
+        fill="#4CAF50"
+        d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36
+        c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"
+      />
+      <Path
+        fill="#1976D2"
+        d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571
+        c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24
+        C44,22.659,43.862,21.35,43.611,20.083z"
+      />
+    </Svg>
   );
 }
 
@@ -129,16 +163,21 @@ export default function LoginScreen() {
 
   if (loading || processing) {
     return (
-      <View style={styles.loading} testID="login-loading">
+      <LinearGradient colors={colors.bgGradient} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={styles.loading} testID="login-loading">
         <ActivityIndicator size="large" color={colors.brass} />
         <Text style={styles.loadingText}>{processing ? "Autenticando…" : "Cargando…"}</Text>
-      </View>
+      </LinearGradient>
     );
   }
 
   return (
     <ImageBackground source={{ uri: "https://images.pexels.com/photos/30989203/pexels-photo-30989203.jpeg" }} style={styles.container} imageStyle={{ opacity: 0.22 }} testID="login-screen">
-      <View style={styles.overlay} />
+      <LinearGradient
+        colors={colors.bgGradient}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+        style={styles.overlay}
+      />
       <View style={styles.header}><Logo size="lg" /><View style={styles.divider} /></View>
       <View style={styles.hero}>
         <Text style={styles.title}>No es solo leer libros,</Text>
@@ -172,38 +211,67 @@ export default function LoginScreen() {
           <Text style={styles.featureText}>Resumen en <Text style={{ color: colors.copper, fontWeight: "700" }}>audio</Text> · 1 min</Text>
         </Feature>
       </View>
-      <TouchableOpacity testID="btn-google-login" style={styles.loginBtn} onPress={signIn} activeOpacity={0.85}>
-        <Ionicons name="logo-google" size={20} color={colors.bgBase} />
-        <Text style={styles.loginText}>Entrar con Google</Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity 
-        testID="btn-guest-login" 
-        style={styles.guestBtn} 
-        onPress={async () => {
-          setProcessing(true);
-          try {
-            // Se manda el device_id persistente junto con la petición —
-            // el backend lo usa para reconocer si este dispositivo ya
-            // tuvo una cuenta invitada antes y, si es así, reutilizarla
-            // en vez de crear una nueva (evita el bug de resetear los
-            // límites diarios cerrando y volviendo a entrar como invitado).
-            const deviceId = await getOrCreateDeviceId();
-            const data = await api<any>("/auth/guest", { method: "POST", body: JSON.stringify({ device_id: deviceId }) });
-            if (data?.session_token) await setToken(data.session_token);
-            await refresh();
-            router.replace("/home");
-          } 
-          catch (e) { 
-            console.error("Error en login de invitado:", e);
-            setProcessing(false);
-          }
-        }} 
-        activeOpacity={0.85}
-      >
-        <Ionicons name="eye-outline" size={18} color={colors.copper} />
-        <Text style={styles.guestText}>Entrar como invitado</Text>
-      </TouchableOpacity>
+
+      {/*
+        Ambos botones (Google + invitado) van dentro de un único View. El
+        contenedor padre usa justifyContent:"space-evenly", que reparte
+        espacio entre CADA hijo directo por igual — si los botones fueran
+        dos hijos sueltos, ese espaciado automático ganaba siempre a
+        cualquier marginTop que les pusiéramos. Agrupándolos en un solo
+        bloque, space-evenly solo ve "un hijo" aquí, y la distancia entre
+        los dos botones la controla el `gap` de authButtons, no el padre.
+      */}
+      <View style={styles.authButtons}>
+        <TouchableOpacity testID="btn-google-login" onPress={signIn} activeOpacity={0.85} style={styles.gradientBtnWrap}>
+          <LinearGradient
+            colors={[colors.brass, colors.copper]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.gradientBtnBorder}
+          >
+            <View style={styles.gradientBtnInner}>
+              <GoogleLogo size={20} />
+              <Text style={styles.loginText}>Entrar con Google</Text>
+            </View>
+          </LinearGradient>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          testID="btn-guest-login"
+          onPress={async () => {
+            setProcessing(true);
+            try {
+              // Se manda el device_id persistente junto con la petición —
+              // el backend lo usa para reconocer si este dispositivo ya
+              // tuvo una cuenta invitada antes y, si es así, reutilizarla
+              // en vez de crear una nueva (evita el bug de resetear los
+              // límites diarios cerrando y volviendo a entrar como invitado).
+              const deviceId = await getOrCreateDeviceId();
+              const data = await api<any>("/auth/guest", { method: "POST", body: JSON.stringify({ device_id: deviceId }) });
+              if (data?.session_token) await setToken(data.session_token);
+              await refresh();
+              router.replace("/home");
+            } 
+            catch (e) { 
+              console.error("Error en login de invitado:", e);
+              setProcessing(false);
+            }
+          }} 
+          activeOpacity={0.85}
+          style={styles.gradientBtnWrap}
+        >
+          <LinearGradient
+            colors={[colors.brass, colors.copper]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.gradientBtnBorder}
+          >
+            <View style={styles.gradientBtnInner}>
+              <Text style={styles.guestText}>Como invitado</Text>
+            </View>
+          </LinearGradient>
+        </TouchableOpacity>
+      </View>
 
       <Text style={styles.footer}>
         <Text style={{ color: colors.brass }}>DESCUBRE</Text>
@@ -227,8 +295,8 @@ function Feature({ icon, children, color }: { icon: any; children: React.ReactNo
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgBase, paddingHorizontal: 28, justifyContent: "space-evenly", paddingTop: 70, paddingBottom: 50 },
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgb(0, 0, 0)" },
-  loading: { flex: 1, backgroundColor: colors.bgBase, justifyContent: "center", alignItems: "center" },
+  overlay: { ...StyleSheet.absoluteFillObject },
+  loading: { flex: 1, justifyContent: "center", alignItems: "center" },
   loadingText: { marginTop: 16, color: colors.textOnDarkMuted, letterSpacing: 2, fontSize: 13 },
   header: { alignItems: "center" },
   divider: { marginTop: 10, width: 120, height: 1, backgroundColor: colors.brass, opacity: 0.5 },
@@ -238,9 +306,24 @@ const styles = StyleSheet.create({
   features: { backgroundColor: "rgba(0, 0, 0, 0.33)", borderWidth: 1, borderColor: colors.brassSoft, borderRadius: 14, paddingVertical: 16, paddingHorizontal: 18, gap: 10 },
   feature: { flexDirection: "row", alignItems: "center", gap: 12 },
   featureText: { color: colors.textOnDark, fontSize: 14, letterSpacing: 0.3 },
-  loginBtn: { backgroundColor: colors.brass, paddingVertical: 16, borderRadius: 999, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 10, shadowColor: colors.brass, shadowOpacity: 0.4, shadowRadius: 18, shadowOffset: { width: 0, height: 6 }, elevation: 10, borderWidth: 1, borderColor: "rgba(0,0,0,0.4)" },
-  loginText: { color: colors.bgBase, fontSize: 16, fontWeight: "800", letterSpacing: 1.5 },
-  guestBtn: { marginTop: 12, paddingVertical: 14, borderRadius: 999, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8, borderWidth: 1, borderColor: colors.copper, backgroundColor: "rgba(34,26,19,0.6)" },
-  guestText: { color: colors.copper, fontSize: 14, fontWeight: "700", letterSpacing: 1.5 },
+
+  authButtons: { gap: 8 },
+
+  // Borde en degradado: wrapper sin padding propio + LinearGradient con
+  // 1.5px de padding actuando de borde + View interior con fondo oscuro
+  // semitransparente (para que se note por encima de la imagen de fondo).
+  gradientBtnWrap: { borderRadius: 999 },
+  gradientBtnBorder: { borderRadius: 999, padding: 1.5 },
+  gradientBtnInner: {
+    borderRadius: 997.5,
+    backgroundColor: "rgba(10,4,20,0.75)",
+    paddingVertical: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+  loginText: { color: colors.textOnDark, fontSize: 16, fontWeight: "800", letterSpacing: 1.5 },
+  guestText: { color: colors.textOnDark, fontSize: 14, fontWeight: "700", letterSpacing: 1.5 },
   footer: { textAlign: "center", color: colors.textOnDarkMuted, fontSize: 11, letterSpacing: 2, textTransform: "uppercase" },
 });

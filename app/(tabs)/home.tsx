@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef, useMemo } from "react";
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Platform, Keyboard, KeyboardAvoidingView, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -11,6 +11,20 @@ import {
   ExpoSpeechRecognitionModule,
   useSpeechRecognitionEvent,
 } from "expo-speech-recognition";
+
+// Frases del título de la tarjeta principal — "NO SÉ QUÉ LEER" se repite
+// varias veces en el array para que salga con más frecuencia que el
+// resto al elegir al azar, sin necesitar lógica de pesos aparte.
+const HERO_TITLES = [
+  "NO SÉ QUÉ LEER",
+  "NO SÉ QUÉ LEER",
+  "NO SÉ QUÉ LEER",
+  "¿Y AHORA QUÉ LEO?",
+  "TU SIGUIENTE HISTORIA",
+  "¿BLOQUEO LECTOR?",
+  "NECESITO UN LIBRO",
+  "ALGO QUE ME ATRAPE",
+];
 
 function GradientWord({
   text,
@@ -68,6 +82,10 @@ export default function Home() {
   const lastVoiceTranscriptRef = useRef("");
   const voiceAutoSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const AUTO_SEARCH_DELAY_MS = 800;
+
+  // Se elige una sola vez por montaje de pantalla (no en cada render), así
+  // el título no cambia solo mientras el usuario está mirando la pantalla.
+  const heroTitle = useMemo(() => HERO_TITLES[Math.floor(Math.random() * HERO_TITLES.length)], []);
 
   const go = (query?: string, isVibe?: boolean) => {
     Keyboard.dismiss();
@@ -129,116 +147,209 @@ export default function Home() {
   }, [listening]);
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: colors.bgBase }}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.container, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} testID="home-screen">
-        <View style={styles.content}>
-          <View style={styles.logoBox}><Logo size="lg" /></View>
-          <Text style={styles.tagline}>SIENTE LO QUE LEES</Text>
+    <LinearGradient
+      colors={colors.bgGradient}
+      start={{ x: 0.5, y: 0 }}
+      end={{ x: 0.5, y: 1 }}
+      style={{ flex: 1 }}
+    >
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.container, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} testID="home-screen">
+          <View style={styles.content}>
+            <View style={styles.logoBox}><Logo size="lg" /></View>
+            <Text style={styles.tagline}>SIENTE LO QUE LEES</Text>
 
-          <View style={styles.searchBox}>
-            <Ionicons name="search" size={18} color={colors.brass} />
-            <TextInput
-              testID="input-search"
-              value={q}
-              onChangeText={(text) => {
-                setQ(text);
-                if (voiceAutoSearchTimerRef.current) {
-                  clearTimeout(voiceAutoSearchTimerRef.current);
-                  voiceAutoSearchTimerRef.current = null;
-                }
-              }}
-              placeholder="Título, autor o género…"
-              placeholderTextColor={colors.textOnDarkMuted}
-              style={styles.input}
-              returnKeyType="search"
-              onSubmitEditing={() => go(q)}
-            />
-            {q.length > 0 && (<TouchableOpacity onPress={() => setQ("")}><Ionicons name="close-circle" size={18} color={colors.textOnDarkMuted} /></TouchableOpacity>)}
-            <TouchableOpacity testID="btn-mic" onPress={onMicPress} style={styles.micBtn}>
-              <Ionicons
-                name={listening ? "mic" : "mic-outline"}
-                size={20}
-                color={listening ? colors.iron : colors.brass}
-              />
-            </TouchableOpacity>
-          </View>
-
-          {/*
-            Botón NOVEDADES: mismo tamaño y forma que el antiguo "BUSCAR",
-            pero con degradado cian->morado por dentro (igual que Sorpréndeme
-            pero relleno, no solo el borde). El icono y el texto van en blanco
-            para contrastar bien sobre el degradado oscuro.
-          */}
-          <TouchableOpacity
-            testID="btn-novedades"
-            onPress={() => router.replace({ pathname: "/discover", params: { mode: "novedades", t: Date.now() } })}
-            activeOpacity={0.85}
-            style={styles.novedadesWrapper}
-          >
-            <LinearGradient
-              colors={[colors.brass, colors.copper]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.novedadesGradient}
+            {/*
+              Tarjeta principal "Bloqueo de lector" — reemplaza al antiguo
+              buscador como primer elemento interactivo. Borde en degradado
+              (técnica: LinearGradient exterior con 1.5px de padding +
+              View interior con fondo sólido, así el degradado solo se ve
+              como borde fino). Título aleatorio (más peso a "NO SÉ QUÉ
+              LEER"), subtítulo fijo "SORPRÉNDEME" en degradado de texto.
+              Toda la tarjeta es un único botón que lanza modo random,
+              igual que hacía antes el botón "Sorpréndeme" aparte.
+            */}
+            <TouchableOpacity
+              testID="btn-hero-sorprendeme"
+              onPress={() => router.replace({ pathname: "/discover", params: { mode: "random", t: Date.now() } })}
+              activeOpacity={0.85}
+              style={[styles.gradientBorderWrap, { marginTop: 22 }]}
             >
-              <Ionicons name="flash" size={18} color="#ffffff" />
-              <Text style={styles.novedadesText}>NOVEDADES</Text>
-            </LinearGradient>
-          </TouchableOpacity>
+              <LinearGradient
+                colors={[colors.brass, colors.copper]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.gradientBorder}
+              >
+                <View style={styles.heroCardInner}>
+                  <GradientIcon name="sparkles" size={18} />
+                  <View style={{ height: 8 }} />
+                  <Text style={styles.heroTitle}>{heroTitle}</Text>
+                  <GradientWord text="SORPRÉNDEME" fontSize={13} fontWeight="900" letterSpacing={2.5} />
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
 
-          <View style={styles.divider}><View style={styles.line} /><Text style={styles.dividerText}>O BIEN</Text><View style={styles.line} /></View>
+            {/*
+              Tarjeta Novedades — mismo lenguaje visual (borde degradado)
+              que la tarjeta hero, pero en formato fila compacta con
+              icono + textos + flecha, como una fila de navegación.
+              Subtítulo honesto: son libros recién añadidos/en preventa,
+              no necesariamente "virales", así que no se afirma eso.
+            */}
+            <TouchableOpacity
+              testID="btn-novedades"
+              onPress={() => router.replace({ pathname: "/discover", params: { mode: "novedades", t: Date.now() } })}
+              activeOpacity={0.85}
+              style={styles.gradientBorderWrap}
+            >
+              <LinearGradient
+                colors={[colors.brass, colors.copper]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.gradientBorder}
+              >
+                <View style={styles.novedadesInner}>
+                  <View style={styles.novedadesIconBox}>
+                    <GradientIcon name="flash" size={20} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.novedadesTitle}>NOVEDADES</Text>
+                    <Text style={styles.novedadesSub}>Historias recién llegadas</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={colors.textOnDarkMuted} />
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
 
-          <TouchableOpacity testID="btn-lucky" style={styles.luckyBtn} onPress={() => router.replace({ pathname: "/discover", params: { mode: "random", t: Date.now() } })} activeOpacity={0.85}>
-            <GradientIcon name="sparkles" size={18} />
-            <GradientWord text="SORPRÉNDEME" fontSize={15} fontWeight="900" letterSpacing={3} />
-            <GradientIcon name="sparkles" size={18} />
-          </TouchableOpacity>
+            {/*
+              Label "SEGÚN TUS VIBES" con corazones rosas pequeños a cada
+              lado y líneas divisorias, igual que en la referencia visual.
+            */}
+            <View style={styles.vibesLabelRow}>
+              <View style={styles.vibesLabelLine} />
+              <Ionicons name="heart" size={9} color={colors.iron} style={{ opacity: 0.85 }} />
+              <Text style={styles.sectionLabel}>SEGÚN TUS VIBES</Text>
+              <Ionicons name="heart" size={9} color={colors.iron} style={{ opacity: 0.85 }} />
+              <View style={styles.vibesLabelLine} />
+            </View>
+            <View style={styles.moodRow}>
+              {[
+                { label: "Intenso", emoji: "🔥", q: "Intenso" },
+                { label: "Romántico", emoji: "💜", q: "Romántico" },
+                { label: "Épico", emoji: "⚔️", q: "Épico" },
+                { label: "Ligero", emoji: "☁️", q: "Ligero" },
+                { label: "Llorar", emoji: "💧", q: "Llorar" },
+                { label: "Reflexionar", emoji: "🤔", q: "Reflexionar" },
+                { label: "Aprender", emoji: "🎯", q: "Aprender" },
+                { label: "Inspirador", emoji: "✨", q: "Inspirador" },
+              ].map((m) => (
+                <TouchableOpacity key={m.label} style={styles.moodChip} onPress={() => go(m.q, true)} testID={`mood-${m.label}`}>
+                  <Text style={styles.moodEmoji}>{m.emoji}</Text>
+                  <Text style={styles.moodText}>{m.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
 
-          <Text style={styles.sectionLabel}>SEGÚN TUS VIBES</Text>
-          <View style={styles.moodRow}>
-            {[
-              { label: "Intenso", emoji: "🔥", q: "Intenso" },
-              { label: "Romántico", emoji: "💜", q: "Romántico" },
-              { label: "Épico", emoji: "⚔️", q: "Épico" },
-              { label: "Ligero", emoji: "☁️", q: "Ligero" },
-              { label: "Llorar", emoji: "💧", q: "Llorar" },
-              { label: "Reflexionar", emoji: "🤔", q: "Reflexionar" },
-              { label: "Aprender", emoji: "🎯", q: "Aprender" },
-              { label: "Inspirador", emoji: "✨", q: "Inspirador" },
-            ].map((m) => (
-              <TouchableOpacity key={m.label} style={styles.moodChip} onPress={() => go(m.q, true)} testID={`mood-${m.label}`}>
-                <Text style={styles.moodEmoji}>{m.emoji}</Text>
-                <Text style={styles.moodText}>{m.label}</Text>
+            {/*
+              Buscador — antes era el primer elemento de la pantalla, ahora
+              baja al fondo y se hace más pequeño (menos padding, texto más
+              chico). Misma funcionalidad exacta que antes (texto, borrar,
+              micrófono, submit) — placeholder cambia para invitar a buscar
+              por trope en vez de sugerir título/autor, que con ~1.600
+              libros es poco probable que se encuentren tal cual.
+            */}
+            {/* Espaciador flexible: empuja el buscador hacia el fondo de
+                la pantalla siempre, haya el contenido que haya arriba,
+                para que la home ocupe toda la altura disponible en vez
+                de quedarse centrada con hueco vacío debajo. */}
+            <View style={{ flex: 1, minHeight: 12 }} />
+
+            <View style={styles.searchLabelRow}>
+              <View style={styles.searchLabelLine} />
+              <Text style={styles.searchLabel}>¿YA TIENES UNO EN MENTE?</Text>
+              <View style={styles.searchLabelLine} />
+            </View>
+            <View style={styles.searchBox}>
+              <Ionicons name="search" size={16} color={colors.brass} />
+              <TextInput
+                testID="input-search"
+                value={q}
+                onChangeText={(text) => {
+                  setQ(text);
+                  if (voiceAutoSearchTimerRef.current) {
+                    clearTimeout(voiceAutoSearchTimerRef.current);
+                    voiceAutoSearchTimerRef.current = null;
+                  }
+                }}
+                placeholder="thriller, enemies to lovers, romantasy…"
+                placeholderTextColor={colors.textOnDarkMuted}
+                style={styles.input}
+                returnKeyType="search"
+                onSubmitEditing={() => go(q)}
+              />
+              {q.length > 0 && (<TouchableOpacity onPress={() => setQ("")}><Ionicons name="close-circle" size={16} color={colors.textOnDarkMuted} /></TouchableOpacity>)}
+              <TouchableOpacity testID="btn-mic" onPress={onMicPress} style={styles.micBtn}>
+                <Ionicons
+                  name={listening ? "mic" : "mic-outline"}
+                  size={17}
+                  color={listening ? colors.iron : colors.brass}
+                />
               </TouchableOpacity>
-            ))}
+            </View>
           </View>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 22 },
-  content: { flex: 1, justifyContent: "center", gap: 18 },
+  container: { flex: 1, paddingHorizontal: 24 },
+  content: { flex: 1, justifyContent: "center", gap: 16 },
   logoBox: { alignItems: "center", justifyContent: "center", marginTop: 20, marginBottom: 8 },
   tagline: { textAlign: "center", color: colors.brass, letterSpacing: 4, fontSize: 10, fontWeight: "400", marginTop: -4, textShadowColor: colors.brass, textShadowRadius: 6 },
-  searchBox: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: colors.bgSurface, borderWidth: 1, borderColor: colors.brassSoft, borderRadius: 14, paddingHorizontal: 14, paddingVertical: Platform.OS === "web" ? 12 : 10, marginTop: 12 },
-  input: { flex: 1, color: colors.textOnDark, fontSize: 15, outlineWidth: 0 as any },
-  micBtn: { padding: 2 },
-  // NOVEDADES: wrapper con borderRadius para que el LinearGradient quede
-  // recortado con esquinas redondeadas (overflow hidden en el gradient).
-  novedadesWrapper: { borderRadius: 999, overflow: "hidden", shadowColor: colors.copper, shadowOpacity: 0.6, shadowRadius: 18, shadowOffset: { width: 0, height: 0 }, elevation: 10 },
-  novedadesGradient: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, paddingVertical: 14, borderRadius: 999 },
-  novedadesText: { color: "#ffffff", fontWeight: "900", letterSpacing: 3, fontSize: 15 },
-  divider: { flexDirection: "row", alignItems: "center", gap: 12, marginVertical: 4 },
-  line: { flex: 1, height: 1, backgroundColor: colors.border },
-  dividerText: { color: colors.textOnDarkMuted, letterSpacing: 3, fontSize: 11 },
-  luckyBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, borderWidth: 2, borderColor: colors.copper, paddingVertical: 14, borderRadius: 999, backgroundColor: colors.bgSurface, shadowColor: colors.copper, shadowOpacity: 0.6, shadowRadius: 18, shadowOffset: { width: 0, height: 0 }, elevation: 10 },
-  luckyText: { color: colors.copper, fontWeight: "900", letterSpacing: 3, fontSize: 14 },
-  sectionLabel: { color: colors.textOnDarkMuted, fontSize: 10, letterSpacing: 3, fontWeight: "800", textAlign: "center", marginTop: 8, marginBottom: -4 },
+
+  // Borde en degradado: wrapper exterior sin padding propio (el margen
+  // entre tarjetas lo da el `gap` del content), LinearGradient con 1.5px
+  // de padding que actúa de "borde", y dentro un View con fondo sólido.
+  gradientBorderWrap: { borderRadius: 18, marginTop: 4 },
+  gradientBorder: { borderRadius: 18, padding: 1.5 },
+  heroCardInner: {
+    borderRadius: 16.5,
+    backgroundColor: colors.bgSurface,
+    paddingVertical: 26,
+    paddingHorizontal: 20,
+    alignItems: "center",
+  },
+  heroTitle: { color: colors.textOnDark, fontSize: 22, fontWeight: "900", letterSpacing: 1, textAlign: "center", marginBottom: 10 },
+
+  novedadesInner: {
+    borderRadius: 16.5,
+    backgroundColor: colors.bgSurface,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  novedadesIconBox: { width: 38, height: 38, borderRadius: 11, backgroundColor: colors.brassSoft, alignItems: "center", justifyContent: "center" },
+  novedadesTitle: { color: colors.textOnDark, fontWeight: "900", fontSize: 13, letterSpacing: 1 },
+  novedadesSub: { color: colors.textOnDarkMuted, fontSize: 11, marginTop: 2 },
+
+  vibesLabelRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, marginTop: 6, marginBottom: -2 },
+  vibesLabelLine: { flex: 1, maxWidth: 40, height: 1, backgroundColor: "rgba(255,46,120,0.25)" },
+  sectionLabel: { color: colors.textOnDarkMuted, fontSize: 10, letterSpacing: 3, fontWeight: "800" },
+
   moodRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, justifyContent: "center", marginTop: 4 },
   moodChip: { flexDirection: "row", alignItems: "center", gap: 4, borderWidth: 1, borderColor: "rgba(176,38,255,0.4)", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: "rgba(176,38,255,0.07)" },
   moodEmoji: { fontSize: 14 },
   moodText: { color: colors.textOnDark, fontSize: 13, fontWeight: "700" },
+
+  searchLabelRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 4, marginBottom: 8 },
+  searchLabelLine: { flex: 1, maxWidth: 50, height: 1, backgroundColor: colors.brassSoft },
+  searchLabel: { color: colors.textOnDarkMuted, fontSize: 10, letterSpacing: 2, fontWeight: "700" },
+  searchBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.bgSurface, borderWidth: 1, borderColor: colors.brassSoft, borderRadius: 12, paddingHorizontal: 12, paddingVertical: Platform.OS === "web" ? 10 : 8 },
+  input: { flex: 1, color: colors.textOnDark, fontSize: 13, outlineWidth: 0 as any },
+  micBtn: { padding: 2 },
 });

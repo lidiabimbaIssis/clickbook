@@ -2,10 +2,60 @@ import React, { useEffect } from "react";
 import { Tabs } from "expo-router";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, ActivityIndicator, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import MaskedView from "@react-native-masked-view/masked-view";
 import { useAuth } from "../../src/providers/AuthProvider";
 import { colors } from "../../src/theme";
+
+// Icono de tab con degradado brass→copper cuando está activo (focused),
+// y color plano (textOnDarkMuted) cuando no lo está — mismo patrón
+// MaskedView+LinearGradient que GradientIcon en home.tsx.
+function TabIcon({ name, size, focused }: { name: any; size: number; focused: boolean }) {
+  if (!focused) {
+    return <Ionicons name={name} size={size} color={colors.textOnDarkMuted} />;
+  }
+  return (
+    <MaskedView
+      style={{ width: size, height: size }}
+      maskElement={<Ionicons name={name} size={size} color="black" />}
+    >
+      <LinearGradient
+        colors={[colors.brass, colors.copper]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{ width: size, height: size }}
+      />
+    </MaskedView>
+  );
+}
+
+// Label de tab con el mismo criterio: degradado cuando está activo, color
+// plano cuando no. letterSpacing/fontWeight iguales a tabBarLabelStyle
+// para que no salte el tamaño del texto al cambiar de pestaña.
+function TabLabel({ label, focused }: { label: string; focused: boolean }) {
+  if (!focused) {
+    return <Text style={[styles.label, { color: colors.textOnDarkMuted }]}>{label}</Text>;
+  }
+  return (
+    <MaskedView
+      style={{ height: 14 }}
+      maskElement={
+        <Text style={[styles.label, { backgroundColor: "transparent" }]}>{label}</Text>
+      }
+    >
+      <LinearGradient
+        colors={[colors.brass, colors.copper]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={{ flex: 1 }}
+      >
+        <Text style={[styles.label, { opacity: 0 }]}>{label}</Text>
+      </LinearGradient>
+    </MaskedView>
+  );
+}
 
 export default function TabsLayout() {
   const { user, loading } = useAuth();
@@ -54,37 +104,41 @@ export default function TabsLayout() {
           paddingBottom: tabBarPaddingBottom,
           paddingTop: 8,
         },
-        tabBarActiveTintColor: colors.brass,
-        tabBarInactiveTintColor: colors.textOnDarkMuted,
-        tabBarLabelStyle: { fontSize: 11, letterSpacing: 1.2, fontWeight: "700" },
+        // tabBarActiveTintColor/tabBarLabelStyle ya no controlan el color
+        // directamente — el degradado se aplica dentro de TabIcon/TabLabel
+        // según el prop `focused` que da cada tabBarIcon/tabBarLabel.
       }}
     >
       <Tabs.Screen
         name="home"
         options={{
-          title: "INICIO",
-          tabBarIcon: ({ color, size }) => <Ionicons name="search" size={size} color={color} />,
+          title: "PARA TI",
+          tabBarIcon: ({ focused, size }) => <TabIcon name="search" size={size} focused={focused} />,
+          tabBarLabel: ({ focused }) => <TabLabel label="PARA TI" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="discover"
         options={{
           title: "DESCUBRIR",
-          tabBarIcon: ({ color, size }) => <Ionicons name="albums" size={size} color={color} />,
+          tabBarIcon: ({ focused, size }) => <TabIcon name="albums" size={size} focused={focused} />,
+          tabBarLabel: ({ focused }) => <TabLabel label="DESCUBRIR" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="favorites"
         options={{
           title: "FAVORITOS",
-          tabBarIcon: ({ color, size }) => <Ionicons name="heart" size={size} color={color} />,
+          tabBarIcon: ({ focused, size }) => <TabIcon name="heart" size={size} focused={focused} />,
+          tabBarLabel: ({ focused }) => <TabLabel label="FAVORITOS" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
           title: "AJUSTES",
-          tabBarIcon: ({ color, size }) => <Ionicons name="cog" size={size} color={color} />,
+          tabBarIcon: ({ focused, size }) => <TabIcon name="cog" size={size} focused={focused} />,
+          tabBarLabel: ({ focused }) => <TabLabel label="AJUSTES" focused={focused} />,
         }}
       />
     </Tabs>
@@ -93,4 +147,5 @@ export default function TabsLayout() {
 
 const styles = StyleSheet.create({
   loading: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bgBase },
+  label: { fontSize: 11, letterSpacing: 1.2, fontWeight: "700" },
 });

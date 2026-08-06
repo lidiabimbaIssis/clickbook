@@ -14,9 +14,31 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import MaskedView from "@react-native-masked-view/masked-view";
 import { api, Book } from "../../src/lib/api";
 import { useAuth } from "../../src/providers/AuthProvider";
 import { colors } from "../../src/theme";
+
+// Texto en degradado brass→copper, mismo patrón que GradientWord en
+// home.tsx — el icono de al lado (corazón) se queda en brass sólido, solo
+// el título de la pantalla pasa a degradado.
+function GradientTitle({ text, fontSize, letterSpacing }: { text: string; fontSize: number; letterSpacing?: number }) {
+  return (
+    <MaskedView
+      style={{ height: fontSize * 1.25 }}
+      maskElement={
+        <Text style={{ fontSize, fontWeight: "900", letterSpacing, backgroundColor: "transparent", fontFamily: Platform.select({ ios: "Georgia", default: "serif" }) }}>
+          {text}
+        </Text>
+      }
+    >
+      <LinearGradient colors={[colors.brass, colors.copper]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ flex: 1 }}>
+        <Text style={{ fontSize, fontWeight: "900", letterSpacing, opacity: 0, fontFamily: Platform.select({ ios: "Georgia", default: "serif" }) }}>{text}</Text>
+      </LinearGradient>
+    </MaskedView>
+  );
+}
 
 export default function Favorites() {
   const { user } = useAuth();
@@ -64,17 +86,23 @@ export default function Favorites() {
 
   if (loading) {
     return (
-      <View style={styles.center}>
+      <LinearGradient colors={colors.bgGradient} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={styles.center}>
         <ActivityIndicator size="large" color={colors.brass} />
-      </View>
+      </LinearGradient>
     );
   }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 12 }]} testID="favorites-screen">
+    <LinearGradient
+      colors={colors.bgGradient}
+      start={{ x: 0.5, y: 0 }}
+      end={{ x: 0.5, y: 1 }}
+      style={[styles.container, { paddingTop: insets.top + 12 }]}
+      testID="favorites-screen"
+    >
       <View style={styles.header}>
         <Ionicons name="heart" size={20} color={colors.brass} />
-        <Text style={styles.title}>BIBLIOTECA</Text>
+        <GradientTitle text="BIBLIOTECA" fontSize={16} letterSpacing={5} />
       </View>
       {books.length === 0 ? (
         <View style={styles.empty}>
@@ -149,26 +177,19 @@ export default function Favorites() {
           )}
         />
       )}
-    </View>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bgBase },
-  center: { flex: 1, backgroundColor: colors.bgBase, alignItems: "center", justifyContent: "center" },
+  container: { flex: 1 },
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
   header: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     paddingHorizontal: 20,
     paddingBottom: 16,
-  },
-  title: {
-    color: colors.brass,
-    fontWeight: "900",
-    letterSpacing: 5,
-    fontSize: 16,
-    fontFamily: Platform.select({ ios: "Georgia", default: "serif" }),
   },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: 30 },
   emptyText: { color: colors.textOnDark, fontSize: 16, marginTop: 12, textAlign: "center" },
