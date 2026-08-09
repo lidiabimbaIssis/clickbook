@@ -21,6 +21,17 @@ import { LinearGradient } from "expo-linear-gradient";
 import MaskedView from "@react-native-masked-view/masked-view";
 import { colors } from "../src/theme";
 
+// Convierte un color hex a rgba con la opacidad indicada, para aplicar
+// versiones apagadas de los colores de marca sin inventar hex nuevos.
+function hexToRgba(hex: string, alpha: number): string {
+  let h = (hex || "").replace("#", "");
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  const r = parseInt(h.substring(0, 2), 16) || 0;
+  const g = parseInt(h.substring(2, 4), 16) || 0;
+  const b = parseInt(h.substring(4, 6), 16) || 0;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 
 const { width, height } = Dimensions.get("window");
 const HERO = Math.min(260, height * 0.32);
@@ -240,14 +251,14 @@ function Waveform({ animValue, color, side }: { animValue: Animated.Value; color
 
 /** Slide 2 — Vibes */
 const VIBES: { label: string; icon: any; color: string }[] = [
-  { label: "Épico", icon: "⚡", color: colors.iron },
+  { label: "Épico", icon: "⚡", color: colors.brass },
   { label: "Romántico", icon: "💜", color: colors.copper },
-  { label: "Intenso", icon: "🔥", color: colors.gold },
+  { label: "Intenso", icon: "🔥", color: colors.iron },
   { label: "Llorar", icon: "💧", color: colors.brass },
-  { label: "Inspirador", icon: "✨", color: colors.verdigris },
-  { label: "Reflexionar", icon: "🤔", color: colors.copper },
+  { label: "Inspirador", icon: "✨", color: colors.copper },
+  { label: "Reflexionar", icon: "🤔", color: colors.iron },
   { label: "Ligero", icon: "☁️", color: colors.brass },
-  { label: "Aprender", icon: "🎯", color: colors.verdigris },
+  { label: "Aprender", icon: "🎯", color: colors.copper },
 ];
 
 function SlideVibes() {
@@ -276,7 +287,7 @@ function SlideVibes() {
     >
       <View style={styles.vibesGrid}>
         {VIBES.map((v) => (
-          <View key={v.label} style={[styles.vibePill, { borderColor: v.color, shadowColor: v.color }]}>
+          <View key={v.label} style={[styles.vibePill, { borderColor: hexToRgba(v.color, 0.4) }]}>
             <Text style={{ fontSize: 14 }}>{v.icon}</Text>
             <Text style={[styles.vibePillText, { color: colors.textOnDark }]}>{v.label}</Text>
           </View>
@@ -425,7 +436,7 @@ const styles = StyleSheet.create({
   timer60: { fontSize: 110, fontWeight: "900", color: colors.brass, letterSpacing: -4, ...Platform.select({ web: { textShadow: `0 0 30px ${colors.brass}` as any }, default: { textShadowColor: colors.brass, textShadowRadius: 22 } }) },
   timerSec: { fontSize: 14, color: colors.copper, letterSpacing: 6, fontWeight: "900", marginTop: -6 },
   vibesGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 8, width: HERO + 60 },
-  vibePill: { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1.5, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: colors.bgSurface, shadowOpacity: 0.5, shadowRadius: 8, shadowOffset: { width: 0, height: 0 }, elevation: 6 },
+  vibePill: { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1.5, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: colors.bgSurface },
   vibePillText: { fontSize: 12, fontWeight: "700" },
   vibeHeartWrap: { marginTop: 28, width: 130, height: 110, alignItems: "center", justifyContent: "center" },
   vibeBookIcon: { ...Platform.select({ web: { filter: `drop-shadow(0 0 18px ${colors.brass})` as any } }) },

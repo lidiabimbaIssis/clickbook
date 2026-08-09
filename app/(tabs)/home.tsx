@@ -267,7 +267,7 @@ export default function Home() {
 
             <View style={styles.searchLabelRow}>
               <View style={styles.searchLabelLine} />
-              <Text style={styles.searchLabel}>¿YA TIENES UNO EN MENTE?</Text>
+              <Text style={styles.searchLabel}>¿TIENES UN TÍTULO O TROPE EN MENTE?</Text>
               <View style={styles.searchLabelLine} />
             </View>
             <View style={styles.searchBox}>
@@ -307,7 +307,7 @@ export default function Home() {
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 24 },
   content: { flex: 1, justifyContent: "center", gap: 16 },
-  logoBox: { alignItems: "center", justifyContent: "center", marginTop: 20, marginBottom: 8 },
+  logoBox: { alignItems: "center", justifyContent: "center", marginTop: 20, marginBottom: -4 },
   tagline: { textAlign: "center", color: colors.brass, letterSpacing: 4, fontSize: 10, fontWeight: "400", marginTop: -4, textShadowColor: colors.brass, textShadowRadius: 6 },
 
   // Borde en degradado: wrapper exterior sin padding propio (el margen
@@ -349,7 +349,7 @@ const styles = StyleSheet.create({
   searchLabelRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 4, marginBottom: 8 },
   searchLabelLine: { flex: 1, maxWidth: 50, height: 1, backgroundColor: colors.brassSoft },
   searchLabel: { color: colors.textOnDarkMuted, fontSize: 10, letterSpacing: 2, fontWeight: "700" },
-  searchBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.bgSurface, borderWidth: 1, borderColor: colors.brassSoft, borderRadius: 12, paddingHorizontal: 12, paddingVertical: Platform.OS === "web" ? 10 : 8 },
+  searchBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.bgSurface, borderWidth: 1, borderColor: "rgba(78,2,122,0.5)", borderRadius: 12, paddingHorizontal: 12, paddingVertical: Platform.OS === "web" ? 10 : 8 },
   input: { flex: 1, color: colors.textOnDark, fontSize: 13, outlineWidth: 0 as any },
   micBtn: { padding: 2 },
 });

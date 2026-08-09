@@ -451,7 +451,7 @@ await Image.prefetch(coverUrl);
     return (
       <LinearGradient colors={colors.bgGradient} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={styles.center} testID="discover-loading">
         <ActivityIndicator size="large" color={colors.brass} />
-        <Text style={styles.loadingText}>Conectando…</Text>
+        <Text style={styles.loadingText}>Buscando tu vibe…</Text>
       </LinearGradient>
     );
   }
@@ -460,9 +460,25 @@ await Image.prefetch(coverUrl);
     return (
       <LinearGradient colors={colors.bgGradient} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={styles.center} testID="discover-empty">
         <Ionicons name="sparkles-outline" size={64} color={colors.copper} />
-        <Text style={styles.emptyTitle}>No hay libros</Text>
-        <TouchableOpacity style={styles.reloadBtn} testID="btn-reload-feed" onPress={() => fetchBooks(true)}>
-          <Text style={styles.reloadText}>Reintentar</Text>
+        <Text style={styles.emptyTitle}>No apareció...</Text>
+        <Text style={styles.emptySub}>Tu próxima obsesión puede estar aquí</Text>
+        <TouchableOpacity
+          style={styles.gradientBorderWrap}
+          testID="btn-empty-sorprendeme"
+          onPress={() => router.replace({ pathname: "/discover", params: { mode: "random", t: Date.now() } })}
+          activeOpacity={0.85}
+        >
+          <LinearGradient
+            colors={[colors.brass, colors.copper]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.gradientBorder}
+          >
+            <View style={styles.reloadInner}>
+              <Ionicons name="sparkles" size={16} color={colors.textOnDark} />
+              <Text style={styles.reloadText}>SORPRÉNDEME</Text>
+            </View>
+          </LinearGradient>
         </TouchableOpacity>
       </LinearGradient>
     );
@@ -529,7 +545,7 @@ await Image.prefetch(coverUrl);
         que siga distinguiéndose de un vistazo cuál está encendido.
       */}
       <View style={styles.sideButtons} pointerEvents="box-none">
-        <SideButton icon="information-circle" onPress={() => setInfoOpen(true)} testID="btn-info" />
+        <SideButton icon="information-circle-outline" onPress={() => setInfoOpen(true)} testID="btn-info" />
         <SideButton icon={isFav ? "heart" : "heart-outline"} active={isFav} onPress={toggleFavorite} testID="btn-favorite" />
         <SideButton icon={playing ? "pause" : "headset"} active={playing} onPress={() => { setAudioOpen(true); playAudio(); }} loading={audioLoading} testID="btn-audio" />
         <SideButton icon="chatbubbles" onPress={openAuthorChat} testID="btn-author-ia" />
@@ -546,7 +562,7 @@ await Image.prefetch(coverUrl);
         modal), para que cumpla igual con cualquier tienda que se añada.
       */}
       <View
-        style={[styles.buyRow, { bottom: 6 }]}
+        style={[styles.buyRow, { bottom: 10 }]}
         pointerEvents="box-none"
         onLayout={onBuyRowLayout}
       >
@@ -627,6 +643,13 @@ function BookSlide({
   const slidePaddingTop = topBarSpace + 45;
 
   const hookPulse = useRef(new Animated.Value(0)).current;
+  // Segundo valor animado, SOLO para el color: la interpolación de color
+  // no es compatible con useNativeDriver (a diferencia de scale/opacity),
+  // así que corre en su propio Animated.Value en el hilo de JS, con
+  // exactamente el mismo ritmo (850ms) que el pulso de tamaño, para que
+  // ambas animaciones se vean sincronizadas aunque corran por caminos
+  // distintos.
+  const hookColorPulse = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
@@ -634,18 +657,33 @@ function BookSlide({
         Animated.timing(hookPulse, { toValue: 0, duration: 850, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
       ])
     );
+    const colorLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(hookColorPulse, { toValue: 1, duration: 850, easing: Easing.inOut(Easing.ease), useNativeDriver: false }),
+        Animated.timing(hookColorPulse, { toValue: 0, duration: 850, easing: Easing.inOut(Easing.ease), useNativeDriver: false }),
+      ])
+    );
     loop.start();
-    return () => loop.stop();
-  }, [hookPulse]);
-  const hookScale = hookPulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.14] });
+    colorLoop.start();
+    return () => { loop.stop(); colorLoop.stop(); };
+  }, [hookPulse, hookColorPulse]);
+  const hookScale = hookPulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.22] });
   const hookOpacity = hookPulse.interpolate({ inputRange: [0, 1], outputRange: [0.65, 1] });
+  // Blanco -> rosa fucsia (iron, el mismo color de "activo" en toda la
+  // app) -> blanco.
+  const hookColor = hookColorPulse.interpolate({ inputRange: [0, 1], outputRange: ["rgba(255,255,255,0.85)", colors.iron] });
   const hookIdle = !(hookLoading || hookPlaying);
+  // El parpadeo solo tiene sentido para avisar a usuarios gratis/invitado
+  // de que tienen un número limitado de hooks — un usuario premium ya
+  // sabe que el play está ahí y no necesita el aviso, así que para ellos
+  // el icono se queda siempre estático, sin animar, incluso en reposo.
+  const shouldPulse = hookIdle && !hookIsPremium;
 
   const hookButton = isCurrent && (hookIsPremium || (hookRemaining ?? 0) > 0) ? (
     <Animated.View
       style={[
         styles.hookBtn,
-        hookIdle && { transform: [{ scale: hookScale }], opacity: hookOpacity },
+        shouldPulse && { transform: [{ scale: hookScale }], opacity: hookOpacity },
       ]}
     >
       <TouchableOpacity
@@ -661,9 +699,9 @@ function BookSlide({
             color={hookLoading || hookPlaying ? colors.iron : "rgba(255,255,255,0.85)"}
           />
         ) : (
-          <Text style={[styles.hookBtnNumber, (hookLoading || hookPlaying) && { color: colors.iron }]}>
+          <Animated.Text style={[styles.hookBtnNumber, { color: (hookLoading || hookPlaying) ? colors.iron : hookColor }]}>
             {hookRemaining}
-          </Text>
+          </Animated.Text>
         )}
       </TouchableOpacity>
     </Animated.View>
@@ -755,7 +793,7 @@ function SideButton({ icon, active, onPress, loading, testID }: { icon: any; act
   const content = loading ? (
     <ActivityIndicator size="small" color={iconColor} />
   ) : (
-    <Ionicons name={icon} size={22} color={iconColor} />
+    <Ionicons name={icon} size={20} color={iconColor} />
   );
 
   if (active) {
@@ -770,8 +808,13 @@ function SideButton({ icon, active, onPress, loading, testID }: { icon: any; act
 
   return (
     <TouchableOpacity testID={testID} onPress={onPress} activeOpacity={0.7} style={styles.sideBtnWrap}>
+      {/*
+        Versión oscura del degradado (brassMuted/copperDark en vez de
+        brass/copper) para que la botonera se vea más apagada y menos
+        "glow", en línea con el resto de la app.
+      */}
       <LinearGradient
-        colors={[colors.brass, colors.copper]}
+        colors={[colors.brassMuted, colors.copperDark]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.sideBtnGradientBorder}
@@ -930,8 +973,7 @@ function BuyStoreModal({
               testID="btn-buy-amazon"
             />
             <StoreRow
-              icon="book"
-              iconColor={colors.verdigris}
+              logoSource={require("../../assets/images/casadellibro-logo.png")}
               label="Casa del Libro"
               subtitle="Librería especializada"
               onPress={() => { onOpenStore(`https://www.casadellibro.com/busqueda-generica?query=${q}`); onClose(); }}
@@ -946,16 +988,14 @@ function BuyStoreModal({
               del componente no hay que tocarlo.
             */}
             <StoreRow
-              icon="book-outline"
-              iconColor="#ff5a00"
+              logoSource={require("../../assets/images/buscalibre-logo.png")}
               label="BuscaLibre"
               subtitle="Catálogo internacional"
               onPress={() => { onOpenStore(`https://www.buscalibre.es/libros/search?q=${q}`); onClose(); }}
               testID="btn-buy-buscalibre"
             />
             <StoreRow
-              icon="storefront-outline"
-              iconColor={colors.copper}
+              logoSource={require("../../assets/images/fnac-logo.png")}
               label="FNAC"
               subtitle="Recogida en tienda"
               onPress={() => { onOpenStore(`http://busqueda.fnac.es/SearchResult/ResultList.aspx?Search=${q}`); onClose(); }}
@@ -968,11 +1008,15 @@ function BuyStoreModal({
   );
 }
 
-function StoreRow({ icon, iconColor, label, subtitle, onPress, testID }: { icon: any; iconColor: string; label: string; subtitle?: string; onPress: () => void; testID?: string }) {
+function StoreRow({ icon, iconColor, logoSource, label, subtitle, onPress, testID }: { icon?: any; iconColor?: string; logoSource?: any; label: string; subtitle?: string; onPress: () => void; testID?: string }) {
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={styles.storeRow} testID={testID}>
       <View style={styles.storeRowIconBox}>
-        <Ionicons name={icon} size={20} color={iconColor} />
+        {logoSource ? (
+          <Image source={logoSource} style={styles.storeRowLogo} resizeMode="contain" />
+        ) : (
+          <Ionicons name={icon} size={20} color={iconColor} />
+        )}
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.storeRowLabel}>{label}</Text>
@@ -1038,7 +1082,11 @@ const styles = StyleSheet.create({
   loadingText: { color: colors.textOnDarkMuted, marginTop: 14, letterSpacing: 1 },
   emptyTitle: { color: colors.textOnDark, fontSize: 18, marginTop: 12, textAlign: "center" },
   reloadBtn: { marginTop: 24, borderWidth: 1, borderColor: colors.brass, paddingHorizontal: 22, paddingVertical: 12, borderRadius: 999 },
-  reloadText: { color: colors.brass, letterSpacing: 2, fontWeight: "700" },
+  reloadText: { color: colors.textOnDark, letterSpacing: 2, fontWeight: "700" },
+  emptySub: { color: colors.textOnDarkMuted, fontSize: 13, marginTop: 8, textAlign: "center", paddingHorizontal: 30, lineHeight: 19 },
+  gradientBorderWrap: { borderRadius: 14, marginTop: 22 },
+  gradientBorder: { borderRadius: 14, padding: 1.5 },
+  reloadInner: { borderRadius: 12.5, backgroundColor: "rgba(6,1,15,0.75)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 24, paddingVertical: 12 },
   slide: { alignItems: "center", flexDirection: "column" },
   coverArea: { flex: 1, width: "100%", alignItems: "center", justifyContent: "center" },
   coverWrap: { position: "relative", width: SCREEN_W * 0.88, height: "100%", alignItems: "center", justifyContent: "center" },
@@ -1049,12 +1097,18 @@ const styles = StyleSheet.create({
     maxHeight: "100%",
     borderRadius: 15,
     shadowColor: "#000000",
-    shadowOpacity: 0.5,
-    shadowRadius: 22,
-    shadowOffset: { width: 0, height: 14 },
-    elevation: 18,
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 10 },
+    // En Android, shadowOpacity/shadowRadius/shadowOffset apenas se
+    // respetan de forma nativa — la sombra real la dibuja `elevation`.
+    // Lo subimos a un valor que sí se note claramente (antes 14 era
+    // casi indistinguible del anterior 18).
+    elevation: 20,
   },
-  coverFrame: { width: "100%", height: "100%", borderRadius: 15, overflow: "hidden", backgroundColor: colors.bgBase },
+  // Borde blanco sutil, algo más visible que antes (0.08 -> 0.14) para
+  // que el contorno se note sin ser llamativo.
+  coverFrame: { width: "100%", height: "100%", borderRadius: 15, overflow: "hidden", backgroundColor: colors.bgBase, borderWidth: 1, borderColor: "rgba(255,255,255,0.14)" },
   coverImage: { width: "100%", height: "100%" },
   hookBtn: {
     position: "absolute",
@@ -1125,12 +1179,13 @@ const styles = StyleSheet.create({
   buyRow: { position: "absolute", left: 0, right: 0, alignItems: "center", gap: 4, paddingHorizontal: 12, zIndex: 10 },
   buyMainWrap: { borderRadius: 14 },
   buyMainBorder: { borderRadius: 14, padding: 1.5 },
-  buyMainInner: { borderRadius: 12.5, backgroundColor: "rgba(6,1,15,0.75)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 26, paddingVertical: 12 },
+  buyMainInner: { borderRadius: 12.5, backgroundColor: "rgba(6,1,15,0.92)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 26, paddingVertical: 12 },
   buyMainText: { color: colors.textOnDark, fontSize: 13, fontWeight: "900", letterSpacing: 1.5 },
   affiliateDisclosure: { color: colors.textOnDarkMuted, fontSize: 9.5, textAlign: "center" },
   affiliateDisclosureModal: { color: colors.textOnDarkMuted, fontSize: 11, marginTop: 4 },
   storeRow: { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 13, backgroundColor: "rgba(255,255,255,0.03)" },
-  storeRowIconBox: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.05)" },
+  storeRowIconBox: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.05)", overflow: "hidden" },
+  storeRowLogo: { width: 24, height: 24 },
   storeRowLabel: { color: colors.textOnDark, fontSize: 15, fontWeight: "700" },
   storeRowSub: { color: colors.textOnDarkMuted, fontSize: 11, marginTop: 2 },
   buyBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1.5, borderColor: colors.brassMuted, paddingHorizontal: 8, paddingVertical: 11, borderRadius: 12, backgroundColor: "rgba(0,0,0,0.6)" },

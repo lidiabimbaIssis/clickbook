@@ -277,18 +277,31 @@ export default function CharacterChat() {
             editable={!sending}
             multiline={true}
           />
-          {/* Botón enviar: rosa cuando está enviando, cian cuando está listo */}
-          <TouchableOpacity
-            style={[styles.sendBtn, sending && styles.sendBtnSending, (!input.trim() && !sending) && { opacity: 0.5 }]}
-            onPress={() => send()}
-            disabled={!input.trim() || sending}
-            testID="btn-send-chat"
-          >
-            {sending
-              ? <ActivityIndicator size="small" color={colors.bgBase} />
-              : <Ionicons name="send" size={18} color={colors.bgBase} />
-            }
-          </TouchableOpacity>
+          {/* Botón enviar: degradado brass→copper en reposo (mismo
+              lenguaje visual que el resto de la app), sólido rosa
+              mientras está enviando — igual que el patrón de "estado
+              activo" que ya usamos en los botones laterales de discover. */}
+          {sending ? (
+            <View style={[styles.sendBtn, styles.sendBtnSending]}>
+              <ActivityIndicator size="small" color={colors.bgBase} />
+            </View>
+          ) : (
+            <TouchableOpacity
+              onPress={() => send()}
+              disabled={!input.trim()}
+              testID="btn-send-chat"
+              style={[!input.trim() && { opacity: 0.5 }]}
+            >
+              <LinearGradient
+                colors={[colors.brass, colors.copper]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.sendBtn}
+              >
+                <Ionicons name="send" size={18} color={colors.bgBase} />
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
         </View>
         {showDisclaimer && (
           <View style={styles.disclaimer}>
@@ -350,7 +363,7 @@ const styles = StyleSheet.create({
   chipText: { color: colors.brass, fontSize: 12, fontWeight: "700" },
   inputRow: { flexDirection: "row", gap: 10, paddingHorizontal: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border, alignItems: "center" },
   input: { flex: 1, backgroundColor: colors.bgSurface, borderWidth: 1, borderColor: colors.brassSoft, borderRadius: 999, paddingHorizontal: 16, paddingVertical: Platform.OS === "web" ? 12 : 10, color: colors.textOnDark, fontSize: 14, outlineWidth: 0 as any },
-sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brass, alignItems: "center", justifyContent: "center", shadowColor: colors.brass, shadowOpacity: 0.5, shadowRadius: 14, shadowOffset: { width: 0, height: 0 }, elevation: 8 },
+sendBtn: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", shadowColor: colors.copper, shadowOpacity: 0.5, shadowRadius: 14, shadowOffset: { width: 0, height: 0 }, elevation: 8 },
   sendBtnSending: { backgroundColor: colors.iron },
   // Antes: rgba(176,38,255,...) (copper antiguo). Ahora el copper oficial.
   disclaimer: { margin: 16, padding: 16, backgroundColor: "rgba(160,32,240,0.15)", borderRadius: 12, borderWidth: 1, borderColor: "rgba(160,32,240,0.4)", gap: 12 },
