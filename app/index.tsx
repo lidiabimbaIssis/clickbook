@@ -165,7 +165,7 @@ export default function LoginScreen() {
     return (
       <LinearGradient colors={colors.bgGradient} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={styles.loading} testID="login-loading">
         <ActivityIndicator size="large" color={colors.brass} />
-        <Text style={styles.loadingText}>{processing ? "Autenticando…" : "Cargando…"}</Text>
+        <Text style={styles.loadingText}>{processing ? "Autenticando…" : "Buscando tu vibe…"}</Text>
       </LinearGradient>
     );
   }
@@ -222,17 +222,15 @@ export default function LoginScreen() {
         los dos botones la controla el `gap` de authButtons, no el padre.
       */}
       <View style={styles.authButtons}>
-        <TouchableOpacity testID="btn-google-login" onPress={signIn} activeOpacity={0.85} style={styles.gradientBtnWrap}>
+        <TouchableOpacity testID="btn-google-login" onPress={signIn} activeOpacity={0.85} style={styles.googleBtnWrap}>
           <LinearGradient
             colors={[colors.brass, colors.copper]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
-            style={styles.gradientBtnBorder}
+            style={styles.googleBtnGradient}
           >
-            <View style={styles.gradientBtnInner}>
-              <GoogleLogo size={20} />
-              <Text style={styles.loginText}>Entrar con Google</Text>
-            </View>
+            <GoogleLogo size={20} />
+            <Text style={styles.loginText}>Entrar con Google</Text>
           </LinearGradient>
         </TouchableOpacity>
 
@@ -312,6 +310,11 @@ const styles = StyleSheet.create({
   // Borde en degradado: wrapper sin padding propio + LinearGradient con
   // 1.5px de padding actuando de borde + View interior con fondo oscuro
   // semitransparente (para que se note por encima de la imagen de fondo).
+  // Botón Google: relleno SÓLIDO en degradado (sin fondo oscuro interior),
+  // para que destaque como acción principal frente al botón invitado, que
+  // se queda más discreto (borde fino + fondo oscuro).
+  googleBtnWrap: { borderRadius: 999, shadowColor: colors.copper, shadowOpacity: 0.5, shadowRadius: 16, shadowOffset: { width: 0, height: 4 }, elevation: 10 },
+  googleBtnGradient: { borderRadius: 999, overflow: "hidden", paddingVertical: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 },
   gradientBtnWrap: { borderRadius: 999 },
   gradientBtnBorder: { borderRadius: 999, padding: 1.5 },
   gradientBtnInner: {
@@ -323,7 +326,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 10,
   },
-  loginText: { color: colors.textOnDark, fontSize: 16, fontWeight: "800", letterSpacing: 1.5 },
+  loginText: { color: colors.bgBase, fontSize: 16, fontWeight: "800", letterSpacing: 1.5 },
   guestText: { color: colors.textOnDark, fontSize: 14, fontWeight: "700", letterSpacing: 1.5 },
   footer: { textAlign: "center", color: colors.textOnDarkMuted, fontSize: 11, letterSpacing: 2, textTransform: "uppercase" },
 });

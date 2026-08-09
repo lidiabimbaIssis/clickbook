@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import MaskedView from "@react-native-masked-view/masked-view";
 import { api } from "../src/lib/api";
 import { colors } from "../src/theme";
 
@@ -72,6 +73,16 @@ const iconMap: Record<string, string> = {
 // no los lee para estos dos sitios). Rosa/fucsia, morado, azul — el mismo
 // orden en ambos bloques para que la pantalla se lea como un sistema.
 const ACCENT_COLORS = [colors.iron, colors.copper, colors.brass];
+
+// Degradados cíclicos para los 3 iconos de "Qué sentirás leyendo este
+// libro": 1º rosa→morado, 2º morado→azul, 3º azul→rosa — un pequeño
+// "carrusel de color" entre los tres, en vez de un color plano fijo cada
+// uno como en ACCENT_COLORS.
+const EMOTION_GRADIENTS: [string, string][] = [
+  [colors.iron, colors.copper],
+  [colors.copper, colors.brass],
+  [colors.brass, colors.iron],
+];
 
 // Convierte cualquier color hex a rgba con la opacidad indicada, para
 // conseguir una versión "apagada" de los 3 colores de marca sin tener que
@@ -180,7 +191,7 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
                     return (
                       <View key={i}>
                         <View style={styles.topicRow}>
-                          <Text style={[styles.topicLabel, { color: hexToRgba(accent, 0.65) }]} numberOfLines={1}>
+                          <Text style={styles.topicLabel} numberOfLines={1}>
                             {capitalize(t.label)}
                           </Text>
                           <Text style={[styles.topicPct, { color: hexToRgba(accent, 0.75) }]}>{t.percent}%</Text>
@@ -210,7 +221,9 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
                 return (
                   <React.Fragment key={i}>
                     <View style={styles.emotionItem}>
-                      <DynamicIcon name={e.icon} size={42} color={hexToRgba(accent, 0.65)} />
+                      <View style={[styles.emotionIconBox, { borderColor: hexToRgba(accent, 0.55) }]}>
+                        <DynamicIcon name={e.icon} size={30} color={hexToRgba(accent, 0.85)} />
+                      </View>
                       <Text style={[styles.emotionPct, { color: hexToRgba(accent, 0.75) }]}>{e.percent}%</Text>
                       <Text style={styles.emotionLabel}>{capitalize(e.label)}</Text>
                     </View>
@@ -239,13 +252,28 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
           {/* reacciones de lectores — en cuarto lugar */}
           <View style={styles.card}>
             <Text style={styles.cardLabel}>REACCIONES DE LECTORES ✨</Text>
-            {data.collective_feelings.map((f: any, i: number) => (
-              <View key={i} style={styles.feelRow}>
-                <Text style={styles.feelEmoji}>{f.emoji}</Text>
-                <Text style={styles.feelLabel}>{capitalize(f.label)}</Text>
-                <Text style={styles.feelCount}>{f.count_label}</Text>
-              </View>
-            ))}
+            {data.collective_feelings.map((f: any, i: number) => {
+              // Intensidad → opacidad de la píldora: cuanto más alto el
+              // nivel, más saturado el color. Así "Muy Alto" destaca
+              // claramente frente a "Bajo" solo con la fuerza del color,
+              // sin depender únicamente de leer la palabra.
+              const level = (f.count_label || "").toLowerCase();
+              const levelOpacity = level.includes("muy alto") ? 0.9
+                : level.includes("alto") ? 0.65
+                : level.includes("medio") ? 0.4
+                : 0.25;
+              return (
+                <View key={i} style={styles.feelRow}>
+                  <View style={styles.feelEmojiBox}>
+                    <Text style={styles.feelEmoji}>{f.emoji}</Text>
+                  </View>
+                  <Text style={styles.feelLabel}>{capitalize(f.label)}</Text>
+                  <View style={[styles.feelCountPill, { backgroundColor: hexToRgba(colors.copper, levelOpacity * 0.25), borderColor: hexToRgba(colors.copper, levelOpacity) }]}>
+                    <Text style={[styles.feelCount, { color: hexToRgba(colors.copper, Math.max(levelOpacity, 0.6)) }]}>{f.count_label}</Text>
+                  </View>
+                </View>
+              );
+            })}
           </View>
         </ScrollView>
       )}
@@ -262,6 +290,34 @@ function DynamicIcon({ name, size, color }: { name: string; size: number; color:
   const finalName = iconName || "alert-circle-outline";
   
   return <Ionicons name={finalName as any} size={size} color={color} />;
+}
+
+// Misma lógica de resolución de icono que DynamicIcon, pero relleno con
+// un degradado de dos colores en vez de un color plano — usa la técnica
+// MaskedView+LinearGradient ya utilizada en el resto de la app. El
+// tamaño aquí (42px) es bastante mayor que el badge NEW que dio problemas
+// en discover.tsx, así que no debería sufrir el mismo bug de renderizado.
+function GradientDynamicIcon({ name, size, gradientColors }: { name: string; size: number; gradientColors: [string, string] }) {
+  const isMC = name?.startsWith("mc:");
+  const iconName = isMC ? name.slice(3) : (iconMap[name] || "alert-circle-outline");
+
+  return (
+    <MaskedView
+      style={{ width: size, height: size }}
+      maskElement={
+        isMC
+          ? <MaterialCommunityIcons name={iconName as any} size={size} color="black" />
+          : <Ionicons name={iconName as any} size={size} color="black" />
+      }
+    >
+      <LinearGradient
+        colors={gradientColors}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{ width: size, height: size }}
+      />
+    </MaskedView>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -292,21 +348,24 @@ const styles = StyleSheet.create({
   totalLabel: { color: colors.textOnDarkMuted, fontSize: 12, marginTop: 8 },
   // Fila de label + porcentaje encima de cada barra de "¿De qué hablan más?"
   topicRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 5 },
-  topicLabel: { fontSize: 14, fontWeight: "600", flexShrink: 1, marginRight: 6 },
+  topicLabel: { fontSize: 13, fontWeight: "400", flexShrink: 1, marginRight: 6, color: colors.textOnDark },
   topicPct: { fontSize: 13, fontWeight: "900", flexShrink: 0 },
   // Barra de progreso: track fijo semitransparente + relleno proporcional
   // al %, en el color de marca fijo (apagado) que le toque por posición.
   topicBarTrack: { height: 6, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.08)", overflow: "hidden" },
   topicBarFill: { height: "100%", borderRadius: 999 },
   feelRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "rgba(78,2,122,0.12)", gap: 12 },
-  feelEmoji: { fontSize: 18 },
+  feelEmojiBox: { width: 34, height: 34, borderRadius: 10, borderWidth: 1, borderColor: "rgba(78,2,122,0.4)", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.02)" },
+  feelEmoji: { fontSize: 16 },
   feelLabel: { color: colors.textOnDark, fontSize: 15, flex: 1, fontWeight: "300" },
-feelCount: { color: "rgba(160,32,240,0.75)", fontSize: 12, fontWeight: "800", letterSpacing: 0.5 },
+  feelCountPill: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+  feelCount: { fontSize: 11, fontWeight: "800", letterSpacing: 0.5 },
   compatCard: { width: 120, alignItems: "center" },
   compatCover: { width: 120, height: 180, borderRadius: 10, backgroundColor: colors.bgSurfaceLight, borderWidth: 1, borderColor: colors.brassSoft },
   compatTitle: { color: colors.textOnDark, fontSize: 12, fontWeight: "800", marginTop: 8, textAlign: "center" },
   emotionsContainer: { flexDirection: "row", justifyContent: "space-around", alignItems: "center", marginTop: 10 },
   emotionItem: { alignItems: "center", flex: 1 },
+  emotionIconBox: { width: 56, height: 56, borderRadius: 16, borderWidth: 1.5, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.02)" },
   // Línea divisoria vertical fina entre cada emoción, en el mismo morado
   // apagado que ya usan los bordes de las tarjetas, para que quede
   // coherente con el resto de la pantalla.
@@ -319,6 +378,6 @@ feelCount: { color: "rgba(160,32,240,0.75)", fontSize: 12, fontWeight: "800", le
   // lectores" (feelLabel: 15px / weight 600 / textOnDark). Ahora con un
   // check circular a la izquierda, borde copper, relleno transparente.
   leerSiPill: { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderColor: "rgba(78,2,122,0.22)", borderRadius: 999, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: "rgba(78,2,122,0.08)" },
-  leerSiCheck: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: "rgba(160,32,240,0.75)", alignItems: "center", justifyContent: "center" },
+  leerSiCheck: { width: 24, height: 24, borderRadius: 8, borderWidth: 1.5, borderColor: "rgba(160,32,240,0.75)", alignItems: "center", justifyContent: "center" },
   leerSiText: { color: colors.textOnDark, fontSize: 15, fontWeight: "300", flex: 1 },
 });
