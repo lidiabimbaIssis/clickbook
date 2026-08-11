@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ImageBackground, Platform } from "react-native";
 import Svg, { Path } from "react-native-svg";
-import { useRouter } from "expo-router";
+import { useRouter, Redirect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "../src/providers/AuthProvider";
@@ -134,12 +134,6 @@ export default function LoginScreen() {
     })();
   }, [refresh, router]);
 
-  useEffect(() => {
-    if (!loading && user) {
-      router.replace("/home");
-    }
-  }, [loading, user, router]);
-
   const signIn = async () => {
     setProcessing(true);
     try {
@@ -168,6 +162,16 @@ export default function LoginScreen() {
         <Text style={styles.loadingText}>{processing ? "Autenticando…" : "Buscando tu vibe…"}</Text>
       </LinearGradient>
     );
+  }
+
+  // Antes esta redirección vivía en un useEffect (`router.replace("/home")`
+  // tras montar). Eso obligaba a React a pintar un frame completo de la
+  // pantalla de login ANTES de poder ejecutar el efecto y navegar — ese
+  // frame de más era el "milisegundo" de login que se veía al abrir la
+  // app ya logueado. <Redirect> se resuelve durante el propio render, sin
+  // llegar a pintar la UI de login en ningún momento.
+  if (user) {
+    return <Redirect href="/home" />;
   }
 
   return (

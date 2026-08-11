@@ -33,6 +33,58 @@ function inferMood(book: Book): { label: string; icon: string; color: string } {
   return { label: book.mood || "Descubre", icon: "📖", color: colors.brass };
 }
 
+// Helper para atenuar cualquier color hex mezclándolo con transparencia
+// (misma técnica que ya usas en onboarding.tsx). Al aplicarlo sobre el
+// fondo oscuro de la app, un color al 50% de opacidad se percibe mucho
+// más apagado/menos "glow" que el mismo color sólido, sin tener que
+// inventar un hex nuevo por cada tono.
+function hexToRgba(hex: string, alpha: number): string {
+  const clean = hex.replace("#", "");
+  const bigint = parseInt(clean.length === 3
+    ? clean.split("").map((c) => c + c).join("")
+    : clean, 16);
+  const r = (bigint >> 16) & 255;
+  const g = (bigint >> 8) & 255;
+  const b = bigint & 255;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// Opacidad general aplicada a TODOS los degradados de botones laterales
+// y vibe tags de esta pantalla, para bajar la intensidad/glow que
+// Lidia veía demasiado llamativa — cuanto más bajo, más apagado.
+const GLOW_ALPHA = 0.55;
+
+// Paleta que rotan los chips de vibe_tags (borde), en el mismo espíritu
+// que las imágenes de referencia: cada chip con su propio color de
+// acento (dorado / azul hielo / fucsia) para que se distingan de un
+// vistazo sin depender de un campo de color que no existe en el JSON.
+// Degradados de los chips de vibe tags: cada familia de color va de su
+// tono luminoso a uno oscuro. El par azul/cian usaba brass->brassMuted,
+// pero esos dos tonos están demasiado cerca en brillo y el degradado
+// casi no se apreciaba — lo cambié por un azul marino calculado a mano
+// (~35% del brillo de brass) para que el contraste sea visible. Para
+// el rosa (iron) tampoco existe variante oscura en theme.ts, así que
+// también uso un hex calculado (~50% de brillo). Si más adelante
+// añades `colors.brassDark`/`colors.ironDark` al tema, sustituye esos
+// valores aquí. Todo el par pasa además por hexToRgba(GLOW_ALPHA) para
+// que se vea apagado, no neón.
+const VIBE_TAG_GRADIENTS: [string, string][] = [
+  [hexToRgba(colors.copper, GLOW_ALPHA), hexToRgba(colors.copperDark, GLOW_ALPHA)], // morado
+  [hexToRgba(colors.brass, GLOW_ALPHA), hexToRgba("#043552", GLOW_ALPHA)],          // azul/cian
+  [hexToRgba(colors.iron, GLOW_ALPHA), hexToRgba("#7F173C", GLOW_ALPHA)],           // rosa
+];
+
+// Mismo criterio para la botonera lateral: cada botón usa su par de
+// colores (ver comentario junto a cada <SideButton>) pero atenuado con
+// hexToRgba(GLOW_ALPHA) para que no destaquen tanto sobre el resto de
+// la interfaz.
+const SIDE_BTN_GRADIENTS = {
+  azulMorado: [hexToRgba(colors.brass, GLOW_ALPHA), hexToRgba(colors.copper, GLOW_ALPHA)] as [string, string],
+  moradoRosa: [hexToRgba(colors.copper, GLOW_ALPHA), hexToRgba(colors.iron, GLOW_ALPHA)] as [string, string],
+  rosaMorado: [hexToRgba(colors.iron, GLOW_ALPHA), hexToRgba(colors.copper, GLOW_ALPHA)] as [string, string],
+  moradoAzul: [hexToRgba(colors.copper, GLOW_ALPHA), hexToRgba(colors.brass, GLOW_ALPHA)] as [string, string],
+};
+
 export default function Discover() {
   const { user, refresh: refreshAuth } = useAuth();
   const lang = (user?.lang || "es") as "es" | "en";
@@ -545,11 +597,11 @@ await Image.prefetch(coverUrl);
         que siga distinguiéndose de un vistazo cuál está encendido.
       */}
       <View style={styles.sideButtons} pointerEvents="box-none">
-        <SideButton icon="information-circle-outline" onPress={() => setInfoOpen(true)} testID="btn-info" />
-        <SideButton icon={isFav ? "heart" : "heart-outline"} active={isFav} onPress={toggleFavorite} testID="btn-favorite" />
-        <SideButton icon={playing ? "pause" : "headset"} active={playing} onPress={() => { setAudioOpen(true); playAudio(); }} loading={audioLoading} testID="btn-audio" />
-        <SideButton icon="chatbubbles" onPress={openAuthorChat} testID="btn-author-ia" />
-        <SideButton icon="star" onPress={() => router.push({ pathname: "/reviews", params: { book_id: current.book_id, title: current.title, author: current.author } })} testID="btn-reviews" />
+        <SideButton icon="information-circle-outline" onPress={() => setInfoOpen(true)} testID="btn-info" gradientColors={SIDE_BTN_GRADIENTS.azulMorado} />
+        <SideButton icon={isFav ? "heart" : "heart-outline"} active={isFav} onPress={toggleFavorite} testID="btn-favorite" gradientColors={SIDE_BTN_GRADIENTS.moradoRosa} />
+        <SideButton icon={playing ? "pause" : "headset"} active={playing} onPress={() => { setAudioOpen(true); playAudio(); }} loading={audioLoading} testID="btn-audio" gradientColors={SIDE_BTN_GRADIENTS.azulMorado} />
+        <SideButton icon="chatbubbles" onPress={openAuthorChat} testID="btn-author-ia" gradientColors={SIDE_BTN_GRADIENTS.rosaMorado} />
+        <SideButton icon="star" onPress={() => router.push({ pathname: "/reviews", params: { book_id: current.book_id, title: current.title, author: current.author } })} testID="btn-reviews" gradientColors={SIDE_BTN_GRADIENTS.moradoAzul} />
       </View>
 
       {/*
@@ -562,20 +614,20 @@ await Image.prefetch(coverUrl);
         modal), para que cumpla igual con cualquier tienda que se añada.
       */}
       <View
-        style={[styles.buyRow, { bottom: 10 }]}
+        style={[styles.buyRow, { bottom: 6 }]}
         pointerEvents="box-none"
         onLayout={onBuyRowLayout}
       >
         <TouchableOpacity testID="btn-comprar" onPress={() => setBuyModalOpen(true)} activeOpacity={0.85} style={styles.buyMainWrap}>
           <LinearGradient
-            colors={[colors.brass, colors.copper]}
+            colors={[colors.brassMuted, colors.copperDark]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={styles.buyMainBorder}
           >
             <View style={styles.buyMainInner}>
               <Ionicons name="cart" size={17} color={colors.textOnDark} />
-              <Text style={styles.buyMainText}>VER DÓNDE COMPRAR</Text>
+              <Text style={styles.buyMainText}>DÓNDE COMPRAR</Text>
             </View>
           </LinearGradient>
         </TouchableOpacity>
@@ -712,14 +764,35 @@ function BookSlide({
       <View style={styles.coverArea}>
         <View style={styles.coverWrap}>
           <View style={styles.topBadgesRow} pointerEvents="box-none">
-            <View style={styles.moodPill}>
-              <Text style={styles.moodPillIcon}>{mood.icon}</Text>
-              <Text style={[styles.moodPillLabel, { color: mood.color }]} numberOfLines={1}>{mood.label}</Text>
-            </View>
-            <View style={styles.ratingPill}>
-              {renderStarsCompact(book.rating)}
-              <Text style={styles.ratingValue}>{book.rating.toFixed(1)}</Text>
-            </View>
+            {/*
+              Badges de arriba: mismo degradado violeta (copper claro ->
+              copperDark) en los dos, pero con la dirección invertida
+              entre ellos para que se "miren" — en el mood pill (el de
+              la izquierda) el oscuro cae a la derecha; en el rating
+              pill (el de la derecha) el oscuro cae a la izquierda.
+            */}
+            <LinearGradient
+              colors={[hexToRgba(colors.copper, GLOW_ALPHA), hexToRgba(colors.copperDark, GLOW_ALPHA)]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.pillGradientBorder}
+            >
+              <View style={styles.moodPill}>
+                <Text style={styles.moodPillIcon}>{mood.icon}</Text>
+                <Text style={[styles.moodPillLabel, { color: mood.color }]} numberOfLines={1}>{mood.label}</Text>
+              </View>
+            </LinearGradient>
+            <LinearGradient
+              colors={[hexToRgba(colors.copperDark, GLOW_ALPHA), hexToRgba(colors.copper, GLOW_ALPHA)]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.pillGradientBorder}
+            >
+              <View style={styles.ratingPill}>
+                {renderStarsCompact(book.rating)}
+                <Text style={styles.ratingValue}>{book.rating.toFixed(1)}</Text>
+              </View>
+            </LinearGradient>
           </View>
 
           <View style={styles.coverFrameShadow}>
@@ -751,18 +824,42 @@ function BookSlide({
         </View>
       </View>
 
-<View style={styles.pillContainer}>
-  {(book.vibe_tags || []).map((tag, index) => (
-    <React.Fragment key={index}>
-      <Text style={styles.pillText} allowFontScaling={false}>
-        <Text allowFontScaling={false}>{tag.icon}</Text>{" "}<Text allowFontScaling={false}>{tag.label}</Text>
-      </Text>
-      {index < (book.vibe_tags || []).length - 1 && (
-        <Text style={styles.separator} allowFontScaling={false}>•</Text>
-      )}
-    </React.Fragment>
-  ))}
-</View>
+      {/*
+        Vibe tags: cada tag es su propio chip (borderRadius 13, borde de
+        color rotando entre copperDark/#971d76/brassMuted/copper). Antes
+        usaba flexWrap, pero eso hacía que en pantallas más estrechas un
+        chip "saltara" solo a una segunda línea, centrado y descuadrado
+        (se veía distinto según el móvil). Con ScrollView horizontal la
+        fila NUNCA se parte: si caben todos, se ven centrados igual que
+        antes (contentContainerStyle con flexGrow+justifyContent:center);
+        si no caben, se puede deslizar hacia los lados en vez de romperse
+        en una línea fea — así el aspecto es idéntico en todos los
+        dispositivos.
+      */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.vibeTagsRow}
+        style={styles.vibeTagsScroll}
+      >
+        {(book.vibe_tags || []).map((tag, index) => {
+          const tagGradient = VIBE_TAG_GRADIENTS[index % VIBE_TAG_GRADIENTS.length];
+          return (
+            <LinearGradient
+              key={index}
+              colors={tagGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.vibeTagGradientBorder}
+            >
+              <View style={styles.vibeTagChipInner}>
+                <Text style={styles.vibeTagIcon} allowFontScaling={false}>{tag.icon}</Text>
+                <Text style={styles.vibeTagLabel} allowFontScaling={false} numberOfLines={1}>{tag.label}</Text>
+              </View>
+            </LinearGradient>
+          );
+        })}
+      </ScrollView>
 
    <View style={{ height: reservedBottom + 6 }} pointerEvents="none" />
 </View>
@@ -788,7 +885,7 @@ function renderStarsCompact(rating: number) {
 // (favorito marcado / audio sonando), cambia a borde SÓLIDO fucsia
 // (colors.iron), sin degradado — así se distingue de un vistazo el
 // estado activo frente al resto de botones en reposo.
-function SideButton({ icon, active, onPress, loading, testID }: { icon: any; active?: boolean; onPress: () => void; loading?: boolean; testID?: string; }) {
+function SideButton({ icon, active, onPress, loading, testID, gradientColors }: { icon: any; active?: boolean; onPress: () => void; loading?: boolean; testID?: string; gradientColors?: [string, string]; }) {
   const iconColor = active ? colors.iron : "#FFFFFF";
   const content = loading ? (
     <ActivityIndicator size="small" color={iconColor} />
@@ -809,12 +906,14 @@ function SideButton({ icon, active, onPress, loading, testID }: { icon: any; act
   return (
     <TouchableOpacity testID={testID} onPress={onPress} activeOpacity={0.7} style={styles.sideBtnWrap}>
       {/*
-        Versión oscura del degradado (brassMuted/copperDark en vez de
-        brass/copper) para que la botonera se vea más apagada y menos
-        "glow", en línea con el resto de la app.
+        Cada botón lateral recibe su propio par de colores vía
+        `gradientColors` (prueba de Lidia: info y audio en azul→morado,
+        favorito en morado→rosa, chat en rosa→morado, reviews en
+        morado→azul). Si no se pasa nada, cae al par apagado de
+        siempre (brassMuted/copperDark).
       */}
       <LinearGradient
-        colors={[colors.brassMuted, colors.copperDark]}
+        colors={gradientColors || [colors.brassMuted, colors.copperDark]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.sideBtnGradientBorder}
@@ -976,7 +1075,7 @@ function BuyStoreModal({
               logoSource={require("../../assets/images/casadellibro-logo.png")}
               label="Casa del Libro"
               subtitle="Librería especializada"
-              onPress={() => { onOpenStore(`https://www.casadellibro.com/busqueda-generica?query=${q}`); onClose(); }}
+              onPress={() => { onOpenStore(`https://www.casadellibro.com/?query=${q}`); onClose(); }}
               testID="btn-buy-casa"
             />
             {/*
@@ -1096,19 +1195,17 @@ const styles = StyleSheet.create({
     aspectRatio: 2 / 3,
     maxHeight: "100%",
     borderRadius: 15,
-    shadowColor: "#000000",
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 10 },
-    // En Android, shadowOpacity/shadowRadius/shadowOffset apenas se
-    // respetan de forma nativa — la sombra real la dibuja `elevation`.
-    // Lo subimos a un valor que sí se note claramente (antes 14 era
-    // casi indistinguible del anterior 18).
-    elevation: 20,
+    // Se quitó la sombra (shadowColor/shadowOpacity/shadowRadius/
+    // shadowOffset/elevation): con portadas que no llenan el frame
+    // (horizontales, o más pequeñas que el 2:3 estándar) el fondo +
+    // sombra se veía como un recuadro grisáceo alrededor de la
+    // portada. Ahora solo se ve la imagen del libro, sin marco.
   },
-  // Borde blanco sutil, algo más visible que antes (0.08 -> 0.14) para
-  // que el contorno se note sin ser llamativo.
-  coverFrame: { width: "100%", height: "100%", borderRadius: 15, overflow: "hidden", backgroundColor: colors.bgBase, borderWidth: 1, borderColor: "rgba(255,255,255,0.14)" },
+  // Fondo y borde quitados por el mismo motivo que arriba: portadas que
+  // no llenan el frame (horizontales o más pequeñas) dejaban ver un
+  // recuadro de fondo + borde blanco detrás — ahora es transparente, así
+  // que solo se ve la portada en sí, sin caja alrededor.
+  coverFrame: { width: "100%", height: "100%", borderRadius: 15, overflow: "hidden", backgroundColor: "transparent" },
   coverImage: { width: "100%", height: "100%" },
   hookBtn: {
     position: "absolute",
@@ -1155,10 +1252,14 @@ const styles = StyleSheet.create({
   },
   novedadText: { color: "#ffffff", fontSize: 11, fontWeight: "900", letterSpacing: 1.5 },
   topBadgesRow: { position: "absolute", top: -45, left: 0, right: 0, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 4, zIndex: 8 },
-  moodPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 15, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: "rgba(6,1,15,0.85)" },
+  // Wrapper de borde en degradado compartido por moodPill y ratingPill
+  // (mismo patrón que sideBtnGradientBorder: LinearGradient exterior +
+  // padding fino actuando de borde).
+  pillGradientBorder: { borderRadius: 999, padding: 1.3 },
+  moodPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 5, borderRadius: 998, backgroundColor: "rgba(6,1,15,0.9)" },
   moodPillIcon: { fontSize: 14 },
   moodPillLabel: { fontSize: 11, fontWeight: "800", letterSpacing: 1 },
-  ratingPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1.5, borderColor: colors.border, backgroundColor: "rgba(6,1,15,0.85)" },
+  ratingPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 998, backgroundColor: "rgba(6,1,15,0.9)" },
   ratingValue: { color:"#962fd2ad", fontSize: 12, fontWeight: "900", letterSpacing: 0.5 },
   topBar: { position: "absolute", top: 0, left: 0, right: 0, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, zIndex: 10 },
   backBtn: { width: 38, height: 38, borderRadius: 13, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.4)" },
@@ -1177,9 +1278,9 @@ const styles = StyleSheet.create({
   // sin degradado, para diferenciarse claramente del resto.
   sideBtn: { width: 42, height: 42, borderRadius: 14, borderWidth: 1.5, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(6,1,15,0.6)", shadowOpacity: 0.9, shadowRadius: 12, shadowOffset: { width: 0, height: 0 }, elevation: 8 },
   buyRow: { position: "absolute", left: 0, right: 0, alignItems: "center", gap: 4, paddingHorizontal: 12, zIndex: 10 },
-  buyMainWrap: { borderRadius: 14 },
-  buyMainBorder: { borderRadius: 14, padding: 1.5 },
-  buyMainInner: { borderRadius: 12.5, backgroundColor: "rgba(6,1,15,0.92)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 26, paddingVertical: 12 },
+  buyMainWrap: { borderRadius: 14, width: SCREEN_W * 0.88 },
+  buyMainBorder: { borderRadius: 14, padding: 1.5, width: "100%" },
+  buyMainInner: { borderRadius: 12.5, backgroundColor: "rgba(6,1,15,0.92)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 26, paddingVertical: 12, width: "100%" },
   buyMainText: { color: colors.textOnDark, fontSize: 13, fontWeight: "900", letterSpacing: 1.5 },
   affiliateDisclosure: { color: colors.textOnDarkMuted, fontSize: 9.5, textAlign: "center" },
   affiliateDisclosureModal: { color: colors.textOnDarkMuted, fontSize: 11, marginTop: 4 },
@@ -1226,29 +1327,48 @@ const styles = StyleSheet.create({
   audioBadge: { color: colors.copper, fontSize: 12, letterSpacing: 3, fontWeight: "900" },
   audioPlayBtn: { width: 50, height: 50, borderRadius: 25, borderWidth: 2, borderColor: colors.brass, alignItems: "center", justifyContent: "center", backgroundColor: colors.bgBase },
   dividerLine: { height: 1, backgroundColor: colors.copper, opacity: 0.4, marginTop: 10, marginBottom: 12 },
-  pillContainer: {
-  flexDirection: 'row',
-  justifyContent: 'center',
-  alignItems: 'center',
-  backgroundColor: 'rgba(255, 255, 255, 0.07)',
-  paddingVertical: 5,
-  paddingHorizontal: 8,
-  borderRadius: 25,
-  borderWidth: 1,
-  borderColor:colors.border,
-  marginTop: 4,
-  marginBottom: 18,
-},
-pillText: {
-  color: '#ffffff',
-  fontSize: 13,
-  marginHorizontal: 7,
-  fontWeight: '500',
-},
-separator: {
-  color: 'rgba(112,3,174,0.64)',
-  fontSize: 12,
-},
+  // Wrapper del ScrollView horizontal de vibe tags. No lleva flex:1
+  // porque va dentro de una columna (coverArea es flex:1, esto no debe
+  // competir por ese espacio) — solo alto fijo implícito por su
+  // contenido.
+  vibeTagsScroll: {
+    flexGrow: 0,
+    marginTop: 12,
+    marginBottom: 18,
+  },
+  // contentContainerStyle del ScrollView: flexGrow 1 + justifyContent
+  // center hace que, cuando todos los chips caben en el ancho de
+  // pantalla, se vean centrados exactamente igual que antes con
+  // flexWrap. Cuando no caben, el ScrollView simplemente permite
+  // deslizar en vez de partir a una segunda línea — así el aspecto es
+  // idéntico en cualquier dispositivo, nunca se ve un chip "huérfano"
+  // centrado solo en su propia línea.
+  vibeTagsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 10,
+    flexGrow: 1,
+    justifyContent: "center",
+  },
+  // Borde en degradado (misma técnica que sideBtnGradientBorder/Inner):
+  // el LinearGradient exterior lleva ~1.2px de padding y hace de borde;
+  // el View interior tiene fondo oscuro semitransparente.
+  vibeTagGradientBorder: {
+    borderRadius: 13,
+    padding: 1.2,
+  },
+  vibeTagChipInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderRadius: 11.8,
+    backgroundColor: "rgba(6,1,15,0.75)",
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+  },
+  vibeTagIcon: { fontSize: 13 },
+  vibeTagLabel: { color: "#ffffff", fontSize: 12.5, fontWeight: "600" },
   hookContainer: { marginTop: 24, padding: 16, backgroundColor: 'rgba(255, 255, 255, 0.05)', borderRadius: 16, borderLeftWidth: 3, borderLeftColor: colors.copper },
   hookText: { color: colors.textOnDark, fontSize: 16, fontStyle: 'italic', textAlign: 'center', lineHeight: 24, fontWeight: '500' },
 });
