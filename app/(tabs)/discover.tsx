@@ -1068,14 +1068,14 @@ function BuyStoreModal({
               iconColor="#FF9900"
               label="Amazon"
               subtitle="Entrega rápida"
-              onPress={() => { onOpenStore(`https://www.amazon.es/s?k=${q}&i=stripbooks`); onClose(); }}
+              onPress={() => { onOpenStore(`https://www.amazon.es/s?k=${q}&i=stripbooks&tag=bookvibes04-21`); onClose(); }}
               testID="btn-buy-amazon"
             />
             <StoreRow
               logoSource={require("../../assets/images/casadellibro-logo.png")}
               label="Casa del Libro"
               subtitle="Librería especializada"
-              onPress={() => { onOpenStore(`https://www.casadellibro.com/?query=${q}`); onClose(); }}
+              onPress={() => { onOpenStore(`https://www.awin1.com/cread.php?awinmid=21491&awinaffid=3032235&ued=${encodeURIComponent(`https://www.casadellibro.com/?query=${q}`)}`); onClose(); }}
               testID="btn-buy-casa"
             />
             {/*
@@ -1090,15 +1090,15 @@ function BuyStoreModal({
               logoSource={require("../../assets/images/buscalibre-logo.png")}
               label="BuscaLibre"
               subtitle="Catálogo internacional"
-              onPress={() => { onOpenStore(`https://www.buscalibre.es/libros/search?q=${q}`); onClose(); }}
+              onPress={() => { onOpenStore(`https://www.buscalibre.es/libros/search?q=${q}&afiliado=8650186362af552a5b42`); onClose(); }}
               testID="btn-buy-buscalibre"
             />
-            <StoreRow
-              logoSource={require("../../assets/images/fnac-logo.png")}
-              label="FNAC"
-              subtitle="Recogida en tienda"
-              onPress={() => { onOpenStore(`http://busqueda.fnac.es/SearchResult/ResultList.aspx?Search=${q}`); onClose(); }}
-              testID="btn-buy-fnac"
+           <StoreRow
+             logoSource={require("../../assets/images/kobo-logo.png")}
+             label="Kobo"
+             subtitle="Libros digitales"
+             onPress={() => { onOpenStore(`https://www.kobo.com/es/es/search?query=${q}`); onClose(); }}
+             testID="btn-buy-kobo"
             />
           </View>
         </View>
