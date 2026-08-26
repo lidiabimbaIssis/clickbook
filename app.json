@@ -25,6 +25,7 @@
         "backgroundColor": "#000A13"
       },
       "edgeToEdgeEnabled": true,
+      "softwareKeyboardLayoutMode": "resize",
       "permissions": [
         "INTERNET",
         "RECORD_AUDIO"

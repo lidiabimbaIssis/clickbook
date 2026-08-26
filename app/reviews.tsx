@@ -243,7 +243,7 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
                   <View style={styles.leerSiCheck}>
                     <Ionicons name="checkmark" size={13} color={hexToRgba(colors.copper, 0.75)} />
                   </View>
-                  <Text style={styles.leerSiText} numberOfLines={2}>{capitalize(tag.label)}</Text>
+                  <Text style={styles.leerSiText}>{capitalize(tag.label)}</Text>
                 </View>
               ))}
             </View>
@@ -354,10 +354,13 @@ const styles = StyleSheet.create({
   // al %, en el color de marca fijo (apagado) que le toque por posición.
   topicBarTrack: { height: 6, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.08)", overflow: "hidden" },
   topicBarFill: { height: "100%", borderRadius: 999 },
+  // Reacciones de lectores: bajado de 15 a 13 (mismo tamaño que
+  // emotionLabel, la letra de "Qué sentirás leyendo este libro") a
+  // petición de Lidia.
   feelRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "rgba(78,2,122,0.12)", gap: 12 },
   feelEmojiBox: { width: 34, height: 34, borderRadius: 10, borderWidth: 1, borderColor: "rgba(78,2,122,0.4)", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.02)" },
   feelEmoji: { fontSize: 16 },
-  feelLabel: { color: colors.textOnDark, fontSize: 15, flex: 1, fontWeight: "300" },
+  feelLabel: { color: colors.textOnDark, fontSize: 13, flex: 1, fontWeight: "300" },
   feelCountPill: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
   feelCount: { fontSize: 11, fontWeight: "800", letterSpacing: 0.5 },
   compatCard: { width: 120, alignItems: "center" },
@@ -374,10 +377,11 @@ const styles = StyleSheet.create({
   emotionLabel: { color:"#E8E4FF", fontSize: 13, marginTop: 4, textAlign: "center" },
   compatAuthor: { color: colors.brass, fontSize: 10, marginTop: 2, fontStyle: "italic" },
   // "Léelo si": borde casi invisible (mismo morado oscuro pero muy
-  // transparente) y texto con el mismo estilo que "Reacciones de
-  // lectores" (feelLabel: 15px / weight 600 / textOnDark). Ahora con un
-  // check circular a la izquierda, borde copper, relleno transparente.
+  // transparente) y texto bajado de 15 a 13 (mismo tamaño que
+  // emotionLabel) y sin numberOfLines, para que se vea la explicación
+  // completa aunque ocupe varias líneas. Check circular a la izquierda,
+  // borde copper, relleno transparente.
   leerSiPill: { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderColor: "rgba(78,2,122,0.22)", borderRadius: 999, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: "rgba(78,2,122,0.08)" },
   leerSiCheck: { width: 24, height: 24, borderRadius: 8, borderWidth: 1.5, borderColor: "rgba(160,32,240,0.75)", alignItems: "center", justifyContent: "center" },
-  leerSiText: { color: colors.textOnDark, fontSize: 15, fontWeight: "300", flex: 1 },
+  leerSiText: { color: colors.textOnDark, fontSize: 13, fontWeight: "300", flex: 1 },
 });

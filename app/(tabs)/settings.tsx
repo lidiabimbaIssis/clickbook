@@ -177,7 +177,7 @@ export default function Settings() {
               <Ionicons name="diamond" size={28} color={colors.gold} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.premiumCtaTitle}>Hacerse Premium</Text>
+              <Text style={styles.premiumCtaTitle}>Hazte Premium</Text>
               <Text style={styles.premiumCtaSub}>
                 Audios ilimitados · Habla con tus personajes favoritos · Resúmenes premium
               </Text>

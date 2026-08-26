@@ -9,6 +9,7 @@ import { useAuth } from "../../src/providers/AuthProvider";
 import { colors } from "../../src/theme";
 import PaywallModal from "../../src/components/PaywallModal";
 import CharacterSelectModal from "../../src/components/CharacterSelectModal";
+import BuyStoreModal from "../../src/components/BuyStoreModal";
 import { shareContent } from "../../src/lib/share";
 import ShareCard from "../../src/components/ShareCard";
 import { captureAndShare } from "../../src/lib/share";
@@ -98,7 +99,7 @@ export default function Discover() {
   }, [slideH]);
   const SLIDE_H = slideH;
 
-  const params = useLocalSearchParams<{ q?: string; book_id?: string; mode?: string; t?: string; vibe?: string; authorQuery?: string }>();
+  const params = useLocalSearchParams<{ q?: string; book_id?: string; mode?: string; t?: string; vibe?: string; authorQuery?: string; fromAuthor?: string }>();
   const query = (params.q || "").toString();
   const seedBookId = (params.book_id || "").toString();
   const isRandom = params.mode === "random";
@@ -107,6 +108,13 @@ export default function Discover() {
   const isAuthorMode = params.mode === "author";
   const authorQuery = (params.authorQuery || "").toString();
   const navKey = (params.t || "").toString();
+  // Cuando se llega aquí desde el grid de portadas de un autor
+  // (author-books.tsx), viene con este parámetro — el botón "atrás" lo
+  // usa para volver EXPLÍCITAMENTE a ese grid, en vez de fiarse de
+  // router.canGoBack()/router.back(), que con navegaciones repetidas a
+  // la misma ruta "/discover" no siempre apila una entrada nueva de
+  // verdad en el historial.
+  const fromAuthor = (params.fromAuthor || "").toString();
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -471,11 +479,20 @@ useEffect(() => {
   };
 
   const openAuthorFeed = (author: string) => {
-    if (!author) return;
+    if (!author || !current) return;
     setInfoOpen(false);
+    // Antes esto llevaba al propio /discover en "modo autor" (que
+    // mezclaba sus libros con más random del feed general después).
+    // Ahora abre una pantalla dedicada solo con las portadas del autor
+    // en cuadrícula — al tocar una, esa pantalla es la que navega al
+    // feed general (con book_id como seed), nunca al revés. Le pasamos
+    // el book_id de ESTE libro (fromBookId) para que su botón "atrás"
+    // pueda volver aquí de forma explícita, en vez de fiarse del
+    // historial de navegación (router.back()), que con varias
+    // navegaciones seguidas no siempre lo encuentra bien.
     router.push({
-      pathname: "/discover",
-      params: { mode: "author", authorQuery: author, t: Date.now().toString() },
+      pathname: "/author-books",
+      params: { authorQuery: author, fromBookId: current.book_id },
     });
   };
 
@@ -511,7 +528,7 @@ await Image.prefetch(coverUrl);
   if (!current) {
     return (
       <LinearGradient colors={colors.bgGradient} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={styles.center} testID="discover-empty">
-        <Ionicons name="sparkles-outline" size={64} color={colors.copper} />
+        <Ionicons allowFontScaling={false} name="sparkles-outline" size={64} color={colors.copper} />
         <Text style={styles.emptyTitle}>No apareció...</Text>
         <Text style={styles.emptySub}>Tu próxima obsesión puede estar aquí</Text>
         <TouchableOpacity
@@ -527,7 +544,7 @@ await Image.prefetch(coverUrl);
             style={styles.gradientBorder}
           >
             <View style={styles.reloadInner}>
-              <Ionicons name="sparkles" size={16} color={colors.textOnDark} />
+              <Ionicons allowFontScaling={false} name="sparkles" size={16} color={colors.textOnDark} />
               <Text style={styles.reloadText}>SORPRÉNDEME</Text>
             </View>
           </LinearGradient>
@@ -576,25 +593,44 @@ await Image.prefetch(coverUrl);
       />
 
       <View style={[styles.topBar, { paddingTop: insets.top + 8 }]} pointerEvents="box-none">
-        <TouchableOpacity onPress={() => router.push("/home")} style={styles.backBtn} testID="btn-back-home">
-          <Ionicons name="chevron-back" size={20} color={colors.brass} />
+        <TouchableOpacity
+          onPress={() => {
+            // 1) Si venimos del grid de un autor (fromAuthor viene en
+            //    los params), volvemos ahí explícitamente — esto es
+            //    fiable siempre, a diferencia de canGoBack()/back(),
+            //    que con dos navegaciones seguidas a "/discover" no
+            //    siempre apilaba una entrada de verdad en el historial.
+            // 2) Si no, mantenemos el comportamiento de siempre: volver
+            //    atrás si hay historial real, o caer a Home si no.
+            if (fromAuthor) {
+              router.push({ pathname: "/author-books", params: { authorQuery: fromAuthor } });
+            } else if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.push("/home");
+            }
+          }}
+          style={styles.backBtn}
+          testID="btn-back-home"
+        >
+          <Ionicons allowFontScaling={false} name="chevron-back" size={20} color={colors.brass} />
         </TouchableOpacity>
         <View style={styles.brandRow}>
           <Text style={styles.brandCyan}>Book</Text>
           <Text style={styles.brandPurple}>Vibes</Text>
         </View>
         <TouchableOpacity onPress={shareBook} style={styles.backBtn} testID="btn-share-book">
-          <Ionicons name="share-social" size={18} color={colors.brass} />
+          <Ionicons allowFontScaling={false} name="share-social" size={18} color={colors.brass} />
         </TouchableOpacity>
       </View>
 
       {/*
-        Botonera lateral: ahora con borde en degradado brass→copper (misma
-        técnica de la home: LinearGradient exterior + 1.5px de padding +
-        View interior con fondo oscuro), icono blanco por defecto. Cuando
-        un botón está "activo" (favorito marcado / audio sonando) se
-        cambia a borde SÓLIDO fucsia (colors.iron), sin degradado, para
-        que siga distinguiéndose de un vistazo cuál está encendido.
+        Botonera lateral: vuelve a vivir aquí fuera (fija en pantalla,
+        no por-slide) — moverla dentro de cada BookSlide hacía que se
+        viera "arrastrar" durante el gesto de swipe entre libros. Ajuste
+        manual pedido: marginTop más negativo (-90 -> -110) para subir
+        el conjunto un poco, y botones más pequeños (42 -> 38, iconos
+        20 -> 18) para que ocupen menos espacio vertical total.
       */}
       <View style={styles.sideButtons} pointerEvents="box-none">
         <SideButton icon="information-circle-outline" onPress={() => setInfoOpen(true)} testID="btn-info" gradientColors={SIDE_BTN_GRADIENTS.azulMorado} />
@@ -605,6 +641,7 @@ await Image.prefetch(coverUrl);
       </View>
 
       {/*
+
         Antes: dos botones fijos (Amazon, Casa del Libro) en la misma
         fila. Ahora: un único botón "COMPRAR" que abre BuyStoreModal con
         la lista de tiendas — así, cuando te afilies a BuscaLibre, FNAC,
@@ -626,7 +663,7 @@ await Image.prefetch(coverUrl);
             style={styles.buyMainBorder}
           >
             <View style={styles.buyMainInner}>
-              <Ionicons name="cart" size={17} color={colors.textOnDark} />
+              <Ionicons allowFontScaling={false} name="cart" size={17} color={colors.textOnDark} />
               <Text style={styles.buyMainText}>DÓNDE COMPRAR</Text>
             </View>
           </LinearGradient>
@@ -745,7 +782,7 @@ function BookSlide({
         testID="btn-hook"
       >
         {hookIsPremium ? (
-          <Ionicons
+          <Ionicons allowFontScaling={false}
             name={hookPlaying ? "pause" : "play"}
             size={16}
             color={hookLoading || hookPlaying ? colors.iron : "rgba(255,255,255,0.85)"}
@@ -875,7 +912,7 @@ function renderStarsCompact(rating: number) {
     let icon: any = "star-outline";
     if (i < full) icon = "star";
     else if (i === full && half) icon = "star-half";
-    arr.push(<Ionicons key={i} name={icon} size={11} color={colors.gold} style={{ marginHorizontal: 0.5 }} />);
+    arr.push(<Ionicons allowFontScaling={false} key={i} name={icon} size={11} color={colors.gold} style={{ marginHorizontal: 0.5 }} />);
   }
   return <View style={{ flexDirection: "row" }}>{arr}</View>;
 }
@@ -890,7 +927,7 @@ function SideButton({ icon, active, onPress, loading, testID, gradientColors }: 
   const content = loading ? (
     <ActivityIndicator size="small" color={iconColor} />
   ) : (
-    <Ionicons name={icon} size={20} color={iconColor} />
+    <Ionicons allowFontScaling={false} name={icon} size={18} color={iconColor} />
   );
 
   if (active) {
@@ -929,7 +966,7 @@ function SideButton({ icon, active, onPress, loading, testID, gradientColors }: 
 function BuyBtn({ label, icon, onPress, testID }: { label: string; icon: any; onPress: () => void; testID?: string }) {
   return (
     <TouchableOpacity testID={testID} style={styles.buyBtn} onPress={onPress} activeOpacity={0.85}>
-      <Ionicons name={icon} size={16} color={colors.gold} />
+      <Ionicons allowFontScaling={false} name={icon} size={16} color={colors.gold} />
       <Text style={styles.buyText}>{label}</Text>
     </TouchableOpacity>
   );
@@ -964,7 +1001,7 @@ function SwipeHint({ bottom }: { bottom: number }) {
         const opacity = anim.interpolate({ inputRange: [0, 0.15, 0.8, 1], outputRange: [0, 0.55, 0.25, 0] });
         return (
           <Animated.View key={i} style={{ transform: [{ translateY }], opacity }}>
-            <Ionicons name="chevron-up" size={22} color="rgba(255,255,255,0.7)" />
+            <Ionicons allowFontScaling={false} name="chevron-up" size={22} color="rgba(255,255,255,0.7)" />
           </Animated.View>
         );
       })}
@@ -977,12 +1014,21 @@ function FlashCardModal({ visible, book, lang, onClose, onAuthorChat, onAuthorPr
   const ext = (book as any) || {};
   const [authorPressed, setAuthorPressed] = useState(false);
 
+  // Este modal es una única instancia reutilizada para todos los libros
+  // (solo cambia el prop `book`, nunca se desmonta) — sin este reset,
+  // authorPressed se quedaba en true de la vez anterior, así que el
+  // nombre del autor aparecía ya en rosa fucsia en un libro donde nunca
+  // se había tocado nada.
+  useEffect(() => {
+    setAuthorPressed(false);
+  }, [book?.book_id]);
+
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.modalBackdrop}>
         <View style={[styles.flashCard, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}>
           <TouchableOpacity onPress={onClose} style={styles.flashClose} testID="btn-close-flash">
-            <Ionicons name="close" size={22} color={colors.textOnDarkMuted} />
+            <Ionicons allowFontScaling={false} name="close" size={22} color={colors.textOnDarkMuted} />
           </TouchableOpacity>
           <ScrollView showsVerticalScrollIndicator={false}>
             <Text style={styles.flashTitle} numberOfLines={3}>{book.title}</Text>
@@ -1028,7 +1074,7 @@ function FlashCardModal({ visible, book, lang, onClose, onAuthorChat, onAuthorPr
             )}
 
             <TouchableOpacity style={[styles.iaBtn, !isPremium && styles.iaBtnLocked]} onPress={onAuthorChat} activeOpacity={0.85} testID="btn-flash-author-chat">
-              <Ionicons name={isPremium ? "chatbubbles" : "lock-closed"} size={16} color={isPremium ? colors.bgBase : colors.gold} />
+              <Ionicons allowFontScaling={false} name={isPremium ? "chatbubbles" : "lock-closed"} size={16} color={isPremium ? colors.bgBase : colors.gold} />
               <Text style={[styles.iaBtnText, !isPremium && styles.iaBtnTextLocked]}>Habla con ellos {!isPremium && "(Premium)"}</Text>
             </TouchableOpacity>
           </ScrollView>
@@ -1038,98 +1084,10 @@ function FlashCardModal({ visible, book, lang, onClose, onAuthorChat, onAuthorPr
   );
 }
 
-// Modal de tiendas — bottom sheet con el mismo lenguaje visual que
-// FlashCardModal/AudioModal. Amazon y Casa del Libro activas ya mismo.
-// Para añadir una tienda nueva cuando te afilies (BuscaLibre, FNAC...),
-// solo hace falta un <StoreRow> más con su propia URL — no hay que tocar
-// nada del resto de la pantalla.
-function BuyStoreModal({
-  visible, onClose, onOpenStore, title, author,
-}: { visible: boolean; onClose: () => void; onOpenStore: (url: string) => void; title: string; author: string; }) {
-  const insets = useSafeAreaInsets();
-  const q = encodeURIComponent(`${title} ${author}`);
-
-  return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.modalBackdrop}>
-        <View style={[styles.flashCard, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 24 }]}>
-          <TouchableOpacity onPress={onClose} style={styles.flashClose} testID="btn-close-buy">
-            <Ionicons name="close" size={22} color={colors.textOnDarkMuted} />
-          </TouchableOpacity>
-          <Text style={styles.flashTitle}>Elige tu tienda favorita</Text>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-            <Text style={styles.affiliateDisclosureModal}>Gracias por apoyar BookVibes</Text>
-            <Ionicons name="heart" size={11} color={colors.textOnDarkMuted} />
-          </View>
-
-          <View style={{ gap: 10, marginTop: 18 }}>
-            <StoreRow
-              icon="logo-amazon"
-              iconColor="#FF9900"
-              label="Amazon"
-              subtitle="Entrega rápida"
-              onPress={() => { onOpenStore(`https://www.amazon.es/s?k=${q}&i=stripbooks&tag=bookvibes04-21`); onClose(); }}
-              testID="btn-buy-amazon"
-            />
-            <StoreRow
-              logoSource={require("../../assets/images/casadellibro-logo.png")}
-              label="Casa del Libro"
-              subtitle="Librería especializada"
-              onPress={() => { onOpenStore(`https://www.awin1.com/cread.php?awinmid=21491&awinaffid=3032235&ued=${encodeURIComponent(`https://www.casadellibro.com/?query=${q}`)}`); onClose(); }}
-              testID="btn-buy-casa"
-            />
-            {/*
-              BuscaLibre y FNAC: activas ya mismo con enlaces normales de
-              búsqueda (SIN parámetro de afiliado todavía, porque aún no
-              hay afiliación aprobada en ninguna de las dos). En cuanto
-              te aprueben cada programa, sustituye solo la URL de
-              onOpenStore por la de afiliado real que te den — el resto
-              del componente no hay que tocarlo.
-            */}
-            <StoreRow
-              logoSource={require("../../assets/images/buscalibre-logo.png")}
-              label="BuscaLibre"
-              subtitle="Catálogo internacional"
-              onPress={() => { onOpenStore(`https://www.buscalibre.es/libros/search?q=${q}&afiliado=8650186362af552a5b42`); onClose(); }}
-              testID="btn-buy-buscalibre"
-            />
-           <StoreRow
-             logoSource={require("../../assets/images/kobo-logo.png")}
-             label="Kobo"
-             subtitle="Libros digitales"
-             onPress={() => { onOpenStore(`https://www.kobo.com/es/es/search?query=${q}`); onClose(); }}
-             testID="btn-buy-kobo"
-            />
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-function StoreRow({ icon, iconColor, logoSource, label, subtitle, onPress, testID }: { icon?: any; iconColor?: string; logoSource?: any; label: string; subtitle?: string; onPress: () => void; testID?: string }) {
-  return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={styles.storeRow} testID={testID}>
-      <View style={styles.storeRowIconBox}>
-        {logoSource ? (
-          <Image source={logoSource} style={styles.storeRowLogo} resizeMode="contain" />
-        ) : (
-          <Ionicons name={icon} size={20} color={iconColor} />
-        )}
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.storeRowLabel}>{label}</Text>
-        {subtitle ? <Text style={styles.storeRowSub}>{subtitle}</Text> : null}
-      </View>
-      <Ionicons name="chevron-forward" size={18} color={colors.textOnDarkMuted} />
-    </TouchableOpacity>
-  );
-}
-
 function StatBox({ icon, label, value, small }: { icon: any; label: string; value: string; small?: boolean }) {
   return (
     <View style={styles.statBox}>
-      <Ionicons name={icon} size={20} color={colors.brass} />
+      <Ionicons allowFontScaling={false} name={icon} size={20} color={colors.brass} />
       <Text style={styles.statLabel}>{label}</Text>
       <Text style={[styles.statValue, small && { fontSize: 13 }]} numberOfLines={1}>{value}</Text>
     </View>
@@ -1140,7 +1098,7 @@ function DetailItem({ label, value, color }: { label: string; value: string; col
   return (
     <View style={styles.detailItem}>
       <View style={styles.detailHeader}>
-        <Ionicons name="star" size={10} color={color} />
+        <Ionicons allowFontScaling={false} name="star" size={10} color={color} />
         <Text style={[styles.detailLabel, { color }]}>{label}</Text>
       </View>
       <Text style={styles.detailValue}>{value}</Text>
@@ -1156,12 +1114,12 @@ function AudioModal({ visible, book, lang, playing, loading, text, onPlay, onClo
       <View style={styles.modalBackdrop}>
         <View style={[styles.flashCard, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}>
           <TouchableOpacity onPress={onClose} style={styles.flashClose} testID="btn-close-audio">
-            <Ionicons name="close" size={22} color={colors.textOnDarkMuted} />
+            <Ionicons allowFontScaling={false} name="close" size={22} color={colors.textOnDarkMuted} />
           </TouchableOpacity>
           <View style={styles.audioHeader}>
             <Text style={styles.audioBadge}>// RESUMEN · 1 MIN</Text>
             <TouchableOpacity onPress={onPlay} style={styles.audioPlayBtn} disabled={loading} testID="btn-audio-play">
-              {loading ? <ActivityIndicator color={colors.brass} /> : <Ionicons name={playing ? "pause" : "play"} size={26} color={colors.brass} />}
+              {loading ? <ActivityIndicator color={colors.brass} /> : <Ionicons allowFontScaling={false} name={playing ? "pause" : "play"} size={26} color={colors.brass} />}
             </TouchableOpacity>
           </View>
           <View style={styles.dividerLine} />
@@ -1268,27 +1226,21 @@ const styles = StyleSheet.create({
   brandPurple: { color: colors.copper, fontWeight: "900", fontSize: 18 },
   queryWrap: { position: "absolute", left: 0, right: 0, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 5 },
   queryHint: { color: colors.copper, fontSize: 12, fontWeight: "600", letterSpacing: 1, maxWidth: 240 },
-  sideButtons: { position: "absolute", right: 10, top: "50%", marginTop: -90, gap: 16, alignItems: "center", zIndex: 10 },
+  sideButtons: { position: "absolute", right: 10, top: "50%", marginTop: -118, gap: 18, alignItems: "center", zIndex: 10 },
   sideBtnWrap: { alignItems: "center" },
   // Botón por defecto (sin active): wrapper de borde en degradado, mismo
   // patrón que gradientBorder/gradientBorderWrap de home.tsx.
-  sideBtnGradientBorder: { width: 42, height: 42, borderRadius: 14, padding: 1.5 },
-  sideBtnInner: { flex: 1, borderRadius: 12.5, backgroundColor: "rgba(6,1,15,0.75)", alignItems: "center", justifyContent: "center" },
+  sideBtnGradientBorder: { width: 38, height: 38, borderRadius: 13, padding: 1.5 },
+  sideBtnInner: { flex: 1, borderRadius: 11.5, backgroundColor: "rgba(6,1,15,0.75)", alignItems: "center", justifyContent: "center" },
   // Botón activo (favorito marcado / audio sonando): borde sólido fucsia,
   // sin degradado, para diferenciarse claramente del resto.
-  sideBtn: { width: 42, height: 42, borderRadius: 14, borderWidth: 1.5, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(6,1,15,0.6)", shadowOpacity: 0.9, shadowRadius: 12, shadowOffset: { width: 0, height: 0 }, elevation: 8 },
+  sideBtn: { width: 38, height: 38, borderRadius: 13, borderWidth: 1.5, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(6,1,15,0.6)", shadowOpacity: 0.9, shadowRadius: 12, shadowOffset: { width: 0, height: 0 }, elevation: 8 },
   buyRow: { position: "absolute", left: 0, right: 0, alignItems: "center", gap: 4, paddingHorizontal: 12, zIndex: 10 },
   buyMainWrap: { borderRadius: 14, width: SCREEN_W * 0.88 },
   buyMainBorder: { borderRadius: 14, padding: 1.5, width: "100%" },
   buyMainInner: { borderRadius: 12.5, backgroundColor: "rgba(6,1,15,0.92)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 26, paddingVertical: 12, width: "100%" },
   buyMainText: { color: colors.textOnDark, fontSize: 13, fontWeight: "900", letterSpacing: 1.5 },
   affiliateDisclosure: { color: colors.textOnDarkMuted, fontSize: 9.5, textAlign: "center" },
-  affiliateDisclosureModal: { color: colors.textOnDarkMuted, fontSize: 11, marginTop: 4 },
-  storeRow: { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 13, backgroundColor: "rgba(255,255,255,0.03)" },
-  storeRowIconBox: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.05)", overflow: "hidden" },
-  storeRowLogo: { width: 24, height: 24 },
-  storeRowLabel: { color: colors.textOnDark, fontSize: 15, fontWeight: "700" },
-  storeRowSub: { color: colors.textOnDarkMuted, fontSize: 11, marginTop: 2 },
   buyBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1.5, borderColor: colors.brassMuted, paddingHorizontal: 8, paddingVertical: 11, borderRadius: 12, backgroundColor: "rgba(0,0,0,0.6)" },
   buyText: { color: colors.gold, fontSize: 12, fontWeight: "800", letterSpacing: 0.5 },
   swipeHintWrap: {

@@ -19,6 +19,7 @@ import MaskedView from "@react-native-masked-view/masked-view";
 import { api, Book } from "../../src/lib/api";
 import { useAuth } from "../../src/providers/AuthProvider";
 import { colors } from "../../src/theme";
+import BuyStoreModal from "../../src/components/BuyStoreModal";
 
 // Texto en degradado brass→copper, mismo patrón que GradientWord en
 // home.tsx — el icono de al lado (corazón) se queda en brass sólido, solo
@@ -48,6 +49,15 @@ export default function Favorites() {
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Antes: cada tarjeta abría Amazon directo (botón "Amazon" fijo). Ahora,
+  // igual que en Discover, un único botón "Comprar" que abre el mismo
+  // BuyStoreModal compartido con las 4 tiendas (Amazon, Casa del Libro,
+  // BuscaLibre, Kobo) — solo guardamos qué libro de la lista abrió el
+  // modal, ya que aquí hay varios libros a la vez (no uno "actual" como
+  // en Discover).
+  const [buyModalBookId, setBuyModalBookId] = useState<string | null>(null);
+  const buyModalBook = books.find((b) => b.book_id === buyModalBookId) || null;
 
   const load = useCallback(async () => {
     try {
@@ -111,8 +121,16 @@ export default function Favorites() {
   style={styles.emptyLogo}
   resizeMode="contain"
 />
-          <Text style={styles.emptyText}>Aún no has guardado ningún libro.</Text>
-          <Text style={styles.emptyHint}>Marca el corazón para guardar favoritos.</Text>
+          {/*
+            Copy más "de marca" que antes (era genérico tipo mensaje de
+            sistema: "Aún no has guardado ningún libro."). Ahora en línea
+            con el tono del resto de la app (hero titles de home,
+            "Buscando tu vibe…", etc.) — más evocador, con el corazón
+            destacado en iron para que la acción ("toca el ♥") se lea de
+            un vistazo.
+          */}
+          <Text style={styles.emptyText}>Aquí empieza tu lista de obsesiones</Text>
+          <Text style={styles.emptyHint}>Guarda los libros que te enamoren</Text>
         </View>
       ) : (
         <FlatList
@@ -154,15 +172,12 @@ export default function Favorites() {
                 <Text style={styles.meta}>{item.genre} · {item.pages} pág.</Text>
                 <View style={styles.actions}>
                   <TouchableOpacity
-                    onPress={() => {
-  const q = encodeURIComponent(`${item.title} ${item.author}`);
-  openStore(`https://www.amazon.es/s?k=${q}&i=stripbooks`);
-}}
+                    onPress={() => setBuyModalBookId(item.book_id)}
                     style={styles.buyBtn}
-                    testID={`fav-buy-amazon-${item.book_id}`}
+                    testID={`fav-buy-${item.book_id}`}
                   >
                     <Ionicons name="cart" size={14} color={colors.brass} />
-                    <Text style={styles.buyText}>Amazon</Text>
+                    <Text style={styles.buyText}>Comprar</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => remove(item.book_id)}
@@ -175,6 +190,16 @@ export default function Favorites() {
               </View>
             </View>
           )}
+        />
+      )}
+
+      {buyModalBook && (
+        <BuyStoreModal
+          visible={!!buyModalBookId}
+          onClose={() => setBuyModalBookId(null)}
+          onOpenStore={openStore}
+          title={buyModalBook.title}
+          author={buyModalBook.author}
         />
       )}
     </LinearGradient>
@@ -192,8 +217,18 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: 30 },
-  emptyText: { color: colors.textOnDark, fontSize: 16, marginTop: 12, textAlign: "center" },
-  emptyHint: { color: colors.textOnDarkMuted, fontSize: 13, marginTop: 6, textAlign: "center" },
+  // Título del estado vacío ahora en la misma tipografía serif de marca
+  // que los títulos de libro (bookTitle) / GradientTitle, en vez de la
+  // fuente del sistema por defecto — más "editorial", menos genérico.
+  emptyText: {
+    color: colors.textOnDark,
+    fontSize: 15,
+    fontWeight: "800",
+    marginTop: 14,
+    textAlign: "center",
+    fontFamily: Platform.select({ ios: "Georgia", default: "serif" }),
+  },
+  emptyHint: { color: colors.textOnDarkMuted, fontSize: 13, marginTop: 8, textAlign: "center", lineHeight: 19, paddingHorizontal: 20 },
   card: {
     flexDirection: "row",
     backgroundColor: colors.bgSurface,

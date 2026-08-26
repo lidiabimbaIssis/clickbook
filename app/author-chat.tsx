@@ -115,9 +115,13 @@ export default function CharacterChat() {
   }, []);
 
   useEffect(() => {
+    // Saludos iniciales — antes eran genéricos ("¿Qué te gustaría
+    // saber?" / "¿Qué quieres preguntarme?"), ahora con más personalidad
+    // y un pequeño arco narrativo (contexto -> invitación -> pregunta
+    // abierta) en vez de una sola frase plana.
     const greeting = isNarrator
-      ? `¡Hola! He leído "${title}" y me encanta comentarlo. ¿Qué te gustaría saber?`
-      : `Hola, soy ${character}, de "${title}". ¿Qué quieres preguntarme?`;
+      ? `Hola 👋 He leído "${title}".\nPuedes preguntarme lo que quieras.\n¿Por dónde empezamos?`
+      : `Hola, soy ${character}, de "${title}". ✨\nSi has llegado hasta aquí, seguro que tienes algo que preguntarme…\n¿Qué quieres saber?`;
     setMessages([{ role: "assistant", content: greeting }]);
   }, [character, title, isNarrator]);
 
