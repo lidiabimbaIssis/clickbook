@@ -6,7 +6,7 @@ type Size = "sm" | "md" | "lg";
 
 const sizeMap: Record<Size, { font: number; icon: number; gap: number; glow: number }> = {
   sm: { font: 18, icon: 18, gap: 0, glow: 6 },
-  md: { font: 30, icon: 28, gap: 0, glow: 12 },
+  md: { font: 38, icon: 34, gap: 0, glow: 14 },
   lg: { font: 46, icon: 42, gap: 0, glow: 18 },
 };
 
@@ -18,8 +18,18 @@ export default function Logo({ size = "md" }: { size?: Size }) {
   const s = sizeMap[size];
   return (
     <View style={[styles.row, { gap: s.gap }]} testID="app-logo">
-      <Text style={[styles.cyan, { fontSize: s.font, textShadowColor: colors.brass, textShadowOffset: { width: 0, height: 0 }, textShadowRadius: s.glow }]}>Book</Text>
-      <Text style={[styles.purple, { fontSize: s.font, textShadowColor: colors.copper, textShadowOffset: { width: 0, height: 0 }, textShadowRadius: s.glow }]}>Vibes</Text>
+      {/*
+        allowFontScaling={false} en las dos palabras del logo: es un
+        logotipo/marca, no texto de lectura que el usuario deba poder
+        agrandar por accesibilidad. Sin esto, el tamaño de letra del
+        sistema lo escalaba — y como el "Normal" de fábrica no está
+        calibrado exactamente igual entre Android puro (Pixel) y
+        capas de fabricante (EMUI/Magic UI de Huawei/Honor), el logo
+        se veía notablemente más grande ahí, empujando el resto de la
+        pantalla y forzando scroll donde antes no lo había.
+      */}
+      <Text allowFontScaling={false} style={[styles.cyan, { fontSize: s.font, textShadowColor: colors.brass, textShadowOffset: { width: 0, height: 0 }, textShadowRadius: s.glow }]}>Book</Text>
+      <Text allowFontScaling={false} style={[styles.purple, { fontSize: s.font, textShadowColor: colors.copper, textShadowOffset: { width: 0, height: 0 }, textShadowRadius: s.glow }]}>Vibes</Text>
       {/*
         Icono del libro+corazón: antes eran dos <Ionicons name="book"> superpuestos
         (el libro genérico de la librería de iconos). Ahora es una sola imagen real

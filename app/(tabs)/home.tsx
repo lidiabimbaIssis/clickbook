@@ -153,10 +153,16 @@ export default function Home() {
       end={{ x: 0.5, y: 1 }}
       style={{ flex: 1 }}
     >
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.container, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} testID="home-screen">
+      {/* Mismo patrón que character-chat.tsx (que sí funciona bien con el
+          teclado): el buscador va FUERA del ScrollView, como una fila fija
+          pegada al fondo de KeyboardAvoidingView — nunca hace falta hacer
+          scroll para verlo, siempre está anclado justo encima del teclado.
+          Antes estaba dentro del ScrollView empujado con un flex:1, que es
+          lo que lo tapaba. */}
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.container, { paddingTop: insets.top + 12 }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} testID="home-screen">
           <View style={styles.content}>
-            <View style={styles.logoBox}><Logo size="lg" /></View>
+            <View style={styles.logoBox}><Logo size="md" /></View>
             <Text style={styles.tagline}>SIENTE LO QUE LEES</Text>
 
             {/*
@@ -250,55 +256,51 @@ export default function Home() {
                 </TouchableOpacity>
               ))}
             </View>
-
-            {/*
-              Buscador — antes era el primer elemento de la pantalla, ahora
-              baja al fondo y se hace más pequeño (menos padding, texto más
-              chico). Misma funcionalidad exacta que antes (texto, borrar,
-              micrófono, submit) — placeholder cambia para invitar a buscar
-              por trope en vez de sugerir título/autor, que con ~1.600
-              libros es poco probable que se encuentren tal cual.
-            */}
-            {/* Espaciador flexible: empuja el buscador hacia el fondo de
-                la pantalla siempre, haya el contenido que haya arriba,
-                para que la home ocupe toda la altura disponible en vez
-                de quedarse centrada con hueco vacío debajo. */}
-            <View style={{ flex: 1, minHeight: 12 }} />
-
-            <View style={styles.searchLabelRow}>
-              <View style={styles.searchLabelLine} />
-              <Text style={styles.searchLabel}>¿TIENES UN TÍTULO O TROPE EN MENTE?</Text>
-              <View style={styles.searchLabelLine} />
-            </View>
-            <View style={styles.searchBox}>
-              <Ionicons name="search" size={16} color={colors.brass} />
-              <TextInput
-                testID="input-search"
-                value={q}
-                onChangeText={(text) => {
-                  setQ(text);
-                  if (voiceAutoSearchTimerRef.current) {
-                    clearTimeout(voiceAutoSearchTimerRef.current);
-                    voiceAutoSearchTimerRef.current = null;
-                  }
-                }}
-                placeholder="thriller, enemies to lovers, romantasy…"
-                placeholderTextColor={colors.textOnDarkMuted}
-                style={styles.input}
-                returnKeyType="search"
-                onSubmitEditing={() => go(q)}
-              />
-              {q.length > 0 && (<TouchableOpacity onPress={() => setQ("")}><Ionicons name="close-circle" size={16} color={colors.textOnDarkMuted} /></TouchableOpacity>)}
-              <TouchableOpacity testID="btn-mic" onPress={onMicPress} style={styles.micBtn}>
-                <Ionicons
-                  name={listening ? "mic" : "mic-outline"}
-                  size={17}
-                  color={listening ? colors.iron : colors.brass}
-                />
-              </TouchableOpacity>
-            </View>
           </View>
         </ScrollView>
+
+        {/*
+          Buscador — antes era el primer elemento de la pantalla, ahora va
+          fijo al fondo, fuera del ScrollView (ver comentario de arriba).
+          Misma funcionalidad exacta que antes (texto, borrar, micrófono,
+          submit) — placeholder invita a buscar por trope en vez de sugerir
+          título/autor, que con ~1.600 libros es poco probable que se
+          encuentren tal cual.
+        */}
+        <View style={[styles.searchSection, { paddingBottom: insets.bottom + 12 }]}>
+          <View style={styles.searchLabelRow}>
+            <View style={styles.searchLabelLine} />
+            <Text style={styles.searchLabel}>¿TIENES UN TÍTULO O TROPE EN MENTE?</Text>
+            <View style={styles.searchLabelLine} />
+          </View>
+          <View style={styles.searchBox}>
+            <Ionicons name="search" size={16} color={colors.brass} />
+            <TextInput
+              testID="input-search"
+              value={q}
+              onChangeText={(text) => {
+                setQ(text);
+                if (voiceAutoSearchTimerRef.current) {
+                  clearTimeout(voiceAutoSearchTimerRef.current);
+                  voiceAutoSearchTimerRef.current = null;
+                }
+              }}
+              placeholder="thriller, enemies to lovers, romantasy…"
+              placeholderTextColor={colors.textOnDarkMuted}
+              style={styles.input}
+              returnKeyType="search"
+              onSubmitEditing={() => go(q)}
+            />
+            {q.length > 0 && (<TouchableOpacity onPress={() => setQ("")}><Ionicons name="close-circle" size={16} color={colors.textOnDarkMuted} /></TouchableOpacity>)}
+            <TouchableOpacity testID="btn-mic" onPress={onMicPress} style={styles.micBtn}>
+              <Ionicons
+                name={listening ? "mic" : "mic-outline"}
+                size={17}
+                color={listening ? colors.iron : colors.brass}
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
       </KeyboardAvoidingView>
     </LinearGradient>
   );
@@ -306,7 +308,13 @@ export default function Home() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 24 },
-  content: { flex: 1, justifyContent: "center", gap: 16 },
+  // Antes: flex: 1, justifyContent: "center" — centraba todo el bloque
+  // verticalmente dentro del espacio disponible. El problema: al salir el
+  // teclado, KeyboardAvoidingView reduce ese espacio y el contenido se
+  // recentraba, desplazando el logo hacia arriba aunque no se tocara el
+  // buscador. Ahora es un flujo normal de arriba a abajo, sin depender del
+  // alto disponible, así que el teclado nunca lo mueve.
+  content: { gap: 16 },
   logoBox: { alignItems: "center", justifyContent: "center", marginTop: 20, marginBottom: -4 },
   tagline: { textAlign: "center", color: colors.brass, letterSpacing: 4, fontSize: 10, fontWeight: "400", marginTop: -4, textShadowColor: colors.brass, textShadowRadius: 6 },
 
@@ -346,7 +354,11 @@ const styles = StyleSheet.create({
   moodEmoji: { fontSize: 14 },
   moodText: { color: colors.textOnDark, fontSize: 13, fontWeight: "700" },
 
-  searchLabelRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 4, marginBottom: 8 },
+  // Sección del buscador — ahora fija fuera del ScrollView (ver comentario
+  // más arriba), con su propio padding horizontal ya que dejó de heredarlo
+  // del contentContainerStyle del ScrollView.
+  searchSection: { paddingHorizontal: 24, paddingTop: 4 },
+  searchLabelRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 8 },
   searchLabelLine: { flex: 1, maxWidth: 50, height: 1, backgroundColor: colors.brassSoft },
   searchLabel: { color: colors.textOnDarkMuted, fontSize: 10, letterSpacing: 2, fontWeight: "700" },
   searchBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.bgSurface, borderWidth: 1, borderColor: "rgba(78,2,122,0.5)", borderRadius: 12, paddingHorizontal: 12, paddingVertical: Platform.OS === "web" ? 10 : 8 },
