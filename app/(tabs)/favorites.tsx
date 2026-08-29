@@ -29,13 +29,13 @@ function GradientTitle({ text, fontSize, letterSpacing }: { text: string; fontSi
     <MaskedView
       style={{ height: fontSize * 1.25 }}
       maskElement={
-        <Text style={{ fontSize, fontWeight: "900", letterSpacing, backgroundColor: "transparent", fontFamily: Platform.select({ ios: "Georgia", default: "serif" }) }}>
+        <Text allowFontScaling={false} style={{ fontSize, fontWeight: "900", letterSpacing, backgroundColor: "transparent", fontFamily: Platform.select({ ios: "Georgia", default: "serif" }) }}>
           {text}
         </Text>
       }
     >
       <LinearGradient colors={[colors.brass, colors.copper]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ flex: 1 }}>
-        <Text style={{ fontSize, fontWeight: "900", letterSpacing, opacity: 0, fontFamily: Platform.select({ ios: "Georgia", default: "serif" }) }}>{text}</Text>
+        <Text allowFontScaling={false} style={{ fontSize, fontWeight: "900", letterSpacing, opacity: 0, fontFamily: Platform.select({ ios: "Georgia", default: "serif" }) }}>{text}</Text>
       </LinearGradient>
     </MaskedView>
   );
@@ -111,7 +111,7 @@ export default function Favorites() {
       testID="favorites-screen"
     >
       <View style={styles.header}>
-        <Ionicons name="heart" size={20} color={colors.brass} />
+        <Ionicons allowFontScaling={false} name="heart" size={20} color={colors.brass} />
         <GradientTitle text="BIBLIOTECA" fontSize={16} letterSpacing={5} />
       </View>
       {books.length === 0 ? (
@@ -129,8 +129,8 @@ export default function Favorites() {
             destacado en iron para que la acción ("toca el ♥") se lea de
             un vistazo.
           */}
-          <Text style={styles.emptyText}>Aquí empieza tu lista de obsesiones</Text>
-          <Text style={styles.emptyHint}>Guarda los libros que te enamoren</Text>
+          <Text allowFontScaling={false} style={styles.emptyText}>Aquí empieza tu lista de obsesiones</Text>
+          <Text allowFontScaling={false} style={styles.emptyHint}>Guarda los libros que te enamoren</Text>
         </View>
       ) : (
         <FlatList
@@ -167,24 +167,24 @@ export default function Favorites() {
 />
               </TouchableOpacity>
               <View style={styles.info}>
-                <Text style={styles.bookTitle} numberOfLines={2}>{item.title}</Text>
-                <Text style={styles.bookAuthor}>{item.author} · {item.year}</Text>
-                <Text style={styles.meta}>{item.genre} · {item.pages} pág.</Text>
+                <Text allowFontScaling={false} style={styles.bookTitle} numberOfLines={2}>{item.title}</Text>
+                <Text allowFontScaling={false} style={styles.bookAuthor}>{item.author} · {item.year}</Text>
+                <Text allowFontScaling={false} style={styles.meta}>{item.genre} · {item.pages} pág.</Text>
                 <View style={styles.actions}>
                   <TouchableOpacity
                     onPress={() => setBuyModalBookId(item.book_id)}
                     style={styles.buyBtn}
                     testID={`fav-buy-${item.book_id}`}
                   >
-                    <Ionicons name="cart" size={14} color={colors.brass} />
-                    <Text style={styles.buyText}>Comprar</Text>
+                    <Ionicons allowFontScaling={false} name="cart" size={14} color={colors.brass} />
+                    <Text allowFontScaling={false} style={styles.buyText}>Comprar</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => remove(item.book_id)}
                     style={styles.removeBtn}
                     testID={`fav-remove-${item.book_id}`}
                   >
-                    <Ionicons name="trash" size={14} color={colors.iron} />
+                    <Ionicons allowFontScaling={false} name="trash" size={14} color={colors.iron} />
                   </TouchableOpacity>
                 </View>
               </View>

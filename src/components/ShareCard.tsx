@@ -29,10 +29,10 @@ const rating = Math.round(data.rating || 4);
 
       {/* Brand */}
       <View style={styles.brandRow}>
-        <Text style={styles.brandCyan}>Book</Text>
-        <Text style={styles.brandPurple}>Vibes</Text>
+        <Text allowFontScaling={false} style={styles.brandCyan}>Book</Text>
+        <Text allowFontScaling={false} style={styles.brandPurple}>Vibes</Text>
       </View>
-      <Text style={styles.tagline}>SIENTE LO QUE LEES</Text>
+      <Text allowFontScaling={false} style={styles.tagline}>SIENTE LO QUE LEES</Text>
 
       {/* Cover */}
       <View style={styles.coverWrap}>
@@ -41,16 +41,16 @@ const rating = Math.round(data.rating || 4);
 
       {/* Title + author + rating */}
       <View style={styles.infoBlock}>
-        <Text style={styles.title} numberOfLines={2}>{data.title}</Text>
-        <Text style={styles.author} numberOfLines={1}>{data.author}</Text>
-        <Text style={styles.stars}>{stars}</Text>
-        <Text style={styles.hook} numberOfLines={3}>"{hook}"</Text>
+        <Text allowFontScaling={false} style={styles.title} numberOfLines={2}>{data.title}</Text>
+        <Text allowFontScaling={false} style={styles.author} numberOfLines={1}>{data.author}</Text>
+        <Text allowFontScaling={false} style={styles.stars}>{stars}</Text>
+        <Text allowFontScaling={false} style={styles.hook} numberOfLines={3}>"{hook}"</Text>
       </View>
 
       {/* Footer */}
       <View style={styles.footer}>
-        <Ionicons name="arrow-up" size={22} color={colors.brass} />
-        <Text style={styles.footerText}>DESCÚBRELO EN BOOKVIBES</Text>
+        <Ionicons allowFontScaling={false} name="arrow-up" size={22} color={colors.brass} />
+        <Text allowFontScaling={false} style={styles.footerText}>DESCÚBRELO EN BOOKVIBES</Text>
       </View>
     </View>
   );

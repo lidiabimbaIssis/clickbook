@@ -59,11 +59,11 @@ export default function PaywallModal({ visible, onClose, onUpgraded, reason = "l
       <View style={styles.backdrop}>
         <View style={styles.card}>
           <TouchableOpacity onPress={onClose} style={styles.closeBtn} testID="paywall-close">
-            <Ionicons name="close" size={22} color={colors.textOnDarkMuted} />
+            <Ionicons allowFontScaling={false} name="close" size={22} color={colors.textOnDarkMuted} />
           </TouchableOpacity>
-          <View style={styles.iconWrap}><Ionicons name="diamond" size={42} color={colors.gold} /></View>
-          <Text style={styles.title}>{headline}</Text>
-          <Text style={styles.sub}>{sub}</Text>
+          <View style={styles.iconWrap}><Ionicons allowFontScaling={false} name="diamond" size={42} color={colors.gold} /></View>
+          <Text allowFontScaling={false} style={styles.title}>{headline}</Text>
+          <Text allowFontScaling={false} style={styles.sub}>{sub}</Text>
           <View style={styles.benefits}>
             <Benefit icon="infinite" text="Resúmenes con voz premium ilimitados." />
             <Benefit icon="headset" text="Hook ilimitado en cada libro." />
@@ -72,15 +72,15 @@ export default function PaywallModal({ visible, onClose, onUpgraded, reason = "l
           {pricing && (
             <View style={styles.plans}>
               <TouchableOpacity activeOpacity={0.8} onPress={() => setSelectedPlan("yearly")} style={[styles.plan, selectedPlan === "yearly" ? styles.planFeatured : styles.planMuted]} testID="plan-yearly">
-                {pricing.launch_promo_active && (<View style={styles.badge}><Text style={styles.badgeText}>{pricing.launch_promo_label}</Text></View>)}
-                <Text style={[styles.planName, selectedPlan === "yearly" && { color: colors.gold }]}>ANUAL</Text>
-                {pricing.launch_promo_active ? (<><Text style={styles.priceOld}>{pricing.yearly_regular}</Text><Text style={styles.priceNew}>{pricing.yearly_launch}</Text></>) : (<Text style={styles.priceNew}>{pricing.yearly_regular}</Text>)}
-                <Text style={styles.planMeta}>Ahorra ~50%</Text>
+                {pricing.launch_promo_active && (<View style={styles.badge}><Text allowFontScaling={false} style={styles.badgeText}>{pricing.launch_promo_label}</Text></View>)}
+                <Text allowFontScaling={false} style={[styles.planName, selectedPlan === "yearly" && { color: colors.gold }]}>ANUAL</Text>
+                {pricing.launch_promo_active ? (<><Text allowFontScaling={false} style={styles.priceOld}>{pricing.yearly_regular}</Text><Text allowFontScaling={false} style={styles.priceNew}>{pricing.yearly_launch}</Text></>) : (<Text allowFontScaling={false} style={styles.priceNew}>{pricing.yearly_regular}</Text>)}
+                <Text allowFontScaling={false} style={styles.planMeta}>Ahorra ~50%</Text>
               </TouchableOpacity>
               <TouchableOpacity activeOpacity={0.8} onPress={() => setSelectedPlan("monthly")} style={[styles.plan, selectedPlan === "monthly" ? styles.planFeatured : styles.planMuted]} testID="plan-monthly">
-                <Text style={[styles.planName, selectedPlan === "monthly" && { color: colors.gold }]}>MENSUAL</Text>
-                {pricing.launch_promo_active ? (<><Text style={styles.priceOld}>{pricing.monthly_regular}</Text><Text style={styles.priceNew}>{pricing.monthly_launch}</Text></>) : (<Text style={styles.priceNew}>{pricing.monthly_regular}</Text>)}
-                <Text style={styles.planMeta}> </Text>
+                <Text allowFontScaling={false} style={[styles.planName, selectedPlan === "monthly" && { color: colors.gold }]}>MENSUAL</Text>
+                {pricing.launch_promo_active ? (<><Text allowFontScaling={false} style={styles.priceOld}>{pricing.monthly_regular}</Text><Text allowFontScaling={false} style={styles.priceNew}>{pricing.monthly_launch}</Text></>) : (<Text allowFontScaling={false} style={styles.priceNew}>{pricing.monthly_regular}</Text>)}
+                <Text allowFontScaling={false} style={styles.planMeta}> </Text>
               </TouchableOpacity>
             </View>
           )}
@@ -98,11 +98,11 @@ export default function PaywallModal({ visible, onClose, onUpgraded, reason = "l
               style={styles.ctaBorder}
             >
               <View style={styles.ctaInner}>
-                {loading ? <ActivityIndicator color={colors.textOnDark} /> : (<><Ionicons name="flash" size={18} color={colors.textOnDark} /><Text style={styles.ctaText}>HACERSE PREMIUM</Text></>)}
+                {loading ? <ActivityIndicator color={colors.textOnDark} /> : (<><Ionicons allowFontScaling={false} name="flash" size={18} color={colors.textOnDark} /><Text allowFontScaling={false} style={styles.ctaText}>HACERSE PREMIUM</Text></>)}
               </View>
             </LinearGradient>
           </TouchableOpacity>
-          <Text style={styles.disclaimer}>Se renueva automáticamente · cancela en cualquier momento</Text>
+          <Text allowFontScaling={false} style={styles.disclaimer}>Se renueva automáticamente · cancela en cualquier momento</Text>
         </View>
       </View>
     </Modal>
@@ -112,8 +112,8 @@ export default function PaywallModal({ visible, onClose, onUpgraded, reason = "l
 function Benefit({ icon, text }: { icon: any; text: string }) {
   return (
     <View style={styles.benefit}>
-      <Ionicons name={icon} size={16} color={colors.brass} />
-      <Text style={styles.benefitText}>{text}</Text>
+      <Ionicons allowFontScaling={false} name={icon} size={16} color={colors.brass} />
+      <Text allowFontScaling={false} style={styles.benefitText}>{text}</Text>
     </View>
   );
 }

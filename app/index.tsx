@@ -49,7 +49,7 @@ function GradientWord({
     <MaskedView
       style={{ height: fontSize * 1.2 }}
       maskElement={
-        <Text style={{ fontSize, fontWeight, fontFamily, backgroundColor: "transparent", lineHeight: fontSize * 1.2 }}>
+        <Text allowFontScaling={false} style={{ fontSize, fontWeight, fontFamily, backgroundColor: "transparent", lineHeight: fontSize * 1.2 }}>
           {text}
         </Text>
       }
@@ -60,7 +60,7 @@ function GradientWord({
         end={{ x: 1, y: 0 }}
         style={{ flex: 1 }}
       >
-        <Text style={{ fontSize, fontWeight, fontFamily, opacity: 0, lineHeight: fontSize * 1.2 }}>{text}</Text>
+        <Text allowFontScaling={false} style={{ fontSize, fontWeight, fontFamily, opacity: 0, lineHeight: fontSize * 1.2 }}>{text}</Text>
       </LinearGradient>
     </MaskedView>
   );
@@ -159,7 +159,7 @@ export default function LoginScreen() {
     return (
       <LinearGradient colors={colors.bgGradient} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={styles.loading} testID="login-loading">
         <ActivityIndicator size="large" color={colors.brass} />
-        <Text style={styles.loadingText}>{processing ? "Autenticando…" : "Buscando tu vibe…"}</Text>
+        <Text allowFontScaling={false} style={styles.loadingText}>{processing ? "Autenticando…" : "Buscando tu vibe…"}</Text>
       </LinearGradient>
     );
   }
@@ -184,7 +184,7 @@ export default function LoginScreen() {
       />
       <View style={styles.header}><Logo size="lg" /><View style={styles.divider} /></View>
       <View style={styles.hero}>
-        <Text style={styles.title}>No es solo leer libros,</Text>
+        <Text allowFontScaling={false} style={styles.title}>No es solo leer libros,</Text>
         {/*
           alignItems:"baseline" alinea el texto "es" y el GradientWord
           "vivirlos" por su línea base tipográfica — es la forma más
@@ -192,7 +192,7 @@ export default function LoginScreen() {
           independientemente de cómo calcule cada uno la height del MaskedView.
         */}
         <View style={{ flexDirection: "row", justifyContent: "center", alignItems: "baseline", marginTop: 2 }}>
-          <Text style={styles.title}>es </Text>
+          <Text allowFontScaling={false} style={styles.title}>es </Text>
           <GradientWord
             text="vivirlos"
             fontSize={styles.title.fontSize}
@@ -203,16 +203,16 @@ export default function LoginScreen() {
       </View>
       <View style={styles.features}>
         <Feature icon="albums" color={colors.brass}>
-          <Text style={styles.featureText}>Desliza ↑ para <Text style={{ color: colors.brass, fontWeight: "700" }}>explorar</Text></Text>
+          <Text allowFontScaling={false} style={styles.featureText}>Desliza ↑ para <Text allowFontScaling={false} style={{ color: colors.brass, fontWeight: "700" }}>explorar</Text></Text>
         </Feature>
         <Feature icon="information-circle" color={colors.copper}>
-          <Text style={styles.featureText}>Pulsa <Text style={{ color: colors.copper, fontWeight: "700" }}>Info</Text> para ver la ficha</Text>
+          <Text allowFontScaling={false} style={styles.featureText}>Pulsa <Text allowFontScaling={false} style={{ color: colors.copper, fontWeight: "700" }}>Info</Text> para ver la ficha</Text>
         </Feature>
         <Feature icon="heart" color={colors.brass}>
-          <Text style={styles.featureText}>Pulsa el <Text style={{ color: colors.brass, fontWeight: "700" }}>corazón</Text> para guardar</Text>
+          <Text allowFontScaling={false} style={styles.featureText}>Pulsa el <Text allowFontScaling={false} style={{ color: colors.brass, fontWeight: "700" }}>corazón</Text> para guardar</Text>
         </Feature>
         <Feature icon="headset" color={colors.copper}>
-          <Text style={styles.featureText}>Resumen en <Text style={{ color: colors.copper, fontWeight: "700" }}>audio</Text> · 1 min</Text>
+          <Text allowFontScaling={false} style={styles.featureText}>Resumen en <Text allowFontScaling={false} style={{ color: colors.copper, fontWeight: "700" }}>audio</Text> · 1 min</Text>
         </Feature>
       </View>
 
@@ -234,7 +234,7 @@ export default function LoginScreen() {
             style={styles.googleBtnGradient}
           >
             <GoogleLogo size={20} />
-            <Text style={styles.loginText}>Entrar con Google</Text>
+            <Text allowFontScaling={false} style={styles.loginText}>Entrar con Google</Text>
           </LinearGradient>
         </TouchableOpacity>
 
@@ -269,18 +269,18 @@ export default function LoginScreen() {
             style={styles.gradientBtnBorder}
           >
             <View style={styles.gradientBtnInner}>
-              <Text style={styles.guestText}>Como invitado</Text>
+              <Text allowFontScaling={false} style={styles.guestText}>Como invitado</Text>
             </View>
           </LinearGradient>
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.footer}>
-        <Text style={{ color: colors.brass }}>DESCUBRE</Text>
-        <Text style={styles.footer}> . </Text>
-        <Text style={{ color: colors.copper }}>SIENTE</Text>
-        <Text style={styles.footer}> . </Text>
-        <Text style={{ color: colors.iron }}>VIVE</Text>
+      <Text allowFontScaling={false} style={styles.footer}>
+        <Text allowFontScaling={false} style={{ color: colors.brass }}>DESCUBRE</Text>
+        <Text allowFontScaling={false} style={styles.footer}> . </Text>
+        <Text allowFontScaling={false} style={{ color: colors.copper }}>SIENTE</Text>
+        <Text allowFontScaling={false} style={styles.footer}> . </Text>
+        <Text allowFontScaling={false} style={{ color: colors.iron }}>VIVE</Text>
       </Text>
     </ImageBackground>
   );
@@ -289,7 +289,7 @@ export default function LoginScreen() {
 function Feature({ icon, children, color }: { icon: any; children: React.ReactNode; color?: string }) {
   return (
     <View style={styles.feature}>
-      <Ionicons name={icon} size={16} color={color || colors.brass} />
+      <Ionicons allowFontScaling={false} name={icon} size={16} color={color || colors.brass} />
       {children}
     </View>
   );

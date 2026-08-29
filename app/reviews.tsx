@@ -12,6 +12,7 @@ import { colors } from "../src/theme";
 export type Topic = { label: string; percent: number; icon: string; color: string };
 export type CompositionItem = { label: string; percent: number; icon: string; color: string; description: string };
 export type CollectiveFeeling = { emoji: string; label: string; count_label: string };
+export type LeerSiItem = { emoji: string; label: string };
 export type CompatibleBook = { book_id: string; title: string; author: string; cover_url: string };
 export type VibesData = {
   overall_rating: number;
@@ -64,6 +65,49 @@ const iconMap: Record<string, string> = {
   "chart-line": "trending-up-outline",
   "user-tie": "person-outline",
   "key": "key-outline",
+  // Ampliación pedida por Lidia: más emociones/sensaciones de lectura,
+  // para que el JSON tenga mucha más variedad entre la que elegir en vez
+  // de repetir siempre los mismos 6-8 iconos. Cada clave es la palabra
+  // que debe usar el JSON; el valor es el icono real de Ionicons.
+  "goosebumps": "skull-outline",       // escalofríos / terror
+  "nostalgia": "hourglass-outline",    // nostalgia / recuerdos
+  "tension": "pulse-outline",          // tensión / nervios
+  "suspense": "timer-outline",         // suspense / cuenta atrás
+  "surprise": "alert-circle-outline",  // sorpresa / giro inesperado
+  "tenderness": "heart-half-outline",  // ternura
+  "heartbreak": "heart-dislike-outline", // desamor / corazón roto
+  "satisfaction": "thumbs-up-outline", // satisfacción
+  "sadness": "sad-outline",            // tristeza
+  "melancholy": "rainy-outline",       // melancolía
+  "turmoil": "thunderstorm-outline",   // turbulencia emocional
+  "coldness": "snow-outline",          // frialdad / distancia
+  "warmth": "bonfire-outline",         // calidez / hogar
+  "reward": "gift-outline",            // recompensa / regalo
+  "journey": "footsteps-outline",      // viaje / travesía
+  "adventure": "compass-outline",      // aventura
+  "exploration": "map-outline",        // exploración
+  "wonder": "planet-outline",          // asombro / maravilla
+  "cozy": "cafe-outline",              // ambiente acogedor
+  "comfort": "bed-outline",            // consuelo / descanso
+  "safety": "home-outline",            // seguridad / refugio
+  "freedom": "lock-open-outline",      // libertad
+  "protection": "shield-checkmark-outline", // protección
+  "connection": "people-outline",      // conexión / vínculo
+  "new-bond": "person-add-outline",    // nuevo vínculo / relación
+  "physical": "body-outline",          // sensación física
+  "energy": "battery-charging-outline", // energía / adrenalina
+  "secrecy": "eye-off-outline",        // secreto / algo oculto
+  "climax": "flag-outline",            // clímax / punto de inflexión
+  "achievement": "ribbon-outline",     // logro / triunfo
+  "eternal": "infinite-outline",       // amor eterno / infinito
+  "intensity": "volume-high-outline",  // intensidad
+  "silence": "volume-mute-outline",    // silencio / calma tensa
+  "shelter": "umbrella-outline",       // refugio / cobijo
+  "triumph": "trophy-outline",         // triunfo / victoria
+  "pride": "medal-outline",            // orgullo
+  "curiosity": "telescope-outline",    // curiosidad
+  "dreamy": "moon-outline",            // ensoñación / lo onírico
+  "chills": "thermometer-outline",     // escalofríos físicos
 };
 
 // Los 3 colores de marca, siempre en el mismo orden, para "¿De qué hablan
@@ -97,7 +141,7 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-const capitalize = (str: string) => 
+const capitalize = (str: string) =>
   str.charAt(0).toUpperCase() + str.slice(1);
 
 export default function VibesScreen() {
@@ -141,14 +185,14 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
     >
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} testID="btn-back-vibes">
-          <Ionicons name="chevron-back" size={22} color={colors.brass} />
+          <Ionicons allowFontScaling={false} name="chevron-back" size={22} color={colors.brass} />
         </TouchableOpacity>
         <View style={{ flex: 1, alignItems: "center" }}>
           <View style={styles.titleRow}>
-            <Text style={styles.titleText}>VIBES</Text>
-            <Ionicons name="sparkles" size={16} color={hexToRgba(colors.copper, 0.75)} style={{ marginLeft: 6 }} />
+            <Text allowFontScaling={false} style={styles.titleText}>VIBES</Text>
+            <Ionicons allowFontScaling={false} name="sparkles" size={16} color={hexToRgba(colors.copper, 0.75)} style={{ marginLeft: 6 }} />
           </View>
-          {bookTitle ? <Text style={styles.subtitle} numberOfLines={1}>{bookTitle}</Text> : null}
+          {bookTitle ? <Text allowFontScaling={false} style={styles.subtitle} numberOfLines={1}>{bookTitle}</Text> : null}
         </View>
         <View style={{ width: 38 }} />
       </View>
@@ -156,14 +200,14 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={colors.brass} />
-          <Text style={styles.loadingText}>Sintiendo las vibes…</Text>
+          <Text allowFontScaling={false} style={styles.loadingText}>Sintiendo las vibes…</Text>
         </View>
       ) : error || !data ? (
         <View style={styles.center}>
-          <Ionicons name="cloud-offline-outline" size={56} color={colors.copper} />
-          <Text style={styles.emptyText}>{error || "Aún no hay datos"}</Text>
+          <Ionicons allowFontScaling={false} name="cloud-offline-outline" size={56} color={colors.copper} />
+          <Text allowFontScaling={false} style={styles.emptyText}>{error || "Aún no hay datos"}</Text>
           <TouchableOpacity onPress={load} style={styles.retryBtn} testID="btn-retry-vibes">
-            <Text style={styles.retryText}>Reintentar</Text>
+            <Text allowFontScaling={false} style={styles.retryText}>Reintentar</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -171,30 +215,30 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
           <View style={styles.card}>
             <View style={styles.cardCols}>
               <View style={{ flex: 0.9 }}>
-                <Text style={styles.cardLabel}>CALIFICACIÓN GENERAL</Text>
+                <Text allowFontScaling={false} style={styles.cardLabel}>CALIFICACIÓN GENERAL</Text>
                 <View style={styles.ratingRow}>
-                  <Text style={styles.ratingNumber}>{data.overall_rating.toFixed(1)}</Text>
-                  <Ionicons name="star" size={22} color={hexToRgba(colors.copper, 0.75)} style={{ marginLeft: 6, marginTop: 8 }} />
+                  <Text allowFontScaling={false} style={styles.ratingNumber}>{data.overall_rating.toFixed(1)}</Text>
+                  <Ionicons allowFontScaling={false} name="star" size={22} color={hexToRgba(colors.copper, 0.75)} style={{ marginLeft: 6, marginTop: 8 }} />
                 </View>
                 <View style={styles.starsRow}>
                   {[1, 2, 3, 4, 5].map((i) => (
-                    <Ionicons key={i} name={i <= Math.round(data.overall_rating) ? "star" : "star-outline"} size={14} color={colors.gold} style={{ marginRight: 2 }} />
+                    <Ionicons allowFontScaling={false} key={i} name={i <= Math.round(data.overall_rating) ? "star" : "star-outline"} size={14} color={colors.gold} style={{ marginRight: 2 }} />
                   ))}
                 </View>
-                <Text style={styles.totalLabel}>{data.total_reviews_label}</Text>
+                <Text allowFontScaling={false} style={styles.totalLabel}>{data.total_reviews_label}</Text>
               </View>
               <View style={{ flex: 1.1, paddingLeft: 10 }}>
-                <Text style={[styles.cardLabel, { marginBottom: 10 }]}>¿DE QUÉ HABLAN MÁS?</Text>
+                <Text allowFontScaling={false} style={[styles.cardLabel, { marginBottom: 10 }]}>¿DE QUÉ HABLAN MÁS?</Text>
                 <View style={{ gap: 12 }}>
                   {data.topics.slice(0, 3).map((t, i) => {
                     const accent = ACCENT_COLORS[i % ACCENT_COLORS.length];
                     return (
                       <View key={i}>
                         <View style={styles.topicRow}>
-                          <Text style={styles.topicLabel} numberOfLines={1}>
+                          <Text allowFontScaling={false} style={styles.topicLabel} numberOfLines={1}>
                             {capitalize(t.label)}
                           </Text>
-                          <Text style={[styles.topicPct, { color: hexToRgba(accent, 0.75) }]}>{t.percent}%</Text>
+                          <Text allowFontScaling={false} style={[styles.topicPct, { color: hexToRgba(accent, 0.75) }]}>{t.percent}%</Text>
                         </View>
                         <View style={styles.topicBarTrack}>
                           <View
@@ -213,7 +257,7 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.cardLabel}>QUE SENTIRÁS LEYENDO ESTE LIBRO✨</Text>
+            <Text allowFontScaling={false} style={styles.cardLabel}>QUE SENTIRÁS LEYENDO ESTE LIBRO✨</Text>
             <View style={styles.emotionsContainer}>
               {(data as any).emotions?.slice(0, 3).map((e: any, i: number) => {
                 const accent = ACCENT_COLORS[i % ACCENT_COLORS.length];
@@ -224,8 +268,8 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
                       <View style={[styles.emotionIconBox, { borderColor: hexToRgba(accent, 0.55) }]}>
                         <DynamicIcon name={e.icon} size={30} color={hexToRgba(accent, 0.85)} />
                       </View>
-                      <Text style={[styles.emotionPct, { color: hexToRgba(accent, 0.75) }]}>{e.percent}%</Text>
-                      <Text style={styles.emotionLabel}>{capitalize(e.label)}</Text>
+                      <Text allowFontScaling={false} style={[styles.emotionPct, { color: hexToRgba(accent, 0.75) }]}>{e.percent}%</Text>
+                      <Text allowFontScaling={false} style={styles.emotionLabel}>{capitalize(e.label)}</Text>
                     </View>
                     {!isLast && <View style={styles.emotionDivider} />}
                   </React.Fragment>
@@ -236,14 +280,14 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
 
           {/* leelo si — en tercer lugar */}
           <View style={styles.card}>
-            <Text style={styles.cardLabel}>LÉELO SI... ✨</Text>
+            <Text allowFontScaling={false} style={styles.cardLabel}>LÉELO SI... ✨</Text>
             <View style={{ gap: 8, marginTop: 10 }}>
-              {(data as any).leer_si?.map((tag: any, i: number) => (
+              {(data as any).leer_si?.map((tag: LeerSiItem, i: number) => (
                 <View key={i} style={styles.leerSiPill}>
                   <View style={styles.leerSiCheck}>
-                    <Ionicons name="checkmark" size={13} color={hexToRgba(colors.copper, 0.75)} />
+                    <Ionicons allowFontScaling={false} name="checkmark" size={13} color={hexToRgba(colors.copper, 0.75)} />
                   </View>
-                  <Text style={styles.leerSiText}>{capitalize(tag.label)}</Text>
+                  <Text allowFontScaling={false} style={styles.leerSiText}>{capitalize(tag.label)}</Text>
                 </View>
               ))}
             </View>
@@ -251,7 +295,7 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
 
           {/* reacciones de lectores — en cuarto lugar */}
           <View style={styles.card}>
-            <Text style={styles.cardLabel}>REACCIONES DE LECTORES ✨</Text>
+            <Text allowFontScaling={false} style={styles.cardLabel}>REACCIONES DE LECTORES ✨</Text>
             {data.collective_feelings.map((f: any, i: number) => {
               // Intensidad → opacidad de la píldora: cuanto más alto el
               // nivel, más saturado el color. Así "Muy Alto" destaca
@@ -265,11 +309,11 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
               return (
                 <View key={i} style={styles.feelRow}>
                   <View style={styles.feelEmojiBox}>
-                    <Text style={styles.feelEmoji}>{f.emoji}</Text>
+                    <Text allowFontScaling={false} style={styles.feelEmoji}>{f.emoji}</Text>
                   </View>
-                  <Text style={styles.feelLabel}>{capitalize(f.label)}</Text>
+                  <Text allowFontScaling={false} style={styles.feelLabel}>{capitalize(f.label)}</Text>
                   <View style={[styles.feelCountPill, { backgroundColor: hexToRgba(colors.copper, levelOpacity * 0.25), borderColor: hexToRgba(colors.copper, levelOpacity) }]}>
-                    <Text style={[styles.feelCount, { color: hexToRgba(colors.copper, Math.max(levelOpacity, 0.6)) }]}>{f.count_label}</Text>
+                    <Text allowFontScaling={false} style={[styles.feelCount, { color: hexToRgba(colors.copper, Math.max(levelOpacity, 0.6)) }]}>{f.count_label}</Text>
                   </View>
                 </View>
               );
@@ -283,13 +327,13 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
 
 // Función DynamicIcon robusta para evitar errores de Ionicons
 function DynamicIcon({ name, size, color }: { name: string; size: number; color: string }) {
-  if (name?.startsWith("mc:")) return <MaterialCommunityIcons name={name.slice(3) as any} size={size} color={color} />;
-  
+  if (name?.startsWith("mc:")) return <MaterialCommunityIcons allowFontScaling={false} name={name.slice(3) as any} size={size} color={color} />;
+
   const iconName = iconMap[name];
   // Si no encuentra el icono en el mapa, pone uno de alerta en lugar de fallar
   const finalName = iconName || "alert-circle-outline";
-  
-  return <Ionicons name={finalName as any} size={size} color={color} />;
+
+  return <Ionicons allowFontScaling={false} name={finalName as any} size={size} color={color} />;
 }
 
 // Misma lógica de resolución de icono que DynamicIcon, pero relleno con
@@ -306,8 +350,8 @@ function GradientDynamicIcon({ name, size, gradientColors }: { name: string; siz
       style={{ width: size, height: size }}
       maskElement={
         isMC
-          ? <MaterialCommunityIcons name={iconName as any} size={size} color="black" />
-          : <Ionicons name={iconName as any} size={size} color="black" />
+          ? <MaterialCommunityIcons allowFontScaling={false} name={iconName as any} size={size} color="black" />
+          : <Ionicons allowFontScaling={false} name={iconName as any} size={size} color="black" />
       }
     >
       <LinearGradient

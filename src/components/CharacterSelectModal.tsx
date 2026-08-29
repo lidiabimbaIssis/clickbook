@@ -73,14 +73,14 @@ export default function CharacterSelectModal({
       <View style={styles.backdrop}>
         <View style={styles.card}>
           <TouchableOpacity onPress={onClose} style={styles.closeBtn} testID="character-select-close">
-            <Ionicons name="close" size={22} color={colors.textOnDarkMuted} />
+            <Ionicons allowFontScaling={false} name="close" size={22} color={colors.textOnDarkMuted} />
           </TouchableOpacity>
 
           <View style={styles.iconWrap}>
-            <Ionicons name="chatbubbles" size={30} color={colors.brass} />
+            <Ionicons allowFontScaling={false} name="chatbubbles" size={30} color={colors.brass} />
           </View>
-          <Text style={styles.title}>¿Con quién quieres hablar?</Text>
-          <Text style={styles.sub} numberOfLines={1}>{bookTitle}</Text>
+          <Text allowFontScaling={false} style={styles.title}>¿Con quién quieres hablar?</Text>
+          <Text allowFontScaling={false} style={styles.sub} numberOfLines={1}>{bookTitle}</Text>
        {loading ? null : (
         <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
        
@@ -97,13 +97,18 @@ export default function CharacterSelectModal({
                     testID={`character-${c.nombre}`}
                   >
                     <View style={[styles.avatar, { backgroundColor: cl.bg, borderWidth: 1, borderColor: cl.border }]}>
-                      <Text style={[styles.avatarInitial, { color: cl.fg }]}>{initial}</Text>
+                      <Text allowFontScaling={false} style={[styles.avatarInitial, { color: cl.fg }]}>{initial}</Text>
                     </View>
                     <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={styles.rowName} numberOfLines={1}>{c.nombre}</Text>
-                      <Text style={styles.rowDesc} numberOfLines={2}>{c.descripcion}</Text>
+                      <Text allowFontScaling={false} style={styles.rowName} numberOfLines={1}>{c.nombre}</Text>
+                      {/* Antes cortaba la descripción a 2 líneas con "...".
+                          Al ser una lista donde el usuario elige con quién
+                          hablar, cortar justo la parte que podría decidirle
+                          no ayuda — mismo criterio que "Léelo si" en vibes.tsx:
+                          se quita el límite y la fila crece lo que haga falta. */}
+                      <Text allowFontScaling={false} style={styles.rowDesc}>{c.descripcion}</Text>
                     </View>
-                    <Ionicons name="chevron-forward" size={18} color={colors.textOnDarkMuted} />
+                    <Ionicons allowFontScaling={false} name="chevron-forward" size={18} color={colors.textOnDarkMuted} />
                   </TouchableOpacity>
                 );
               })}
@@ -111,7 +116,7 @@ export default function CharacterSelectModal({
           </ScrollView>
           )}
 
-          <Text style={styles.disclaimer}>Conversación generada por IA</Text>
+          <Text allowFontScaling={false} style={styles.disclaimer}>Conversación generada por IA</Text>
         </View>
       </View>
     </Modal>
