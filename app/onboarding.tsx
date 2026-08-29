@@ -80,7 +80,7 @@ export default function Onboarding() {
         style={[styles.skipBtn, { top: insets.top + 14 }]}
         testID="btn-skip-onboarding"
       >
-        <Text style={styles.skipText}>Saltar</Text>
+        <Text allowFontScaling={false} style={styles.skipText}>Saltar</Text>
       </TouchableOpacity>
 
       <ScrollView
@@ -124,10 +124,11 @@ export default function Onboarding() {
             style={styles.ctaBorder}
           >
             <View style={styles.ctaInner}>
-              <Text style={styles.ctaText}>
+              <Text allowFontScaling={false} style={styles.ctaText}>
                 {isLast ? "EMPEZAR" : "CONTINUAR"}
               </Text>
               <Ionicons
+                allowFontScaling={false}
                 name={isLast ? "flash" : "chevron-forward"}
                 size={18}
                 color={colors.textOnDark}
@@ -145,7 +146,7 @@ function GradientTitle({ text }: { text: string }) {
   return (
     <MaskedView
       maskElement={
-        <Text style={[styles.title, { backgroundColor: "transparent" }]}>{text}</Text>
+        <Text allowFontScaling={false} style={[styles.title, { backgroundColor: "transparent" }]}>{text}</Text>
       }
     >
       <LinearGradient
@@ -153,7 +154,7 @@ function GradientTitle({ text }: { text: string }) {
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
       >
-        <Text style={[styles.title, { opacity: 0 }]}>{text}</Text>
+        <Text allowFontScaling={false} style={[styles.title, { opacity: 0 }]}>{text}</Text>
       </LinearGradient>
     </MaskedView>
   );
@@ -209,9 +210,9 @@ function SlideTimer() {
     <SlideContainer
       title="UNA HISTORIA"
       highlight={
-        <Text style={styles.highlight}>
+        <Text allowFontScaling={false} style={styles.highlight}>
           en{" "}
-          <Text style={[styles.highlightStrong, { color: colors.brass }]}>60 segundos</Text>
+          <Text allowFontScaling={false} style={[styles.highlightStrong, { color: colors.brass }]}>60 segundos</Text>
         </Text>
       }
     >
@@ -221,12 +222,12 @@ function SlideTimer() {
           <Animated.View style={[styles.timerOuter, { transform: [{ scale }], opacity, shadowOpacity: 0.6 }]} />
           <View style={styles.timerRingInner} />
           <View style={styles.timerInner}>
-            <Text style={styles.timer60}>60</Text>
-            <Text style={styles.timerSec}>SEG</Text>
+            <Text allowFontScaling={false} style={styles.timer60}>60</Text>
+            <Text allowFontScaling={false} style={styles.timerSec}>SEG</Text>
           </View>
           <View style={styles.timerRing} />
           <View style={styles.headphonesBadge}>
-            <Ionicons name="headset" size={18} color={colors.bgBase} />
+            <Ionicons allowFontScaling={false} name="headset" size={18} color={colors.bgBase} />
           </View>
         </View>
         <Waveform animValue={wave} color={colors.brass} side="right" />
@@ -283,13 +284,13 @@ function SlideVibes() {
   return (
     <SlideContainer
       title="ELIGE TU VIBE"
-      highlight={<Text style={styles.highlight}>Encuentra libros según cómo quieres sentirte.</Text>}
+      highlight={<Text allowFontScaling={false} style={styles.highlight}>Encuentra libros según cómo quieres sentirte.</Text>}
     >
       <View style={styles.vibesGrid}>
         {VIBES.map((v) => (
           <View key={v.label} style={[styles.vibePill, { borderColor: hexToRgba(v.color, 0.4) }]}>
-            <Text style={{ fontSize: 14 }}>{v.icon}</Text>
-            <Text style={[styles.vibePillText, { color: colors.textOnDark }]}>{v.label}</Text>
+            <Text allowFontScaling={false} style={{ fontSize: 14 }}>{v.icon}</Text>
+            <Text allowFontScaling={false} style={[styles.vibePillText, { color: colors.textOnDark }]}>{v.label}</Text>
           </View>
         ))}
       </View>
@@ -312,7 +313,7 @@ function Sparkle({ anim, style, size, color }: { anim: Animated.Value; style: an
   const opacity = anim.interpolate({ inputRange: [0, 1], outputRange: [0.35, 1] });
   return (
     <Animated.View style={[styles.sparkleBase, style, { opacity, transform: [{ scale }] }]}>
-      <Ionicons name="sparkles" size={size} color={color} />
+      <Ionicons allowFontScaling={false} name="sparkles" size={size} color={color} />
     </Animated.View>
   );
 }
@@ -379,8 +380,8 @@ function SlideAuthor() {
     <SlideContainer
       title="HABLA CON ELLOS"
       highlight={
-        <Text style={styles.highlight}>
-          <Text style={[styles.highlightStrong, { color: colors.gold }]}>Premium</Text> · tus personajes favoritos del libro cobran vida
+        <Text allowFontScaling={false} style={styles.highlight}>
+          <Text allowFontScaling={false} style={[styles.highlightStrong, { color: colors.gold }]}>Premium</Text> · tus personajes favoritos del libro cobran vida
         </Text>
       }
     >
@@ -388,13 +389,13 @@ function SlideAuthor() {
         <Animated.View style={[styles.authorGlowRing, { transform: [{ scale: avatarScale }], opacity: glowOpacity }]} />
         <View style={styles.authorRingInner} />
         <View style={styles.authorAvatar}>
-          <Ionicons name="person" size={78} color={colors.copper} />
+          <Ionicons allowFontScaling={false} name="person" size={78} color={colors.copper} />
           <Animated.View style={[styles.authorPremiumBadge, { transform: [{ scale: badgeScale }], opacity: badgeOpacity }]}>
-            <Ionicons name="diamond" size={17} color={colors.bgBase} />
+            <Ionicons allowFontScaling={false} name="diamond" size={17} color={colors.bgBase} />
           </Animated.View>
         </View>
         <View style={styles.bubbleAssistant}>
-          <Text style={styles.bubbleText}>"¿Qué quieres saber de mí…?"</Text>
+          <Text allowFontScaling={false} style={styles.bubbleText}>"¿Qué quieres saber de mí…?"</Text>
         </View>
         <View style={styles.typingBubble}>
           <Animated.View style={[styles.typingDot, dotStyle(dot1)]} />
@@ -402,7 +403,7 @@ function SlideAuthor() {
           <Animated.View style={[styles.typingDot, dotStyle(dot3)]} />
         </View>
         <Animated.View style={[styles.bubbleUser, { opacity: sparkleOpacity, transform: [{ scale: sparkleScale }] }]}>
-          <Ionicons name="sparkles" size={14} color={colors.bgBase} />
+          <Ionicons allowFontScaling={false} name="sparkles" size={14} color={colors.bgBase} />
         </Animated.View>
       </View>
     </SlideContainer>

@@ -41,7 +41,7 @@ function GradientWord({
     <MaskedView
       style={{ height: fontSize * 1.25 }}
       maskElement={
-        <Text style={{ fontSize, fontWeight, letterSpacing, backgroundColor: "transparent" }}>
+        <Text allowFontScaling={false} style={{ fontSize, fontWeight, letterSpacing, backgroundColor: "transparent" }}>
           {text}
         </Text>
       }
@@ -52,7 +52,7 @@ function GradientWord({
         end={{ x: 1, y: 0 }}
         style={{ flex: 1 }}
       >
-        <Text style={{ fontSize, fontWeight, letterSpacing, opacity: 0 }}>{text}</Text>
+        <Text allowFontScaling={false} style={{ fontSize, fontWeight, letterSpacing, opacity: 0 }}>{text}</Text>
       </LinearGradient>
     </MaskedView>
   );
@@ -62,7 +62,7 @@ function GradientIcon({ name, size }: { name: any; size: number }) {
   return (
     <MaskedView
       style={{ width: size, height: size }}
-      maskElement={<Ionicons name={name} size={size} color="black" />}
+      maskElement={<Ionicons allowFontScaling={false} name={name} size={size} color="black" />}
     >
       <LinearGradient
         colors={[colors.brass, colors.copper]}
@@ -163,7 +163,7 @@ export default function Home() {
         <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.container, { paddingTop: insets.top + 12 }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} testID="home-screen">
           <View style={styles.content}>
             <View style={styles.logoBox}><Logo size="md" /></View>
-            <Text style={styles.tagline}>SIENTE LO QUE LEES</Text>
+            <Text allowFontScaling={false} style={styles.tagline}>SIENTE LO QUE LEES</Text>
 
             {/*
               Tarjeta principal "Bloqueo de lector" — reemplaza al antiguo
@@ -190,7 +190,7 @@ export default function Home() {
                 <View style={styles.heroCardInner}>
                   <GradientIcon name="sparkles" size={18} />
                   <View style={{ height: 8 }} />
-                  <Text style={styles.heroTitle}>{heroTitle}</Text>
+                  <Text allowFontScaling={false} style={styles.heroTitle}>{heroTitle}</Text>
                   <GradientWord text="SORPRÉNDEME" fontSize={13} fontWeight="900" letterSpacing={2.5} />
                 </View>
               </LinearGradient>
@@ -220,10 +220,10 @@ export default function Home() {
                     <GradientIcon name="flash" size={20} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.novedadesTitle}>NOVEDADES</Text>
-                    <Text style={styles.novedadesSub}>Historias recién llegadas</Text>
+                    <Text allowFontScaling={false} style={styles.novedadesTitle}>NOVEDADES</Text>
+                    <Text allowFontScaling={false} style={styles.novedadesSub}>Historias recién llegadas</Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={18} color={colors.textOnDarkMuted} />
+                  <Ionicons allowFontScaling={false} name="chevron-forward" size={18} color={colors.textOnDarkMuted} />
                 </View>
               </LinearGradient>
             </TouchableOpacity>
@@ -234,9 +234,9 @@ export default function Home() {
             */}
             <View style={styles.vibesLabelRow}>
               <View style={styles.vibesLabelLine} />
-              <Ionicons name="heart" size={9} color={colors.iron} style={{ opacity: 0.85 }} />
-              <Text style={styles.sectionLabel}>SEGÚN TUS VIBES</Text>
-              <Ionicons name="heart" size={9} color={colors.iron} style={{ opacity: 0.85 }} />
+              <Ionicons allowFontScaling={false} name="heart" size={9} color={colors.iron} style={{ opacity: 0.85 }} />
+              <Text allowFontScaling={false} style={styles.sectionLabel}>SEGÚN TUS VIBES</Text>
+              <Ionicons allowFontScaling={false} name="heart" size={9} color={colors.iron} style={{ opacity: 0.85 }} />
               <View style={styles.vibesLabelLine} />
             </View>
             <View style={styles.moodRow}>
@@ -251,8 +251,8 @@ export default function Home() {
                 { label: "Inspirador", emoji: "✨", q: "Inspirador" },
               ].map((m) => (
                 <TouchableOpacity key={m.label} style={styles.moodChip} onPress={() => go(m.q, true)} testID={`mood-${m.label}`}>
-                  <Text style={styles.moodEmoji}>{m.emoji}</Text>
-                  <Text style={styles.moodText}>{m.label}</Text>
+                  <Text allowFontScaling={false} style={styles.moodEmoji}>{m.emoji}</Text>
+                  <Text allowFontScaling={false} style={styles.moodText}>{m.label}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -270,12 +270,13 @@ export default function Home() {
         <View style={[styles.searchSection, { paddingBottom: insets.bottom + 12 }]}>
           <View style={styles.searchLabelRow}>
             <View style={styles.searchLabelLine} />
-            <Text style={styles.searchLabel}>¿TIENES UN TÍTULO O TROPE EN MENTE?</Text>
+            <Text allowFontScaling={false} style={styles.searchLabel}>¿TIENES UN TÍTULO O TROPE EN MENTE?</Text>
             <View style={styles.searchLabelLine} />
           </View>
           <View style={styles.searchBox}>
-            <Ionicons name="search" size={16} color={colors.brass} />
+            <Ionicons allowFontScaling={false} name="search" size={16} color={colors.brass} />
             <TextInput
+              allowFontScaling={false}
               testID="input-search"
               value={q}
               onChangeText={(text) => {
@@ -291,9 +292,10 @@ export default function Home() {
               returnKeyType="search"
               onSubmitEditing={() => go(q)}
             />
-            {q.length > 0 && (<TouchableOpacity onPress={() => setQ("")}><Ionicons name="close-circle" size={16} color={colors.textOnDarkMuted} /></TouchableOpacity>)}
+            {q.length > 0 && (<TouchableOpacity onPress={() => setQ("")}><Ionicons allowFontScaling={false} name="close-circle" size={16} color={colors.textOnDarkMuted} /></TouchableOpacity>)}
             <TouchableOpacity testID="btn-mic" onPress={onMicPress} style={styles.micBtn}>
               <Ionicons
+                allowFontScaling={false}
                 name={listening ? "mic" : "mic-outline"}
                 size={17}
                 color={listening ? colors.iron : colors.brass}
@@ -307,14 +309,29 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 24 },
+  // "flexGrow" (no "flex") es lo que de verdad hace que el
+  // contentContainerStyle de un ScrollView se estire para llenar el
+  // hueco disponible cuando el contenido es más corto que la pantalla
+  // — "flex: 1" solo, aquí, no tenía ningún efecto real.
+  container: { flexGrow: 1, paddingHorizontal: 24 },
   // Antes: flex: 1, justifyContent: "center" — centraba todo el bloque
   // verticalmente dentro del espacio disponible. El problema: al salir el
   // teclado, KeyboardAvoidingView reduce ese espacio y el contenido se
   // recentraba, desplazando el logo hacia arriba aunque no se tocara el
   // buscador. Ahora es un flujo normal de arriba a abajo, sin depender del
   // alto disponible, así que el teclado nunca lo mueve.
-  content: { gap: 16 },
+  content: {
+    flexGrow: 1,
+    // Recuperado: centrado vertical. Se quitó hace tiempo porque el
+    // buscador vivía dentro de este mismo bloque y, al centrar, el logo
+    // saltaba cuando aparecía el teclado. Ahora el buscador está fuera
+    // del ScrollView (fijo abajo), así que centrar aquí ya no afecta al
+    // teclado — y es lo que reparte el espacio sobrante de forma
+    // natural en CUALQUIER móvil, sin depender de un padding fijo ni de
+    // un spacer con tope que, se comprobó, no reducía el hueco real.
+    justifyContent: "center",
+    gap: 16,
+  },
   logoBox: { alignItems: "center", justifyContent: "center", marginTop: 20, marginBottom: -4 },
   tagline: { textAlign: "center", color: colors.brass, letterSpacing: 4, fontSize: 10, fontWeight: "400", marginTop: -4, textShadowColor: colors.brass, textShadowRadius: 6 },
 
@@ -349,15 +366,17 @@ const styles = StyleSheet.create({
   vibesLabelLine: { flex: 1, maxWidth: 40, height: 1, backgroundColor: "rgba(255,46,120,0.25)" },
   sectionLabel: { color: colors.textOnDarkMuted, fontSize: 10, letterSpacing: 3, fontWeight: "800" },
 
-  moodRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, justifyContent: "center", marginTop: 4 },
+  moodRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, justifyContent: "center", marginTop: 4, marginBottom: 8 },
   moodChip: { flexDirection: "row", alignItems: "center", gap: 4, borderWidth: 1, borderColor: "rgba(176,38,255,0.4)", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: "rgba(176,38,255,0.07)" },
   moodEmoji: { fontSize: 14 },
   moodText: { color: colors.textOnDark, fontSize: 13, fontWeight: "700" },
 
   // Sección del buscador — ahora fija fuera del ScrollView (ver comentario
   // más arriba), con su propio padding horizontal ya que dejó de heredarlo
-  // del contentContainerStyle del ScrollView.
-  searchSection: { paddingHorizontal: 24, paddingTop: 4 },
+  // del contentContainerStyle del ScrollView. paddingTop subido de 4 a 22
+  // para que no quede pegado a los chips de vibes justo encima — Lidia
+  // lo veía demasiado apretado en dispositivos reales.
+  searchSection: { paddingHorizontal: 24, paddingTop: 22 },
   searchLabelRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 8 },
   searchLabelLine: { flex: 1, maxWidth: 50, height: 1, backgroundColor: colors.brassSoft },
   searchLabel: { color: colors.textOnDarkMuted, fontSize: 10, letterSpacing: 2, fontWeight: "700" },

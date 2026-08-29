@@ -520,7 +520,7 @@ await Image.prefetch(coverUrl);
     return (
       <LinearGradient colors={colors.bgGradient} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={styles.center} testID="discover-loading">
         <ActivityIndicator size="large" color={colors.brass} />
-        <Text style={styles.loadingText}>Buscando tu vibe…</Text>
+        <Text allowFontScaling={false} style={styles.loadingText}>Buscando tu vibe…</Text>
       </LinearGradient>
     );
   }
@@ -529,8 +529,8 @@ await Image.prefetch(coverUrl);
     return (
       <LinearGradient colors={colors.bgGradient} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={styles.center} testID="discover-empty">
         <Ionicons allowFontScaling={false} name="sparkles-outline" size={64} color={colors.copper} />
-        <Text style={styles.emptyTitle}>No apareció...</Text>
-        <Text style={styles.emptySub}>Tu próxima obsesión puede estar aquí</Text>
+        <Text allowFontScaling={false} style={styles.emptyTitle}>No apareció...</Text>
+        <Text allowFontScaling={false} style={styles.emptySub}>Tu próxima obsesión puede estar aquí</Text>
         <TouchableOpacity
           style={styles.gradientBorderWrap}
           testID="btn-empty-sorprendeme"
@@ -545,7 +545,7 @@ await Image.prefetch(coverUrl);
           >
             <View style={styles.reloadInner}>
               <Ionicons allowFontScaling={false} name="sparkles" size={16} color={colors.textOnDark} />
-              <Text style={styles.reloadText}>SORPRÉNDEME</Text>
+              <Text allowFontScaling={false} style={styles.reloadText}>SORPRÉNDEME</Text>
             </View>
           </LinearGradient>
         </TouchableOpacity>
@@ -596,13 +596,21 @@ await Image.prefetch(coverUrl);
         <TouchableOpacity
           onPress={() => {
             // 1) Si venimos del grid de un autor (fromAuthor viene en
-            //    los params), volvemos ahí explícitamente — esto es
-            //    fiable siempre, a diferencia de canGoBack()/back(),
-            //    que con dos navegaciones seguidas a "/discover" no
-            //    siempre apilaba una entrada de verdad en el historial.
-            // 2) Si no, mantenemos el comportamiento de siempre: volver
-            //    atrás si hay historial real, o caer a Home si no.
-            if (fromAuthor) {
+            //    los params) Y seguimos viendo el mismo libro por el
+            //    que se entró (current.book_id === seedBookId), volvemos
+            //    ahí explícitamente — esto es fiable siempre, a
+            //    diferencia de canGoBack()/back(), que con dos
+            //    navegaciones seguidas a "/discover" no siempre apilaba
+            //    una entrada de verdad en el historial.
+            //    Antes esto se comprobaba solo con "fromAuthor", sin
+            //    mirar si el usuario ya se había alejado deslizando el
+            //    feed a otros libros — por eso "atrás" seguía mandando
+            //    al grid del autor aunque llevaras rato viendo libros
+            //    random del feed general, sin relación con ese autor.
+            // 2) Si no (o si ya te alejaste del libro semilla),
+            //    mantenemos el comportamiento de siempre: volver atrás
+            //    si hay historial real, o caer a Home si no.
+            if (fromAuthor && current?.book_id === seedBookId) {
               router.push({ pathname: "/author-books", params: { authorQuery: fromAuthor } });
             } else if (router.canGoBack()) {
               router.back();
@@ -616,8 +624,8 @@ await Image.prefetch(coverUrl);
           <Ionicons allowFontScaling={false} name="chevron-back" size={20} color={colors.brass} />
         </TouchableOpacity>
         <View style={styles.brandRow}>
-          <Text style={styles.brandCyan}>Book</Text>
-          <Text style={styles.brandPurple}>Vibes</Text>
+          <Text allowFontScaling={false} style={styles.brandCyan}>Book</Text>
+          <Text allowFontScaling={false} style={styles.brandPurple}>Vibes</Text>
         </View>
         <TouchableOpacity onPress={shareBook} style={styles.backBtn} testID="btn-share-book">
           <Ionicons allowFontScaling={false} name="share-social" size={18} color={colors.brass} />
@@ -664,11 +672,11 @@ await Image.prefetch(coverUrl);
           >
             <View style={styles.buyMainInner}>
               <Ionicons allowFontScaling={false} name="cart" size={17} color={colors.textOnDark} />
-              <Text style={styles.buyMainText}>DÓNDE COMPRAR</Text>
+              <Text allowFontScaling={false} style={styles.buyMainText}>DÓNDE COMPRAR</Text>
             </View>
           </LinearGradient>
         </TouchableOpacity>
-        <Text style={styles.affiliateDisclosure}>Algunas compras pueden generar una pequeña comisión sin coste para ti</Text>
+        <Text allowFontScaling={false} style={styles.affiliateDisclosure}>Algunas compras pueden generar una pequeña comisión sin coste para ti</Text>
       </View>
 
       {showSwipeHint && currentIndex === 0 && (
@@ -815,8 +823,8 @@ function BookSlide({
               style={styles.pillGradientBorder}
             >
               <View style={styles.moodPill}>
-                <Text style={styles.moodPillIcon}>{mood.icon}</Text>
-                <Text style={[styles.moodPillLabel, { color: mood.color }]} numberOfLines={1}>{mood.label}</Text>
+                <Text allowFontScaling={false} style={styles.moodPillIcon}>{mood.icon}</Text>
+                <Text allowFontScaling={false} style={[styles.moodPillLabel, { color: mood.color }]} numberOfLines={1}>{mood.label}</Text>
               </View>
             </LinearGradient>
             <LinearGradient
@@ -827,7 +835,7 @@ function BookSlide({
             >
               <View style={styles.ratingPill}>
                 {renderStarsCompact(book.rating)}
-                <Text style={styles.ratingValue}>{book.rating.toFixed(1)}</Text>
+                <Text allowFontScaling={false} style={styles.ratingValue}>{book.rating.toFixed(1)}</Text>
               </View>
             </LinearGradient>
           </View>
@@ -850,7 +858,7 @@ function BookSlide({
                     style={styles.novedadBorder}
                   >
                     <View style={styles.novedadInner}>
-                      <Text style={styles.novedadText}>NEW</Text>
+                      <Text allowFontScaling={false} style={styles.novedadText}>NEW</Text>
                     </View>
                   </LinearGradient>
                 </View>
@@ -890,8 +898,8 @@ function BookSlide({
               style={styles.vibeTagGradientBorder}
             >
               <View style={styles.vibeTagChipInner}>
-                <Text style={styles.vibeTagIcon} allowFontScaling={false}>{tag.icon}</Text>
-                <Text style={styles.vibeTagLabel} allowFontScaling={false} numberOfLines={1}>{tag.label}</Text>
+                <Text allowFontScaling={false} style={styles.vibeTagIcon} allowFontScaling={false}>{tag.icon}</Text>
+                <Text allowFontScaling={false} style={styles.vibeTagLabel} allowFontScaling={false} numberOfLines={1}>{tag.label}</Text>
               </View>
             </LinearGradient>
           );
@@ -967,7 +975,7 @@ function BuyBtn({ label, icon, onPress, testID }: { label: string; icon: any; on
   return (
     <TouchableOpacity testID={testID} style={styles.buyBtn} onPress={onPress} activeOpacity={0.85}>
       <Ionicons allowFontScaling={false} name={icon} size={16} color={colors.gold} />
-      <Text style={styles.buyText}>{label}</Text>
+      <Text allowFontScaling={false} style={styles.buyText}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -1031,7 +1039,7 @@ function FlashCardModal({ visible, book, lang, onClose, onAuthorChat, onAuthorPr
             <Ionicons allowFontScaling={false} name="close" size={22} color={colors.textOnDarkMuted} />
           </TouchableOpacity>
           <ScrollView showsVerticalScrollIndicator={false}>
-            <Text style={styles.flashTitle} numberOfLines={3}>{book.title}</Text>
+            <Text allowFontScaling={false} style={styles.flashTitle} numberOfLines={3}>{book.title}</Text>
             {onAuthorPress ? (
               <TouchableOpacity
                 onPress={() => {
@@ -1043,10 +1051,10 @@ function FlashCardModal({ visible, book, lang, onClose, onAuthorChat, onAuthorPr
                 activeOpacity={0.7}
                 testID="btn-flash-author-name"
               >
-                <Text style={[styles.flashAuthor, authorPressed && { color: "#ff01cc" }]}>{book.author}</Text>
+                <Text allowFontScaling={false} style={[styles.flashAuthor, authorPressed && { color: "#ff01cc" }]}>{book.author}</Text>
               </TouchableOpacity>
             ) : (
-              <Text style={styles.flashAuthor}>{book.author}</Text>
+              <Text allowFontScaling={false} style={styles.flashAuthor}>{book.author}</Text>
             )}
             <View style={styles.statRow}>
               <StatBox icon="calendar" label="AÑO" value={String(book.year)} />
@@ -1054,7 +1062,7 @@ function FlashCardModal({ visible, book, lang, onClose, onAuthorChat, onAuthorPr
               <StatBox icon="rocket" label="GÉNERO" value={book.genre.split("/")[0].trim()} small />
             </View>
             <View style={styles.flashLabel}>
-              <Text style={styles.flashLabelText}>— FLASH CARD —</Text>
+              <Text allowFontScaling={false} style={styles.flashLabelText}>— FLASH CARD —</Text>
             </View>
             <View style={styles.detailGrid}>
               <DetailItem label="TEMA" value={ext.tema || "—"} color={colors.iron} />
@@ -1069,13 +1077,13 @@ function FlashCardModal({ visible, book, lang, onClose, onAuthorChat, onAuthorPr
 
             {ext.hook && (
               <View style={styles.hookContainer}>
-                <Text style={styles.hookText}>"{ext.hook}"</Text>
+                <Text allowFontScaling={false} style={styles.hookText}>"{ext.hook}"</Text>
               </View>
             )}
 
             <TouchableOpacity style={[styles.iaBtn, !isPremium && styles.iaBtnLocked]} onPress={onAuthorChat} activeOpacity={0.85} testID="btn-flash-author-chat">
               <Ionicons allowFontScaling={false} name={isPremium ? "chatbubbles" : "lock-closed"} size={16} color={isPremium ? colors.bgBase : colors.gold} />
-              <Text style={[styles.iaBtnText, !isPremium && styles.iaBtnTextLocked]}>Habla con ellos {!isPremium && "(Premium)"}</Text>
+              <Text allowFontScaling={false} style={[styles.iaBtnText, !isPremium && styles.iaBtnTextLocked]}>Habla con ellos {!isPremium && "(Premium)"}</Text>
             </TouchableOpacity>
           </ScrollView>
         </View>
@@ -1088,8 +1096,8 @@ function StatBox({ icon, label, value, small }: { icon: any; label: string; valu
   return (
     <View style={styles.statBox}>
       <Ionicons allowFontScaling={false} name={icon} size={20} color={colors.brass} />
-      <Text style={styles.statLabel}>{label}</Text>
-      <Text style={[styles.statValue, small && { fontSize: 13 }]} numberOfLines={1}>{value}</Text>
+      <Text allowFontScaling={false} style={styles.statLabel}>{label}</Text>
+      <Text allowFontScaling={false} style={[styles.statValue, small && { fontSize: 13 }]} numberOfLines={1}>{value}</Text>
     </View>
   );
 }
@@ -1099,9 +1107,9 @@ function DetailItem({ label, value, color }: { label: string; value: string; col
     <View style={styles.detailItem}>
       <View style={styles.detailHeader}>
         <Ionicons allowFontScaling={false} name="star" size={10} color={color} />
-        <Text style={[styles.detailLabel, { color }]}>{label}</Text>
+        <Text allowFontScaling={false} style={[styles.detailLabel, { color }]}>{label}</Text>
       </View>
-      <Text style={styles.detailValue}>{value}</Text>
+      <Text allowFontScaling={false} style={styles.detailValue}>{value}</Text>
     </View>
   );
 }
@@ -1117,15 +1125,15 @@ function AudioModal({ visible, book, lang, playing, loading, text, onPlay, onClo
             <Ionicons allowFontScaling={false} name="close" size={22} color={colors.textOnDarkMuted} />
           </TouchableOpacity>
           <View style={styles.audioHeader}>
-            <Text style={styles.audioBadge}>// RESUMEN · 1 MIN</Text>
+            <Text allowFontScaling={false} style={styles.audioBadge}>// RESUMEN · 1 MIN</Text>
             <TouchableOpacity onPress={onPlay} style={styles.audioPlayBtn} disabled={loading} testID="btn-audio-play">
               {loading ? <ActivityIndicator color={colors.brass} /> : <Ionicons allowFontScaling={false} name={playing ? "pause" : "play"} size={26} color={colors.brass} />}
             </TouchableOpacity>
           </View>
           <View style={styles.dividerLine} />
-          <Text style={styles.flashTitle}>{book.title}</Text>
+          <Text allowFontScaling={false} style={styles.flashTitle}>{book.title}</Text>
           <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 10 }}>
-            <Text style={styles.synopsisText}>{text || fallback}</Text>
+            <Text allowFontScaling={false} style={styles.synopsisText}>{text || fallback}</Text>
           </ScrollView>
         </View>
       </View>

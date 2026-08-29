@@ -27,13 +27,13 @@ function GradientTitle({ text, fontSize, letterSpacing }: { text: string; fontSi
     <MaskedView
       style={{ height: fontSize * 1.25 }}
       maskElement={
-        <Text style={{ fontSize, fontWeight: "900", letterSpacing, backgroundColor: "transparent" }}>
+        <Text allowFontScaling={false} style={{ fontSize, fontWeight: "900", letterSpacing, backgroundColor: "transparent" }}>
           {text}
         </Text>
       }
     >
       <LinearGradient colors={[colors.brass, colors.copper]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ flex: 1 }}>
-        <Text style={{ fontSize, fontWeight: "900", letterSpacing, opacity: 0 }}>{text}</Text>
+        <Text allowFontScaling={false} style={{ fontSize, fontWeight: "900", letterSpacing, opacity: 0 }}>{text}</Text>
       </LinearGradient>
     </MaskedView>
   );
@@ -110,7 +110,7 @@ export default function Settings() {
         testID="settings-screen"
       >
         <View style={styles.header}>
-          <Ionicons name="cog" size={20} color={colors.brass} />
+          <Ionicons allowFontScaling={false} name="cog" size={20} color={colors.brass} />
           <GradientTitle text="AJUSTES" fontSize={16} letterSpacing={5} />
         </View>
 
@@ -131,16 +131,16 @@ export default function Settings() {
               <Image source={{ uri: user.picture }} style={styles.avatar} />
             ) : (
               <View style={[styles.avatar, styles.avatarPh]}>
-                <Ionicons name="person" size={30} color={colors.brass} />
+                <Ionicons allowFontScaling={false} name="person" size={30} color={colors.brass} />
               </View>
             )}
           </LinearGradient>
-          <Text style={styles.name} numberOfLines={1}>{user?.name}</Text>
-          <Text style={styles.email} numberOfLines={1}>{user?.email}</Text>
+          <Text allowFontScaling={false} style={styles.name} numberOfLines={1}>{user?.name}</Text>
+          <Text allowFontScaling={false} style={styles.email} numberOfLines={1}>{user?.email}</Text>
           {isPremium && (
             <View style={styles.premiumBadge}>
-              <Ionicons name="diamond" size={12} color={colors.bgBase} />
-              <Text style={styles.premiumBadgeText}>PREMIUM</Text>
+              <Ionicons allowFontScaling={false} name="diamond" size={12} color={colors.bgBase} />
+              <Text allowFontScaling={false} style={styles.premiumBadgeText}>PREMIUM</Text>
             </View>
           )}
         </View>
@@ -151,19 +151,19 @@ export default function Settings() {
           // sin repetir "Premium" ni el diamante (ya están arriba en el badge).
           <View style={styles.premiumActiveCard} testID="premium-active-card">
             <View style={styles.benefitRow}>
-              <Ionicons name="headset" size={14} color={colors.gold} />
-              <Text style={styles.benefitText}>Audios ilimitados</Text>
+              <Ionicons allowFontScaling={false} name="headset" size={14} color={colors.gold} />
+              <Text allowFontScaling={false} style={styles.benefitText}>Audios ilimitados</Text>
             </View>
             <View style={styles.benefitRow}>
-              <Ionicons name="chatbubbles" size={14} color={colors.gold} />
-              <Text style={styles.benefitText}>Habla con tus personajes favoritos</Text>
+              <Ionicons allowFontScaling={false} name="chatbubbles" size={14} color={colors.gold} />
+              <Text allowFontScaling={false} style={styles.benefitText}>Habla con tus personajes favoritos</Text>
             </View>
             <View style={styles.benefitRow}>
-              <Ionicons name="document-text" size={14} color={colors.gold} />
-              <Text style={styles.benefitText}>Resúmenes completos y sin spoilers</Text>
+              <Ionicons allowFontScaling={false} name="document-text" size={14} color={colors.gold} />
+              <Text allowFontScaling={false} style={styles.benefitText}>Resúmenes completos y sin spoilers</Text>
             </View>
             <TouchableOpacity style={styles.downgradeBtn} onPress={downgrade} testID="btn-downgrade">
-              <Text style={styles.downgradeText}>Cancelar (modo demo)</Text>
+              <Text allowFontScaling={false} style={styles.downgradeText}>Cancelar (modo demo)</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -174,47 +174,47 @@ export default function Settings() {
             testID="btn-go-premium"
           >
             <View style={styles.premiumCtaLeft}>
-              <Ionicons name="diamond" size={28} color={colors.gold} />
+              <Ionicons allowFontScaling={false} name="diamond" size={28} color={colors.gold} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.premiumCtaTitle}>Hazte Premium</Text>
-              <Text style={styles.premiumCtaSub}>
+              <Text allowFontScaling={false} style={styles.premiumCtaTitle}>Hazte Premium</Text>
+              <Text allowFontScaling={false} style={styles.premiumCtaSub}>
                 Audios ilimitados · Habla con tus personajes favoritos · Resúmenes premium
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.gold} />
+            <Ionicons allowFontScaling={false} name="chevron-forward" size={20} color={colors.gold} />
           </TouchableOpacity>
         )}
 
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>TU BIBLIOTECA</Text>
+          <Text allowFontScaling={false} style={styles.sectionLabel}>TU BIBLIOTECA</Text>
           <TouchableOpacity
             style={styles.row}
             testID="btn-clear-favorites"
             onPress={doClearFavorites}
             disabled={clearingFavorites}
           >
-            <Ionicons name="trash-outline" size={18} color={colors.brass} />
-            <Text style={styles.rowText}>
+            <Ionicons allowFontScaling={false} name="trash-outline" size={18} color={colors.brass} />
+            <Text allowFontScaling={false} style={styles.rowText}>
               {clearingFavorites ? "Vaciando favoritos…" : "Vaciar favoritos"}
             </Text>
           </TouchableOpacity>
         </View>
 
         <TouchableOpacity style={styles.logoutBtn} onPress={doSignOut} testID="btn-logout">
-          <Ionicons name="log-out-outline" size={18} color={colors.iron} />
-          <Text style={styles.logoutText}>Cerrar sesión</Text>
+          <Ionicons allowFontScaling={false} name="log-out-outline" size={18} color={colors.iron} />
+          <Text allowFontScaling={false} style={styles.logoutText}>Cerrar sesión</Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => router.push("/legal")}
           style={{ marginTop: 20, alignItems: "center" }}
         >
-          <Text style={{ color: colors.border, fontSize: 12, textAlign: "center" }}>
+          <Text allowFontScaling={false} style={{ color: colors.border, fontSize: 12, textAlign: "center" }}>
             Términos y Condiciones
           </Text>
         </TouchableOpacity>
 
-        <Text style={styles.footer}>BookVibes · MMXXVI</Text>
+        <Text allowFontScaling={false} style={styles.footer}>BookVibes · MMXXVI</Text>
 
         <PaywallModal
           visible={paywallOpen}
@@ -235,7 +235,7 @@ function LangBtn({ label, active, onPress, testID }: { label: string; active: bo
       onPress={onPress}
       style={[styles.langBtn, active && styles.langBtnActive]}
     >
-      <Text style={[styles.langText, active && styles.langTextActive]}>{label}</Text>
+      <Text allowFontScaling={false} style={[styles.langText, active && styles.langTextActive]}>{label}</Text>
     </TouchableOpacity>
   );
 }

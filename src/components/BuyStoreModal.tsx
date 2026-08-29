@@ -30,9 +30,9 @@ export default function BuyStoreModal({
           <TouchableOpacity onPress={onClose} style={styles.flashClose} testID="btn-close-buy">
             <Ionicons allowFontScaling={false} name="close" size={22} color={colors.textOnDarkMuted} />
           </TouchableOpacity>
-          <Text style={styles.flashTitle}>Elige tu tienda favorita</Text>
+          <Text allowFontScaling={false} style={styles.flashTitle}>Elige tu tienda favorita</Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-            <Text style={styles.affiliateDisclosureModal}>Gracias por apoyar BookVibes</Text>
+            <Text allowFontScaling={false} style={styles.affiliateDisclosureModal}>Gracias por apoyar BookVibes</Text>
             <Ionicons allowFontScaling={false} name="heart" size={11} color={colors.textOnDarkMuted} />
           </View>
 
@@ -89,8 +89,8 @@ function StoreRow({ icon, iconColor, logoSource, label, subtitle, onPress, testI
         )}
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={styles.storeRowLabel}>{label}</Text>
-        {subtitle ? <Text style={styles.storeRowSub}>{subtitle}</Text> : null}
+        <Text allowFontScaling={false} style={styles.storeRowLabel}>{label}</Text>
+        {subtitle ? <Text allowFontScaling={false} style={styles.storeRowSub}>{subtitle}</Text> : null}
       </View>
       <Ionicons allowFontScaling={false} name="chevron-forward" size={18} color={colors.textOnDarkMuted} />
     </TouchableOpacity>

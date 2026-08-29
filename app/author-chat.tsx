@@ -32,9 +32,9 @@ function CharacterAvatar({ character, isNarrator, colorIndex }: { character: str
   return (
     <View style={[styles.headerAvatar, { backgroundColor: avatarStyle.bg, borderColor: avatarStyle.border, borderWidth: 1 }]}>
       {isNarrator ? (
-        <Ionicons name="book" size={18} color={avatarStyle.fg} />
+        <Ionicons allowFontScaling={false} name="book" size={18} color={avatarStyle.fg} />
       ) : (
-        <Text style={[styles.headerAvatarInitial, { color: avatarStyle.fg }]}>{initial}</Text>
+        <Text allowFontScaling={false} style={[styles.headerAvatarInitial, { color: avatarStyle.fg }]}>{initial}</Text>
       )}
     </View>
   );
@@ -231,26 +231,26 @@ export default function CharacterChat() {
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} testID="btn-back-chat">
-            <Ionicons name="chevron-back" size={22} color={colors.brass} />
+            <Ionicons allowFontScaling={false} name="chevron-back" size={22} color={colors.brass} />
           </TouchableOpacity>
           <CharacterAvatar character={character} isNarrator={isNarrator} colorIndex={colorIndex} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle} numberOfLines={1}>{headerName}</Text>
-            <Text style={styles.headerSub} numberOfLines={1}>★ {headerSub}</Text>
+            <Text allowFontScaling={false} style={styles.headerTitle} numberOfLines={1}>{headerName}</Text>
+            <Text allowFontScaling={false} style={styles.headerSub} numberOfLines={1}>★ {headerSub}</Text>
           </View>
           {showRemainingBadge ? (
             <View style={styles.remainingBadge} testID="chat-remaining-badge">
-              <Ionicons name="diamond" size={11} color={colors.gold} />
-              <Text style={styles.remainingBadgeText}>{chatRemaining}</Text>
+              <Ionicons allowFontScaling={false} name="diamond" size={11} color={colors.gold} />
+              <Text allowFontScaling={false} style={styles.remainingBadgeText}>{chatRemaining}</Text>
             </View>
           ) : (
-            <View style={styles.live}><View style={styles.liveDot} /><Text style={styles.liveText}>EN VIVO</Text></View>
+            <View style={styles.live}><View style={styles.liveDot} /><Text allowFontScaling={false} style={styles.liveText}>EN VIVO</Text></View>
           )}
         </View>
         <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={styles.messages} showsVerticalScrollIndicator={false}>
           {messages.map((m, i) => (
             <View key={i} style={[styles.bubble, m.role === "user" ? styles.bubbleUser : styles.bubbleAssistant]}>
-              <Text style={m.role === "user" ? styles.textUser : styles.textAssistant}>{m.content}</Text>
+              <Text allowFontScaling={false} style={m.role === "user" ? styles.textUser : styles.textAssistant}>{m.content}</Text>
             </View>
           ))}
           {sending && (
@@ -263,13 +263,14 @@ export default function CharacterChat() {
           <View style={styles.suggestions}>
             {suggestions.map((s) => (
               <TouchableOpacity key={s} style={styles.chip} onPress={() => send(s)} testID={`chip-${s}`}>
-                <Text style={styles.chipText}>{s}</Text>
+                <Text allowFontScaling={false} style={styles.chipText}>{s}</Text>
               </TouchableOpacity>
             ))}
           </View>
         )}
         <View style={[styles.inputRow, { paddingBottom: insets.bottom + 10 }]}>
           <TextInput
+            allowFontScaling={false}
             testID="input-character-chat"
             value={input}
             onChangeText={setInput}
@@ -281,10 +282,6 @@ export default function CharacterChat() {
             editable={!sending}
             multiline={true}
           />
-          {/* Botón enviar: degradado brass→copper en reposo (mismo
-              lenguaje visual que el resto de la app), sólido rosa
-              mientras está enviando — igual que el patrón de "estado
-              activo" que ya usamos en los botones laterales de discover. */}
           {sending ? (
             <View style={[styles.sendBtn, styles.sendBtnSending]}>
               <ActivityIndicator size="small" color={colors.bgBase} />
@@ -302,21 +299,21 @@ export default function CharacterChat() {
                 end={{ x: 1, y: 1 }}
                 style={styles.sendBtn}
               >
-                <Ionicons name="send" size={18} color={colors.bgBase} />
+                <Ionicons allowFontScaling={false} name="send" size={18} color={colors.bgBase} />
               </LinearGradient>
             </TouchableOpacity>
           )}
         </View>
         {showDisclaimer && (
           <View style={styles.disclaimer}>
-            <Text style={styles.disclaimerText}>
+            <Text allowFontScaling={false} style={styles.disclaimerText}>
               Esta conversación es generada por IA y no representa declaraciones reales del autor.
             </Text>
             <TouchableOpacity onPress={async () => {
               await AsyncStorage.setItem("character_chat_disclaimer_seen", "true");
               setShowDisclaimer(false);
             }}>
-              <Text style={styles.disclaimerBtn}>Entendido</Text>
+              <Text allowFontScaling={false} style={styles.disclaimerBtn}>Entendido</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -333,12 +330,7 @@ export default function CharacterChat() {
 
 const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.border, gap: 10 },
-  // Cambiado de círculo (borderRadius 18) a cuadrado con esquinas
-  // redondeadas (borderRadius 13), mismo criterio que el resto de
-  // botones de icono en toda la app. Color sin tocar.
   backBtn: { width: 36, height: 36, borderRadius: 13, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
-  // Avatar del personaje: mismo cambio de forma, de círculo (borderRadius
-  // 18) a cuadrado con esquinas redondeadas (borderRadius 13).
   headerAvatar: { width: 36, height: 36, borderRadius: 13, overflow: "hidden", alignItems: "center", justifyContent: "center" },
   headerAvatarInitial: { fontSize: 18, fontWeight: "900" },
   headerTitle: { color: colors.textOnDark, fontSize: 16, fontWeight: "800" },
@@ -346,17 +338,11 @@ const styles = StyleSheet.create({
   live: { flexDirection: "row", alignItems: "center", gap: 6 },
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.verdigris },
   liveText: { color: colors.verdigris, fontSize: 10, fontWeight: "900", letterSpacing: 1 },
-  // Badge de preguntas gratis restantes — mismo estilo "pill" oscuro que
-  // el resto de indicadores de la app, con el diamante dorado (icono ya
-  // usado en el paywall) para que se entienda de un vistazo que es algo
-  // relacionado con Premium.
   remainingBadge: { flexDirection: "row", alignItems: "center", gap: 4, borderWidth: 1, borderColor: colors.brassSoft, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 },
   remainingBadgeText: { color: colors.gold, fontSize: 11, fontWeight: "900" },
   messages: { padding: 16, gap: 10 },
   bubble: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 16, maxWidth: "85%" },
   bubbleUser: { alignSelf: "flex-end", backgroundColor: colors.brass, borderBottomRightRadius: 4 },
-  // Antes: borderColor "rgba(176,38,255,0.4)" (copper antiguo). Ahora usa
-  // el copper oficial (#A020F0 = 160,32,240) en la misma opacidad.
   bubbleAssistant: { alignSelf: "flex-start", backgroundColor: colors.bgSurface, borderWidth: 1, borderColor: "rgba(160,32,240,0.4)", borderBottomLeftRadius: 4 },
   textUser: { color: colors.bgBase, fontSize: 14, lineHeight: 20, fontWeight: "600" },
   textAssistant: { color: colors.textOnDark, fontSize: 14, lineHeight: 20 },
@@ -369,7 +355,6 @@ const styles = StyleSheet.create({
   input: { flex: 1, backgroundColor: colors.bgSurface, borderWidth: 1, borderColor: colors.brassSoft, borderRadius: 999, paddingHorizontal: 16, paddingVertical: Platform.OS === "web" ? 12 : 10, color: colors.textOnDark, fontSize: 14, outlineWidth: 0 as any },
 sendBtn: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", shadowColor: colors.copper, shadowOpacity: 0.5, shadowRadius: 14, shadowOffset: { width: 0, height: 0 }, elevation: 8 },
   sendBtnSending: { backgroundColor: colors.iron },
-  // Antes: rgba(176,38,255,...) (copper antiguo). Ahora el copper oficial.
   disclaimer: { margin: 16, padding: 16, backgroundColor: "rgba(160,32,240,0.15)", borderRadius: 12, borderWidth: 1, borderColor: "rgba(160,32,240,0.4)", gap: 12 },
   disclaimerText: { color: colors.textOnDark, fontSize: 13, lineHeight: 20, textAlign: "center" },
   disclaimerBtn: { color: colors.copper, fontSize: 14, fontWeight: "800", textAlign: "center" },

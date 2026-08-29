@@ -14,12 +14,12 @@ import { colors } from "../../src/theme";
 // MaskedView+LinearGradient que GradientIcon en home.tsx.
 function TabIcon({ name, size, focused }: { name: any; size: number; focused: boolean }) {
   if (!focused) {
-    return <Ionicons name={name} size={size} color={colors.textOnDarkMuted} />;
+    return <Ionicons allowFontScaling={false} name={name} size={size} color={colors.textOnDarkMuted} />;
   }
   return (
     <MaskedView
       style={{ width: size, height: size }}
-      maskElement={<Ionicons name={name} size={size} color="black" />}
+      maskElement={<Ionicons allowFontScaling={false} name={name} size={size} color="black" />}
     >
       <LinearGradient
         colors={[colors.brass, colors.copper]}
@@ -36,13 +36,13 @@ function TabIcon({ name, size, focused }: { name: any; size: number; focused: bo
 // para que no salte el tamaño del texto al cambiar de pestaña.
 function TabLabel({ label, focused }: { label: string; focused: boolean }) {
   if (!focused) {
-    return <Text style={[styles.label, { color: colors.textOnDarkMuted }]}>{label}</Text>;
+    return <Text allowFontScaling={false} style={[styles.label, { color: colors.textOnDarkMuted }]}>{label}</Text>;
   }
   return (
     <MaskedView
       style={{ height: 14 }}
       maskElement={
-        <Text style={[styles.label, { backgroundColor: "transparent" }]}>{label}</Text>
+        <Text allowFontScaling={false} style={[styles.label, { backgroundColor: "transparent" }]}>{label}</Text>
       }
     >
       <LinearGradient
@@ -51,7 +51,7 @@ function TabLabel({ label, focused }: { label: string; focused: boolean }) {
         end={{ x: 1, y: 0 }}
         style={{ flex: 1 }}
       >
-        <Text style={[styles.label, { opacity: 0 }]}>{label}</Text>
+        <Text allowFontScaling={false} style={[styles.label, { opacity: 0 }]}>{label}</Text>
       </LinearGradient>
     </MaskedView>
   );
