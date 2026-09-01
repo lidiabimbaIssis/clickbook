@@ -99,7 +99,7 @@ export default function Discover() {
   }, [slideH]);
   const SLIDE_H = slideH;
 
-  const params = useLocalSearchParams<{ q?: string; book_id?: string; mode?: string; t?: string; vibe?: string; authorQuery?: string; fromAuthor?: string }>();
+  const params = useLocalSearchParams<{ q?: string; book_id?: string; mode?: string; t?: string; vibe?: string; authorQuery?: string }>();
   const query = (params.q || "").toString();
   const seedBookId = (params.book_id || "").toString();
   const isRandom = params.mode === "random";
@@ -108,13 +108,6 @@ export default function Discover() {
   const isAuthorMode = params.mode === "author";
   const authorQuery = (params.authorQuery || "").toString();
   const navKey = (params.t || "").toString();
-  // Cuando se llega aquí desde el grid de portadas de un autor
-  // (author-books.tsx), viene con este parámetro — el botón "atrás" lo
-  // usa para volver EXPLÍCITAMENTE a ese grid, en vez de fiarse de
-  // router.canGoBack()/router.back(), que con navegaciones repetidas a
-  // la misma ruta "/discover" no siempre apila una entrada nueva de
-  // verdad en el historial.
-  const fromAuthor = (params.fromAuthor || "").toString();
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -159,6 +152,32 @@ export default function Discover() {
     setShowSwipeHint(false);
     AsyncStorage.setItem("hasSeenSwipeHint", "true").catch(() => {});
   }, []);
+
+  // Mismo patrón que showSwipeHint: mucha gente no se daba cuenta de que
+  // el botón del hook (esquina inferior izquierda de la portada) existe
+  // — es pequeño y semitransparente, y compite visualmente con el badge
+  // NEW y las pastillas de arriba. Aviso puntual, una sola vez por
+  // dispositivo, apuntando directamente al botón. Se descarta al tocar
+  // el propio botón del hook (no con el swipe, que ya tiene su aviso
+  // aparte) o automáticamente pasados unos segundos.
+  const [showHookHint, setShowHookHint] = useState(false);
+  useEffect(() => {
+    (async () => {
+      try {
+        const seen = await AsyncStorage.getItem("hasSeenHookHint");
+        if (!seen) setShowHookHint(true);
+      } catch {}
+    })();
+  }, []);
+  const dismissHookHint = useCallback(() => {
+    setShowHookHint(false);
+    AsyncStorage.setItem("hasSeenHookHint", "true").catch(() => {});
+  }, []);
+  useEffect(() => {
+    if (!showHookHint) return;
+    const timer = setTimeout(() => dismissHookHint(), 9000);
+    return () => clearTimeout(timer);
+  }, [showHookHint, dismissHookHint]);
 
   const stopAudio = useCallback(() => {
     try { playerRef.current?.pause?.(); playerRef.current?.remove?.(); } catch {}
@@ -206,7 +225,22 @@ const fetchBooks = useCallback(async (initial: boolean, seedId?: string) => {
         api<{ books: Book[] }>(`/books/feed?count=${targetCount}`),
       ]);
 
-      const authorBooks = authorRes?.books || [];
+      let authorBooks = authorRes?.books || [];
+
+      // Reordena para que el libro concreto en el que se hizo tap en el
+      // grid del autor (seedId, viene como book_id en la navegación)
+      // sea siempre el primero de la fila — así el feed empieza justo
+      // por el libro que el usuario eligió, no por el primero que
+      // devuelva la búsqueda por autor. El resto de libros del autor le
+      // siguen en su orden habitual, y al acabar entra el feed general.
+      if (seedId) {
+        const idx = authorBooks.findIndex((b) => b.book_id === seedId);
+        if (idx > 0) {
+          const [seedBook] = authorBooks.splice(idx, 1);
+          authorBooks = [seedBook, ...authorBooks];
+        }
+      }
+
       const authorIds = new Set(authorBooks.map((b) => b.book_id));
       const feedSinAutor = (feedRes?.books || []).filter((b) => !authorIds.has(b.book_id));
 
@@ -587,6 +621,8 @@ await Image.prefetch(coverUrl);
             hookPlaying={hookPlayingId === item.book_id}
             hookLoading={hookLoadingId === item.book_id}
             onPressHook={playHook}
+            showHookHint={showHookHint && currentIndex === 0 && current?.book_id === item.book_id}
+            onDismissHookHint={dismissHookHint}
           />
         )}
         testID="vertical-feed"
@@ -594,30 +630,7 @@ await Image.prefetch(coverUrl);
 
       <View style={[styles.topBar, { paddingTop: insets.top + 8 }]} pointerEvents="box-none">
         <TouchableOpacity
-          onPress={() => {
-            // 1) Si venimos del grid de un autor (fromAuthor viene en
-            //    los params) Y seguimos viendo el mismo libro por el
-            //    que se entró (current.book_id === seedBookId), volvemos
-            //    ahí explícitamente — esto es fiable siempre, a
-            //    diferencia de canGoBack()/back(), que con dos
-            //    navegaciones seguidas a "/discover" no siempre apilaba
-            //    una entrada de verdad en el historial.
-            //    Antes esto se comprobaba solo con "fromAuthor", sin
-            //    mirar si el usuario ya se había alejado deslizando el
-            //    feed a otros libros — por eso "atrás" seguía mandando
-            //    al grid del autor aunque llevaras rato viendo libros
-            //    random del feed general, sin relación con ese autor.
-            // 2) Si no (o si ya te alejaste del libro semilla),
-            //    mantenemos el comportamiento de siempre: volver atrás
-            //    si hay historial real, o caer a Home si no.
-            if (fromAuthor && current?.book_id === seedBookId) {
-              router.push({ pathname: "/author-books", params: { authorQuery: fromAuthor } });
-            } else if (router.canGoBack()) {
-              router.back();
-            } else {
-              router.push("/home");
-            }
-          }}
+          onPress={() => router.replace("/home")}
           style={styles.backBtn}
           testID="btn-back-home"
         >
@@ -726,15 +739,31 @@ await Image.prefetch(coverUrl);
 function BookSlide({
   book, reservedBottom, slideHeight,
   isCurrent, hookIsPremium, hookRemaining, hookPlaying, hookLoading, onPressHook,
+  showHookHint, onDismissHookHint,
 }: {
   book: Book; reservedBottom: number; slideHeight: number;
   isCurrent?: boolean; hookIsPremium?: boolean; hookRemaining?: number | null;
   hookPlaying?: boolean; hookLoading?: boolean; onPressHook?: () => void;
+  showHookHint?: boolean; onDismissHookHint?: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const mood = useMemo(() => inferMood(book), [book]);
   const coverW = SCREEN_W * 0.88;
-  const isNovedad = !!(book as any).fecha_novedad;
+  // Antes: `!!(book as any).fecha_novedad` — solo comprobaba que el campo
+  // existiera, sin mirar la fecha en sí. Eso hacía que el badge "NEW" se
+  // quedara pegado para siempre en cuanto un libro recibía esa fecha en
+  // el JSON, en vez de desaparecer pasados los 15 días previstos. Ahora
+  // se calcula la diferencia real entre hoy y fecha_novedad, y solo se
+  // considera "novedad" si caen 15 días o menos.
+  const isNovedad = useMemo(() => {
+    const fecha = (book as any).fecha_novedad;
+    if (!fecha) return false;
+    const fechaNovedad = new Date(fecha);
+    if (isNaN(fechaNovedad.getTime())) return false; // fecha con formato raro -> no se arriesga a mostrarla como NEW indefinidamente
+    const diffMs = Date.now() - fechaNovedad.getTime();
+    const diffDias = diffMs / (1000 * 60 * 60 * 24);
+    return diffDias >= 0 && diffDias <= 15;
+  }, [book]);
 
   const topBarSpace = insets.top + 8 + 38 + 8;
   const slidePaddingTop = topBarSpace + 45;
@@ -777,31 +806,49 @@ function BookSlide({
   const shouldPulse = hookIdle && !hookIsPremium;
 
   const hookButton = isCurrent && (hookIsPremium || (hookRemaining ?? 0) > 0) ? (
-    <Animated.View
-      style={[
-        styles.hookBtn,
-        shouldPulse && { transform: [{ scale: hookScale }], opacity: hookOpacity },
-      ]}
-    >
-      <TouchableOpacity
-        onPress={onPressHook}
-        style={styles.hookBtnTouchable}
-        activeOpacity={0.7}
-        testID="btn-hook"
+    <>
+      <Animated.View
+        style={[
+          styles.hookBtn,
+          shouldPulse && { transform: [{ scale: hookScale }], opacity: hookOpacity },
+        ]}
       >
-        {hookIsPremium ? (
-          <Ionicons allowFontScaling={false}
-            name={hookPlaying ? "pause" : "play"}
-            size={16}
-            color={hookLoading || hookPlaying ? colors.iron : "rgba(255,255,255,0.85)"}
-          />
-        ) : (
-          <Animated.Text style={[styles.hookBtnNumber, { color: (hookLoading || hookPlaying) ? colors.iron : hookColor }]}>
-            {hookRemaining}
-          </Animated.Text>
-        )}
-      </TouchableOpacity>
-    </Animated.View>
+        <TouchableOpacity
+          onPress={() => { onDismissHookHint?.(); onPressHook?.(); }}
+          style={styles.hookBtnTouchable}
+          activeOpacity={0.7}
+          testID="btn-hook"
+        >
+          {hookIsPremium ? (
+            <Ionicons allowFontScaling={false}
+              name={hookPlaying ? "pause" : "play"}
+              size={16}
+              color={hookLoading || hookPlaying ? colors.iron : "rgba(255,255,255,0.85)"}
+            />
+          ) : (
+            <Animated.Text style={[styles.hookBtnNumber, { color: (hookLoading || hookPlaying) ? colors.iron : hookColor }]}>
+              {hookRemaining}
+            </Animated.Text>
+          )}
+        </TouchableOpacity>
+      </Animated.View>
+      {/*
+        Aviso puntual (una sola vez por dispositivo) apuntando al botón
+        del hook — mucha gente no se daba cuenta de que existe, ya que es
+        pequeño y compite visualmente con el badge NEW y las pastillas de
+        arriba. Mismo criterio que SwipeHint: se apaga solo a los 5s o al
+        tocar el propio botón.
+      */}
+      {showHookHint && (
+        <View style={styles.hookHintWrap} pointerEvents="none" testID="hook-hint">
+          <View style={styles.hookHintBubble}>
+            <Ionicons allowFontScaling={false} name="headset" size={13} color={colors.bgBase} />
+            <Text allowFontScaling={false} style={styles.hookHintText}>Toca para escuchar</Text>
+          </View>
+          <View style={styles.hookHintArrow} />
+        </View>
+      )}
+    </>
   ) : null;
 
   return (
@@ -1050,11 +1097,21 @@ function FlashCardModal({ visible, book, lang, onClose, onAuthorChat, onAuthorPr
 }}
                 activeOpacity={0.7}
                 testID="btn-flash-author-name"
+                style={styles.flashAuthorRow}
               >
-                <Text allowFontScaling={false} style={[styles.flashAuthor, authorPressed && { color: "#ff01cc" }]}>{book.author}</Text>
+                <Text allowFontScaling={false} style={[styles.flashAuthor, authorPressed && { color: colors.iron }]}>{book.author}</Text>
+                {/*
+                  Pista visual permanente de que el nombre es pulsable —
+                  antes no había nada que lo distinguiera de un texto
+                  normal, así que mucha gente no descubría que lleva a
+                  todos los libros del autor. En vez de un aviso temporal
+                  más (ya hay dos: swipe y hook), una flechita fija es
+                  más duradero y no satura de tutoriales al abrir la app.
+                */}
+                <Ionicons allowFontScaling={false} name="chevron-forward" size={13} color={authorPressed ? colors.iron : colors.brass} style={{ marginTop: 4 }} />
               </TouchableOpacity>
             ) : (
-              <Text allowFontScaling={false} style={styles.flashAuthor}>{book.author}</Text>
+              <Text allowFontScaling={false} style={[styles.flashAuthor, { marginTop: 4 }]}>{book.author}</Text>
             )}
             <View style={styles.statRow}>
               <StatBox icon="calendar" label="AÑO" value={String(book.year)} />
@@ -1177,10 +1234,14 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: 10,
     left: 10,
+    // Bajado de 38x38 a 30x30 — el fondo (0.55) y el borde blanco se
+    // quedan igual que en la versión grande, solo cambia el tamaño.
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: "rgba(0,0,0,0.35)",
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.25)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1192,6 +1253,43 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   hookBtnNumber: { color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: "800" },
+  // Globo de aviso apuntando al botón del hook (esquina inferior
+  // izquierda de la portada) — mismo criterio de posición absoluta que
+  // SwipeHint, pero anclado cerca del propio botón en vez del centro.
+  hookHintWrap: {
+    position: "absolute",
+    bottom: 38,
+    left: 6,
+    alignItems: "flex-start",
+    zIndex: 12,
+  },
+  hookHintBubble: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: colors.brass,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    shadowColor: colors.brass,
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 8,
+  },
+  hookHintText: { color: colors.bgBase, fontSize: 12, fontWeight: "800" },
+  // Piquito del globo apuntando hacia abajo, hacia el botón del hook.
+  hookHintArrow: {
+    width: 0,
+    height: 0,
+    marginLeft: 14,
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderTopWidth: 7,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    borderTopColor: colors.brass,
+  },
   novedadBadge: {
     position: "absolute",
     top: 10,
@@ -1265,7 +1363,8 @@ const styles = StyleSheet.create({
   flashCard: { backgroundColor: colors.bgSurface, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderTopWidth: 2, borderColor: colors.copper, paddingHorizontal: 22, maxHeight: SCREEN_H * 0.92 },
   flashClose: { position: "absolute", top: 12, right: 12, padding: 8, zIndex: 5 },
   flashTitle: { color: colors.textOnDark, fontSize: 24, fontWeight: "900" },
-  flashAuthor: { color: colors.brass, fontSize: 14, marginTop: 4, fontStyle: "italic" },
+  flashAuthorRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4, alignSelf: "flex-start" },
+  flashAuthor: { color: colors.brass, fontSize: 14, fontStyle: "italic" },
   statRow: { flexDirection: "row", gap: 10, marginTop: 18 },
   statBox: { flex: 1, borderWidth: 1, borderColor: colors.brassSoft, borderRadius: 12, padding: 10, alignItems: "center", backgroundColor: "rgba(0,240,255,0.04)" },
   statLabel: { color: colors.textOnDark, fontSize: 11, fontWeight: "800", letterSpacing: 1.5, marginTop: 4 },

@@ -1,9 +1,11 @@
-import React, { useState, useCallback, useRef, useMemo } from "react";
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Platform, Keyboard, KeyboardAvoidingView, ScrollView } from "react-native";
+import React, { useState, useCallback, useRef, useMemo, useEffect } from "react";
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Platform, Keyboard, KeyboardAvoidingView, ScrollView, Animated, Easing } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { colors } from "../../src/theme";
+import { api } from "../../src/lib/api";
 import Logo from "../../src/components/Logo";
 import { LinearGradient } from "expo-linear-gradient";
 import MaskedView from "@react-native-masked-view/masked-view";
@@ -12,18 +14,17 @@ import {
   useSpeechRecognitionEvent,
 } from "expo-speech-recognition";
 
-// Frases del título de la tarjeta principal — "NO SÉ QUÉ LEER" se repite
-// varias veces en el array para que salga con más frecuencia que el
-// resto al elegir al azar, sin necesitar lógica de pesos aparte.
 const HERO_TITLES = [
   "NO SÉ QUÉ LEER",
   "NO SÉ QUÉ LEER",
   "NO SÉ QUÉ LEER",
   "¿Y AHORA QUÉ LEO?",
-  "TU SIGUIENTE HISTORIA",
+  "NUEVA HISTORIA",
   "¿BLOQUEO LECTOR?",
   "NECESITO UN LIBRO",
   "ALGO QUE ME ATRAPE",
+  "¡UN LIBRO, YA!",
+  "MI PRÓXIMA OBSESIÓN",
 ];
 
 function GradientWord({
@@ -83,9 +84,79 @@ export default function Home() {
   const voiceAutoSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const AUTO_SEARCH_DELAY_MS = 800;
 
-  // Se elige una sola vez por montaje de pantalla (no en cada render), así
-  // el título no cambia solo mientras el usuario está mirando la pantalla.
   const heroTitle = useMemo(() => HERO_TITLES[Math.floor(Math.random() * HERO_TITLES.length)], []);
+
+  // Brillo sutil en el botón "Novedades" cuando hay libros nuevos que
+  // TODAVÍA NO HAS VISTO — se compara la lista actual de /books/novedades
+  // contra los book_id que ya se marcaron como vistos (guardados en
+  // AsyncStorage, por dispositivo). Al tocar el botón, se marcan todos
+  // los actuales como vistos y el brillo se apaga — solo se reactiva más
+  // adelante si aparecen libros nuevos de verdad, con id que aún no está
+  // en la lista de "vistos".
+  const [hasNovedades, setHasNovedades] = useState(false);
+  const [currentNovedadesIds, setCurrentNovedadesIds] = useState<string[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api<{ books: { book_id: string }[] }>("/books/novedades");
+        const ids = (res?.books || []).map((b) => b.book_id);
+        if (cancelled) return;
+        setCurrentNovedadesIds(ids);
+        const seenRaw = await AsyncStorage.getItem("seenNovedadesIds");
+        const seenIds: string[] = seenRaw ? JSON.parse(seenRaw) : [];
+        const hayNuevas = ids.some((id) => !seenIds.includes(id));
+        setHasNovedades(hayNuevas);
+      } catch {
+        // silencioso: sin novedades visibles si falla, no se molesta al usuario
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Al tocar el botón: se marcan como vistos todos los libros que había
+  // AHORA MISMO en novedades, fusionándolos con los que ya estuvieran
+  // guardados de antes (por si acaso), y se apaga el brillo al instante
+  // sin esperar a la navegación.
+  const dismissNovedadesGlow = useCallback(async () => {
+    if (currentNovedadesIds.length === 0) return;
+    setHasNovedades(false);
+    try {
+      const seenRaw = await AsyncStorage.getItem("seenNovedadesIds");
+      const seenIds: string[] = seenRaw ? JSON.parse(seenRaw) : [];
+      const merged = Array.from(new Set([...seenIds, ...currentNovedadesIds]));
+      await AsyncStorage.setItem("seenNovedadesIds", JSON.stringify(merged));
+    } catch {}
+  }, [currentNovedadesIds]);
+
+  // Efecto "tinte de color": TODO el botón cicla de color lentamente
+  // (azul → morado oscuro → azul), en vez de una franja que se mueve.
+  // Nota: la interpolación de COLOR no es compatible con
+  // useNativeDriver, así que va con useNativeDriver: false.
+  // Ahora con PAUSA: una subida (3s), una bajada (3s) volviendo al
+  // estado original, y una pausa de 3s en reposo antes de repetir — no
+  // es un bucle sin fin, hace el efecto y descansa.
+  const novedadesGlow = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!hasNovedades) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(novedadesGlow, { toValue: 1, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: false }),
+        Animated.timing(novedadesGlow, { toValue: 0, duration: 3000, easing: Easing.inOut(Easing.ease), useNativeDriver: false }),
+        Animated.delay(3000),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [hasNovedades, novedadesGlow]);
+  // Simplificado a petición de Lidia: el botón se queda SIEMPRE en
+  // negro, sin cambiar de color en ningún momento — ya no hay tinte de
+  // fondo. Solo el título "NOVEDADES" recorre un degradado de 3 pasos:
+  // blanco (reposo) → azul → morado, y vuelve para atrás al bajar.
+  const novedadesTitleColor = novedadesGlow.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [colors.textOnDark, colors.brass, colors.copper],
+  });
 
   const go = (query?: string, isVibe?: boolean) => {
     Keyboard.dismiss();
@@ -153,28 +224,12 @@ export default function Home() {
       end={{ x: 0.5, y: 1 }}
       style={{ flex: 1 }}
     >
-      {/* Mismo patrón que character-chat.tsx (que sí funciona bien con el
-          teclado): el buscador va FUERA del ScrollView, como una fila fija
-          pegada al fondo de KeyboardAvoidingView — nunca hace falta hacer
-          scroll para verlo, siempre está anclado justo encima del teclado.
-          Antes estaba dentro del ScrollView empujado con un flex:1, que es
-          lo que lo tapaba. */}
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.container, { paddingTop: insets.top + 12 }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} testID="home-screen">
           <View style={styles.content}>
             <View style={styles.logoBox}><Logo size="md" /></View>
             <Text allowFontScaling={false} style={styles.tagline}>SIENTE LO QUE LEES</Text>
 
-            {/*
-              Tarjeta principal "Bloqueo de lector" — reemplaza al antiguo
-              buscador como primer elemento interactivo. Borde en degradado
-              (técnica: LinearGradient exterior con 1.5px de padding +
-              View interior con fondo sólido, así el degradado solo se ve
-              como borde fino). Título aleatorio (más peso a "NO SÉ QUÉ
-              LEER"), subtítulo fijo "SORPRÉNDEME" en degradado de texto.
-              Toda la tarjeta es un único botón que lanza modo random,
-              igual que hacía antes el botón "Sorpréndeme" aparte.
-            */}
             <TouchableOpacity
               testID="btn-hero-sorprendeme"
               onPress={() => router.replace({ pathname: "/discover", params: { mode: "random", t: Date.now() } })}
@@ -190,22 +245,24 @@ export default function Home() {
                 <View style={styles.heroCardInner}>
                   <GradientIcon name="sparkles" size={18} />
                   <View style={{ height: 8 }} />
-                  <Text allowFontScaling={false} style={styles.heroTitle}>{heroTitle}</Text>
+                  <Text allowFontScaling={false} style={styles.heroTitle} numberOfLines={1} adjustsFontSizeToFit>{heroTitle}</Text>
                   <GradientWord text="SORPRÉNDEME" fontSize={13} fontWeight="900" letterSpacing={2.5} />
                 </View>
               </LinearGradient>
             </TouchableOpacity>
 
             {/*
-              Tarjeta Novedades — mismo lenguaje visual (borde degradado)
-              que la tarjeta hero, pero en formato fila compacta con
-              icono + textos + flecha, como una fila de navegación.
-              Subtítulo honesto: son libros recién añadidos/en preventa,
-              no necesariamente "virales", así que no se afirma eso.
+              Brillo sutil cuando hay novedades de verdad ahora mismo
+              (ver hasNovedades arriba): todo el botón cicla de color muy
+              lentamente. Si no hay novedades, es exactamente el botón
+              de siempre, sin nada.
             */}
             <TouchableOpacity
               testID="btn-novedades"
-              onPress={() => router.replace({ pathname: "/discover", params: { mode: "novedades", t: Date.now() } })}
+              onPress={() => {
+                dismissNovedadesGlow();
+                router.replace({ pathname: "/discover", params: { mode: "novedades", t: Date.now() } });
+              }}
               activeOpacity={0.85}
               style={styles.gradientBorderWrap}
             >
@@ -220,7 +277,12 @@ export default function Home() {
                     <GradientIcon name="flash" size={20} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text allowFontScaling={false} style={styles.novedadesTitle}>NOVEDADES</Text>
+                    <Animated.Text
+                      allowFontScaling={false}
+                      style={[styles.novedadesTitle, hasNovedades && { color: novedadesTitleColor }]}
+                    >
+                      NOVEDADES
+                    </Animated.Text>
                     <Text allowFontScaling={false} style={styles.novedadesSub}>Historias recién llegadas</Text>
                   </View>
                   <Ionicons allowFontScaling={false} name="chevron-forward" size={18} color={colors.textOnDarkMuted} />
@@ -228,10 +290,6 @@ export default function Home() {
               </LinearGradient>
             </TouchableOpacity>
 
-            {/*
-              Label "SEGÚN TUS VIBES" con corazones rosas pequeños a cada
-              lado y líneas divisorias, igual que en la referencia visual.
-            */}
             <View style={styles.vibesLabelRow}>
               <View style={styles.vibesLabelLine} />
               <Ionicons allowFontScaling={false} name="heart" size={9} color={colors.iron} style={{ opacity: 0.85 }} />
@@ -259,15 +317,7 @@ export default function Home() {
           </View>
         </ScrollView>
 
-        {/*
-          Buscador — antes era el primer elemento de la pantalla, ahora va
-          fijo al fondo, fuera del ScrollView (ver comentario de arriba).
-          Misma funcionalidad exacta que antes (texto, borrar, micrófono,
-          submit) — placeholder invita a buscar por trope en vez de sugerir
-          título/autor, que con ~1.600 libros es poco probable que se
-          encuentren tal cual.
-        */}
-        <View style={[styles.searchSection, { paddingBottom: insets.bottom + 12 }]}>
+        <View style={[styles.searchSection, { paddingBottom: Math.min(insets.bottom, 24) + 12 }]}>
           <View style={styles.searchLabelRow}>
             <View style={styles.searchLabelLine} />
             <Text allowFontScaling={false} style={styles.searchLabel}>¿TIENES UN TÍTULO O TROPE EN MENTE?</Text>
@@ -309,35 +359,15 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
-  // "flexGrow" (no "flex") es lo que de verdad hace que el
-  // contentContainerStyle de un ScrollView se estire para llenar el
-  // hueco disponible cuando el contenido es más corto que la pantalla
-  // — "flex: 1" solo, aquí, no tenía ningún efecto real.
   container: { flexGrow: 1, paddingHorizontal: 24 },
-  // Antes: flex: 1, justifyContent: "center" — centraba todo el bloque
-  // verticalmente dentro del espacio disponible. El problema: al salir el
-  // teclado, KeyboardAvoidingView reduce ese espacio y el contenido se
-  // recentraba, desplazando el logo hacia arriba aunque no se tocara el
-  // buscador. Ahora es un flujo normal de arriba a abajo, sin depender del
-  // alto disponible, así que el teclado nunca lo mueve.
   content: {
     flexGrow: 1,
-    // Recuperado: centrado vertical. Se quitó hace tiempo porque el
-    // buscador vivía dentro de este mismo bloque y, al centrar, el logo
-    // saltaba cuando aparecía el teclado. Ahora el buscador está fuera
-    // del ScrollView (fijo abajo), así que centrar aquí ya no afecta al
-    // teclado — y es lo que reparte el espacio sobrante de forma
-    // natural en CUALQUIER móvil, sin depender de un padding fijo ni de
-    // un spacer con tope que, se comprobó, no reducía el hueco real.
     justifyContent: "center",
     gap: 16,
   },
   logoBox: { alignItems: "center", justifyContent: "center", marginTop: 20, marginBottom: -4 },
   tagline: { textAlign: "center", color: colors.brass, letterSpacing: 4, fontSize: 10, fontWeight: "400", marginTop: -4, textShadowColor: colors.brass, textShadowRadius: 6 },
 
-  // Borde en degradado: wrapper exterior sin padding propio (el margen
-  // entre tarjetas lo da el `gap` del content), LinearGradient con 1.5px
-  // de padding que actúa de "borde", y dentro un View con fondo sólido.
   gradientBorderWrap: { borderRadius: 18, marginTop: 4 },
   gradientBorder: { borderRadius: 18, padding: 1.5 },
   heroCardInner: {
@@ -371,11 +401,6 @@ const styles = StyleSheet.create({
   moodEmoji: { fontSize: 14 },
   moodText: { color: colors.textOnDark, fontSize: 13, fontWeight: "700" },
 
-  // Sección del buscador — ahora fija fuera del ScrollView (ver comentario
-  // más arriba), con su propio padding horizontal ya que dejó de heredarlo
-  // del contentContainerStyle del ScrollView. paddingTop subido de 4 a 22
-  // para que no quede pegado a los chips de vibes justo encima — Lidia
-  // lo veía demasiado apretado en dispositivos reales.
   searchSection: { paddingHorizontal: 24, paddingTop: 22 },
   searchLabelRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 8 },
   searchLabelLine: { flex: 1, maxWidth: 50, height: 1, backgroundColor: colors.brassSoft },

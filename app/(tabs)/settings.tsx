@@ -152,7 +152,7 @@ export default function Settings() {
           <View style={styles.premiumActiveCard} testID="premium-active-card">
             <View style={styles.benefitRow}>
               <Ionicons allowFontScaling={false} name="headset" size={14} color={colors.gold} />
-              <Text allowFontScaling={false} style={styles.benefitText}>Audios ilimitados</Text>
+              <Text allowFontScaling={false} style={styles.benefitText}>Hook ilimitado en cada libro</Text>
             </View>
             <View style={styles.benefitRow}>
               <Ionicons allowFontScaling={false} name="chatbubbles" size={14} color={colors.gold} />
@@ -177,9 +177,9 @@ export default function Settings() {
               <Ionicons allowFontScaling={false} name="diamond" size={28} color={colors.gold} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text allowFontScaling={false} style={styles.premiumCtaTitle}>Hazte Premium</Text>
+              <Text allowFontScaling={false} style={styles.premiumCtaTitle} numberOfLines={1}>✨ DESCUBRE SIN LÍMITES</Text>
               <Text allowFontScaling={false} style={styles.premiumCtaSub}>
-                Audios ilimitados · Habla con tus personajes favoritos · Resúmenes premium
+                Hooks ilimitados · Resúmenes premium · Habla con los personajes
               </Text>
             </View>
             <Ionicons allowFontScaling={false} name="chevron-forward" size={20} color={colors.gold} />
@@ -261,7 +261,7 @@ const styles = StyleSheet.create({
     padding: 14, gap: 14, marginBottom: 14,
   },
   premiumCtaLeft: { width: 44, alignItems: "center" },
-  premiumCtaTitle: { color: colors.gold, fontWeight: "900", fontSize: 16, letterSpacing: 1 },
+  premiumCtaTitle: { color: colors.gold, fontWeight: "900", fontSize: 14, letterSpacing: 0.3 },
   premiumCtaSub: { color: colors.textOnDark, fontSize: 12, marginTop: 4, lineHeight: 17 },
   premiumActiveCard: {
     backgroundColor: "rgba(255,210,63,0.06)", borderWidth: 1,

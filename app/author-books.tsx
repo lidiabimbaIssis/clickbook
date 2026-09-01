@@ -67,32 +67,38 @@ export default function AuthorBooks() {
   const coverW = (SCREEN_W - H_PADDING * 2 - GRID_GAP * (numColumns - 1)) / numColumns;
   const coverH = coverW * 1.5; // ratio 2:3 estándar de las portadas, sin recortar ni estirar
 
+  // Antes: mandaba solo book_id (seed único), y Discover mostraba ese
+  // libro seguido de random general — con fromAuthor aparte para que el
+  // botón atrás supiera volver aquí. Ahora: se manda mode="author" +
+  // authorQuery + el book_id tocado como punto de partida — Discover ya
+  // sabe (ver discover.tsx) reordenar para empezar justo por este libro,
+  // seguir con el resto de libros de este mismo autor, y solo después
+  // caer al feed general. El botón atrás de Discover ya no necesita
+  // volver aquí explícitamente — siempre va directo a Home.
   const openBook = (book: Book) => {
     router.push({
       pathname: "/discover",
-      // fromAuthor: para que el botón "atrás" de Discover sepa volver
-      // aquí explícitamente, en vez de depender del historial de
-      // navegación.
-      params: { book_id: book.book_id, t: Date.now().toString(), fromAuthor: authorQuery },
+      params: { mode: "author", authorQuery, book_id: book.book_id, t: Date.now().toString() },
     });
   };
 
   return (
     <LinearGradient colors={colors.bgGradient} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={{ flex: 1 }} testID="author-books-screen">
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+        {/*
+          A petición de Lidia: desde el grid del autor, "atrás" vuelve al
+          libro concreto desde el que se entró (fromBookId), no a Home.
+          Simple y directo con replace() — sin canGoBack()/push como tenía
+          antes, que era la parte frágil que sí se quitó al simplificar.
+          Si por lo que sea no hay fromBookId (entrada rara sin ese dato),
+          se cae a Home como red de seguridad.
+        */}
         <TouchableOpacity
           onPress={() => {
-            // Igual que en Discover: en vez de fiarnos de router.back()
-            // (que con varias navegaciones seguidas no siempre volvía
-            // a la pantalla correcta y acababa en Home), si sabemos el
-            // libro desde el que se abrió este grid, volvemos ahí de
-            // forma explícita.
             if (fromBookId) {
-              router.push({ pathname: "/discover", params: { book_id: fromBookId, t: Date.now().toString() } });
-            } else if (router.canGoBack()) {
-              router.back();
+              router.replace({ pathname: "/discover", params: { book_id: fromBookId, t: Date.now().toString() } });
             } else {
-              router.push("/home");
+              router.replace("/home");
             }
           }}
           style={styles.backBtn}
