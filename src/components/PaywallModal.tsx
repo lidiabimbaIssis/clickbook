@@ -51,8 +51,8 @@ export default function PaywallModal({ visible, onClose, onUpgraded, reason = "l
     }
   };
 
-  const headline = reason === "limit" ? "Has alcanzado tu límite diario" : reason === "chat" ? "Chat IA con tus personajes favoritos" : "BookVibes Premium";
-  const sub = reason === "limit" ? `Ya escuchaste ${pricing?.free_daily_audio_limit ?? 3} audios hoy. Hazte Premium para seguir descubriendo sin límites.` : reason === "chat" ? "Desbloquea la experiencia completa de BookVibes" : "Desbloquea todo BookVibes";
+  const headline = reason === "limit" ? "Llegaste al límite diario" : reason === "chat" ? "Chat IA con tus personajes favoritos" : "BookVibes Premium";
+  const sub = reason === "limit" ? `Ya has descubierto ${pricing?.free_daily_audio_limit ?? 3} historias con audio. Con Premium, puedes seguir descubriendo sin límites.` : reason === "chat" ? "Desbloquea la experiencia completa de BookVibes" : "Desbloquea todo BookVibes";
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -65,8 +65,8 @@ export default function PaywallModal({ visible, onClose, onUpgraded, reason = "l
           <Text allowFontScaling={false} style={styles.title}>{headline}</Text>
           <Text allowFontScaling={false} style={styles.sub}>{sub}</Text>
           <View style={styles.benefits}>
-            <Benefit icon="infinite" text="Resúmenes con voz premium ilimitados." />
-            <Benefit icon="headset" text="Hook ilimitado en cada libro." />
+            <Benefit icon="infinite" text="Resúmenes con voz ilimitados." />
+            <Benefit icon="headset" text="Hooks ilimitados en cada libro." />
             <Benefit icon="chatbubbles" text="Habla con los personajes del libro." />
           </View>
           {pricing && (
@@ -98,7 +98,7 @@ export default function PaywallModal({ visible, onClose, onUpgraded, reason = "l
               style={styles.ctaBorder}
             >
               <View style={styles.ctaInner}>
-                {loading ? <ActivityIndicator color={colors.textOnDark} /> : (<><Ionicons allowFontScaling={false} name="flash" size={18} color={colors.textOnDark} /><Text allowFontScaling={false} style={styles.ctaText}>HACERSE PREMIUM</Text></>)}
+                {loading ? <ActivityIndicator color={colors.textOnDark} /> : (<><Ionicons allowFontScaling={false} name="flash" size={18} color={colors.textOnDark} /><Text allowFontScaling={false} style={styles.ctaText}>QUIERO PREMIUM</Text></>)}
               </View>
             </LinearGradient>
           </TouchableOpacity>
