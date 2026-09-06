@@ -330,7 +330,9 @@ export default function CharacterChat() {
 
 const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.border, gap: 10 },
-  backBtn: { width: 36, height: 36, borderRadius: 13, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
+  // Sin recuadro (borde quitado) a petición de Lidia, mismo criterio que
+  // se aplicó ya en el feed general y en Vibes — solo la flechita suelta.
+  backBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
   headerAvatar: { width: 36, height: 36, borderRadius: 13, overflow: "hidden", alignItems: "center", justifyContent: "center" },
   headerAvatarInitial: { fontSize: 18, fontWeight: "900" },
   headerTitle: { color: colors.textOnDark, fontSize: 16, fontWeight: "800" },

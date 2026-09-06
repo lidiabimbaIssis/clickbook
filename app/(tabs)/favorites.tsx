@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Linking,
   Platform,
+  Dimensions,
   RefreshControl,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -21,24 +22,25 @@ import { useAuth } from "../../src/providers/AuthProvider";
 import { colors } from "../../src/theme";
 import BuyStoreModal from "../../src/components/BuyStoreModal";
 
-// Texto en degradado brass→copper, mismo patrón que GradientWord en
-// home.tsx — el icono de al lado (corazón) se queda en brass sólido, solo
-// el título de la pantalla pasa a degradado.
-function GradientTitle({ text, fontSize, letterSpacing }: { text: string; fontSize: number; letterSpacing?: number }) {
-  return (
-    <MaskedView
-      style={{ height: fontSize * 1.25 }}
-      maskElement={
-        <Text allowFontScaling={false} style={{ fontSize, fontWeight: "900", letterSpacing, backgroundColor: "transparent", fontFamily: Platform.select({ ios: "Georgia", default: "serif" }) }}>
-          {text}
-        </Text>
-      }
-    >
-      <LinearGradient colors={[colors.brass, colors.copper]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ flex: 1 }}>
-        <Text allowFontScaling={false} style={{ fontSize, fontWeight: "900", letterSpacing, opacity: 0, fontFamily: Platform.select({ ios: "Georgia", default: "serif" }) }}>{text}</Text>
-      </LinearGradient>
-    </MaskedView>
-  );
+const { width: SCREEN_W } = Dimensions.get("window");
+const GRID_GAP = 12;
+const H_PADDING = 16;
+
+function hexToRgba(hex: string, alpha: number): string {
+  let h = (hex || "").replace("#", "");
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  const r = parseInt(h.substring(0, 2), 16) || 0;
+  const g = parseInt(h.substring(2, 4), 16) || 0;
+  const b = parseInt(h.substring(4, 6), 16) || 0;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+// Mismo criterio de columnas que author-books.tsx: 1 sola portada -> 1
+// columna grande; 2-11 -> 2 columnas; 12+ -> 3 columnas.
+function getNumColumns(count: number): number {
+  if (count <= 1) return 1;
+  if (count <= 11) return 2;
+  return 3;
 }
 
 export default function Favorites() {
@@ -50,8 +52,20 @@ export default function Favorites() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  const numColumns = useMemo(() => getNumColumns(books.length), [books.length]);
+  const coverW = (SCREEN_W - H_PADDING * 2 - GRID_GAP * (numColumns - 1)) / numColumns;
+  const coverH = coverW * 1.5; // ratio 2:3 estándar de las portadas
+  // La tarjeta (card) mide coverW de ancho pero tiene 10px de padding a
+  // cada lado — antes la portada se dibujaba también a coverW, más
+  // ancha que el hueco disponible dentro del padding, y por eso se
+  // salía y tocaba el borde en vez de quedar centrada. Ancho real de
+  // la portada = coverW menos esos 20px (10+10) de padding.
+  const CARD_PADDING = 10;
+  const innerCoverW = coverW - CARD_PADDING * 2;
+  const innerCoverH = innerCoverW * 1.5;
+
   // Antes: cada tarjeta abría Amazon directo (botón "Amazon" fijo). Ahora,
-  // igual que en Discover, un único botón "Comprar" que abre el mismo
+  // igual que en Discover, un único botón de carrito que abre el mismo
   // BuyStoreModal compartido con las 4 tiendas (Amazon, Casa del Libro,
   // BuscaLibre, Kobo) — solo guardamos qué libro de la lista abrió el
   // modal, ya que aquí hay varios libros a la vez (no uno "actual" como
@@ -110,9 +124,19 @@ export default function Favorites() {
       style={[styles.container, { paddingTop: insets.top + 12 }]}
       testID="favorites-screen"
     >
+      {/*
+        Encabezado rediseñado a petición de Lidia: mismo estilo que el
+        de vibes.tsx (título grande centrado + icono al lado, subtítulo
+        debajo en morado) en vez del degradado de antes. Sin botón de
+        atrás, porque Favoritos es una pestaña del navbar, no una
+        pantalla a la que se "vuelve" desde otro sitio.
+      */}
       <View style={styles.header}>
-        <Ionicons allowFontScaling={false} name="heart" size={20} color={colors.brass} />
-        <GradientTitle text="BIBLIOTECA" fontSize={16} letterSpacing={5} />
+        <View style={styles.titleRow}>
+          <Text allowFontScaling={false} style={styles.titleText}>FAVORITOS</Text>
+          <Ionicons allowFontScaling={false} name="heart" size={16} color={colors.copper} style={{ marginLeft: 6 }} />
+        </View>
+        <Text allowFontScaling={false} style={styles.subtitle}>Tus historias guardadas</Text>
       </View>
       {books.length === 0 ? (
         <View style={styles.empty}>
@@ -133,10 +157,16 @@ export default function Favorites() {
           <Text allowFontScaling={false} style={styles.emptyHint}>Guarda los libros que te enamoren</Text>
         </View>
       ) : (
+        // key={numColumns}: FlatList no admite cambiar numColumns "en
+        // caliente" sin remontarse (mismo criterio que author-books.tsx).
         <FlatList
+          key={numColumns}
           data={books}
           keyExtractor={(b) => b.book_id}
-          contentContainerStyle={{ paddingBottom: 40, paddingHorizontal: 16, gap: 12 }}
+          numColumns={numColumns}
+          contentContainerStyle={{ paddingBottom: 40, paddingHorizontal: H_PADDING }}
+          columnWrapperStyle={numColumns > 1 ? { gap: GRID_GAP } : undefined}
+          showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -148,45 +178,79 @@ export default function Favorites() {
             />
           }
           renderItem={({ item }) => (
-            <View style={styles.card} testID={`fav-card-${item.book_id}`}>
+            <View style={[styles.card, { width: coverW, marginBottom: GRID_GAP }]} testID={`fav-card-${item.book_id}`}>
               <TouchableOpacity
-             onPress={() => router.push({ 
-  pathname: "/discover", 
-  params: { book_id: item.book_id } 
-})}
-              activeOpacity={0.8}
-              testID={`fav-open-${item.book_id}`}
+                onPress={() => router.push({
+                  pathname: "/discover",
+                  // fromFavorites: para que el botón atrás de Discover
+                  // sepa volver aquí, pero SOLO mientras sigas viendo
+                  // este mismo libro — en cuanto deslizas a otro, deja
+                  // de aplicar y vuelve a Home como de costumbre.
+                  params: { book_id: item.book_id, fromFavorites: "1", t: Date.now().toString() },
+                })}
+                activeOpacity={0.85}
+                testID={`fav-open-${item.book_id}`}
               >
-                <Image 
-  source={{ 
-    uri: item.cover_url 
-      ? item.cover_url 
-      : `https://res.cloudinary.com/ddppclcl1/image/upload/v1780422197/${item.book_id}.webp` 
-  }} 
-  style={styles.cover} 
-/>
+                <View style={styles.coverWrap}>
+                  <Image
+                    source={{
+                      uri: item.cover_url
+                        ? item.cover_url
+                        : `https://res.cloudinary.com/ddppclcl1/image/upload/v1780422197/${item.book_id}.webp`
+                    }}
+                    style={[styles.cover, { width: innerCoverW, height: innerCoverH }]}
+                    resizeMode="cover"
+                  />
+                  {/* Corazón siempre relleno — todo lo que aparece aquí
+                      es, por definición, un favorito. Tocarlo lo quita.
+                      Ahora en degradado azul→morado en vez de rosa
+                      sólido, para que combine con el resto de la app. */}
+                  <TouchableOpacity
+                    onPress={() => remove(item.book_id)}
+                    style={styles.heartBadge}
+                    testID={`fav-remove-${item.book_id}`}
+                  >
+                    <MaskedView
+                      style={{ width: 16, height: 16 }}
+                      maskElement={<Ionicons allowFontScaling={false} name="heart" size={16} color="black" />}
+                    >
+                      <LinearGradient
+                        colors={[colors.brass, colors.copper]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={{ width: 16, height: 16 }}
+                      />
+                    </MaskedView>
+                  </TouchableOpacity>
+                </View>
               </TouchableOpacity>
               <View style={styles.info}>
                 <Text allowFontScaling={false} style={styles.bookTitle} numberOfLines={2}>{item.title}</Text>
-                <Text allowFontScaling={false} style={styles.bookAuthor}>{item.author} · {item.year}</Text>
-                <Text allowFontScaling={false} style={styles.meta}>{item.genre} · {item.pages} pág.</Text>
-                <View style={styles.actions}>
-                  <TouchableOpacity
-                    onPress={() => setBuyModalBookId(item.book_id)}
-                    style={styles.buyBtn}
-                    testID={`fav-buy-${item.book_id}`}
+                <Text allowFontScaling={false} style={styles.bookAuthor} numberOfLines={1}>{item.author}</Text>
+                <Text allowFontScaling={false} style={styles.meta} numberOfLines={1}>{item.genre}</Text>
+              </View>
+              {/*
+                Movido de una esquina de la portada (poco visible) a un
+                botón claro al pie de la tarjeta, alineado a la derecha
+                — a petición de Lidia, no lo veía bien donde estaba antes.
+              */}
+              <View style={styles.cardBuyRow}>
+                <TouchableOpacity
+                  onPress={() => setBuyModalBookId(item.book_id)}
+                  style={styles.cartBtn}
+                  testID={`fav-buy-${item.book_id}`}
+                >
+                  <LinearGradient
+                    colors={[hexToRgba(colors.copper, 0.55), hexToRgba(colors.brass, 0.55)]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.cartBtn}
                   >
-                    <Ionicons allowFontScaling={false} name="cart" size={14} color={colors.brass} />
-                    <Text allowFontScaling={false} style={styles.buyText}>Comprar</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => remove(item.book_id)}
-                    style={styles.removeBtn}
-                    testID={`fav-remove-${item.book_id}`}
-                  >
-                    <Ionicons allowFontScaling={false} name="trash" size={14} color={colors.iron} />
-                  </TouchableOpacity>
-                </View>
+                    <View style={styles.cartBtnInner}>
+                      <Ionicons allowFontScaling={false} name="cart" size={16} color="#FFFFFF" />
+                    </View>
+                  </LinearGradient>
+                </TouchableOpacity>
               </View>
             </View>
           )}
@@ -210,16 +274,14 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   header: {
-    flexDirection: "row",
     alignItems: "center",
-    gap: 10,
     paddingHorizontal: 20,
     paddingBottom: 16,
   },
+  titleRow: { flexDirection: "row", alignItems: "center" },
+  titleText: { color: colors.textOnDark, fontWeight: "900", letterSpacing: 4, fontSize: 18 },
+  subtitle: { color: colors.copper, fontSize: 12, marginTop: 4, letterSpacing: 0.5 },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: 30 },
-  // Título del estado vacío ahora en la misma tipografía serif de marca
-  // que los títulos de libro (bookTitle) / GradientTitle, en vez de la
-  // fuente del sistema por defecto — más "editorial", menos genérico.
   emptyText: {
     color: colors.textOnDark,
     fontSize: 15,
@@ -229,43 +291,72 @@ const styles = StyleSheet.create({
     fontFamily: Platform.select({ ios: "Georgia", default: "serif" }),
   },
   emptyHint: { color: colors.textOnDarkMuted, fontSize: 13, marginTop: 8, textAlign: "center", lineHeight: 19, paddingHorizontal: 20 },
+  // Tarjeta: ya no es una fila (portada + texto al lado) sino una
+  // columna (portada arriba, texto debajo) — mismo lenguaje visual de
+  // borde morado que ya usabas, pero en formato cuadrícula.
   card: {
-    flexDirection: "row",
     backgroundColor: colors.bgSurface,
     borderWidth: 1,
     borderColor: "#4E027A",
     borderRadius: 14,
     overflow: "hidden",
     padding: 10,
-    gap: 12,
   },
-  cover: { width: 80, height: 120, borderRadius: 6, backgroundColor: colors.bgSurfaceLight },
-  info: { flex: 1, justifyContent: "space-between" },
+  coverWrap: { position: "relative" },
+  cover: { borderRadius: 8, backgroundColor: colors.bgSurfaceLight },
+  // Corazón: círculo oscuro semitransparente en la esquina superior
+  // derecha de la portada, igual que la referencia visual que trajo
+  // Lidia.
+  heartBadge: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "rgba(6,1,15,0.75)",
+    borderWidth: 1,
+    borderColor: "rgba(255,46,120,0.4)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  // Carrito: mismo estilo de badge que el corazón, esquina inferior
+  // Fila de compra al pie de la tarjeta, alineada a la derecha — visible
+  // de un vistazo, en vez de un icono pequeño escondido sobre la portada.
+  cardBuyRow: { flexDirection: "row", justifyContent: "flex-end", marginTop: 8 },
+  // Vuelto a solo icono, sin texto "Comprar" — círculo pequeño, al pie
+  // de la tarjeta, no sobre la portada.
+  cartBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    padding: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cartBtnInner: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 14.5,
+    backgroundColor: "rgba(6,1,15,0.88)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  info: { marginTop: 8 },
+  // height fijo (2 líneas siempre, aunque el título ocupe 1 sola) —
+  // antes, un título corto dejaba la tarjeta más baja que la de al
+  // lado con un título largo, y el botón de comprar quedaba a distinta
+  // altura entre las dos tarjetas de la misma fila. Con esta altura
+  // reservada, todas las tarjetas de una fila quedan alineadas.
   bookTitle: {
     color: colors.textOnDark,
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "800",
     fontFamily: Platform.select({ ios: "Georgia", default: "serif" }),
+    lineHeight: 18,
+    height: 36,
   },
-  bookAuthor: { color: colors.brass, fontSize: 12, marginTop: 2 },
-  meta: { color: colors.textOnDarkMuted, fontSize: 11, marginTop: 2 },
-  actions: { flexDirection: "row", gap: 8, marginTop: 8, alignItems: "center" },
-  buyBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    borderWidth: 1,
-    borderColor: colors.brassSoft,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-},
-  buyText: { color: colors.brass, fontSize: 11, fontWeight: "700" },
-  removeBtn: {
-    padding: 8,
-    borderWidth: 1,
-    borderColor: "rgba(138,42,32,0.4)",
-    borderRadius: 999,
-  },
+  bookAuthor: { color: colors.brass, fontSize: 11, marginTop: 3 },
+  meta: { color: colors.textOnDarkMuted, fontSize: 10, marginTop: 2 },
   emptyLogo: { width: 100, height: 100, marginBottom: 8 },
 });

@@ -173,13 +173,22 @@ export default function AuthorBooks() {
 
 const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.border },
-  backBtn: { width: 38, height: 38, borderRadius: 13, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.4)" },
+  // Sin recuadro (borde/fondo quitados) a petición de Lidia, mismo
+  // criterio que en el feed general, Vibes y el chat — solo la
+  // flechita suelta.
+  backBtn: { width: 38, height: 38, alignItems: "center", justifyContent: "center" },
   authorName: { color: colors.textOnDark, fontSize: 17, fontWeight: "900" },
   bookCount: { color: colors.textOnDarkMuted, fontSize: 12, marginTop: 2 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, padding: 24 },
   emptyText: { color: colors.textOnDarkMuted, fontSize: 14, textAlign: "center" },
+  // Borde morado pegado directamente a la portada (sin el hueco de
+  // relleno que tiene el mismo borde en Favoritos) — a petición de
+  // Lidia, aplicado sobre la propia imagen, no sobre un contenedor
+  // con padding alrededor.
   cover: {
     borderRadius: 10,
     backgroundColor: colors.bgSurface,
+    borderWidth: 1,
+    borderColor: "#4E027A",
   },
 });

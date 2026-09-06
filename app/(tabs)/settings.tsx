@@ -13,31 +13,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import MaskedView from "@react-native-masked-view/masked-view";
 import { api } from "../../src/lib/api";
 import { useAuth } from "../../src/providers/AuthProvider";
 import { colors } from "../../src/theme";
 import PaywallModal from "../../src/components/PaywallModal";
-
-// Texto en degradado brass→copper, mismo patrón usado en el resto de la
-// app — el icono de al lado (engranaje) se queda en brass sólido, solo
-// el título de la pantalla pasa a degradado.
-function GradientTitle({ text, fontSize, letterSpacing }: { text: string; fontSize: number; letterSpacing?: number }) {
-  return (
-    <MaskedView
-      style={{ height: fontSize * 1.25 }}
-      maskElement={
-        <Text allowFontScaling={false} style={{ fontSize, fontWeight: "900", letterSpacing, backgroundColor: "transparent" }}>
-          {text}
-        </Text>
-      }
-    >
-      <LinearGradient colors={[colors.brass, colors.copper]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ flex: 1 }}>
-        <Text allowFontScaling={false} style={{ fontSize, fontWeight: "900", letterSpacing, opacity: 0 }}>{text}</Text>
-      </LinearGradient>
-    </MaskedView>
-  );
-}
 
 export default function Settings() {
   const { user, refresh, signOut } = useAuth();
@@ -109,9 +88,16 @@ export default function Settings() {
         contentContainerStyle={[styles.container, { paddingTop: insets.top + 20, paddingBottom: 40 }]}
         testID="settings-screen"
       >
+        {/*
+          Mismo estilo que favorites.tsx/vibes.tsx: título centrado + icono
+          a la derecha del texto, en morado, en vez del icono a la
+          izquierda + degradado que tenía antes.
+        */}
         <View style={styles.header}>
-          <Ionicons allowFontScaling={false} name="cog" size={20} color={colors.brass} />
-          <GradientTitle text="AJUSTES" fontSize={16} letterSpacing={5} />
+          <View style={styles.titleRow}>
+            <Text allowFontScaling={false} style={styles.titleText}>AJUSTES</Text>
+            <Ionicons allowFontScaling={false} name="cog" size={16} color={colors.copper} style={{ marginLeft: 6 }} />
+          </View>
         </View>
 
         <View style={styles.profile}>
@@ -242,7 +228,9 @@ function LangBtn({ label, active, onPress, testID }: { label: string; active: bo
 
 const styles = StyleSheet.create({
   container: { paddingHorizontal: 20 },
-  header: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 20 },
+  header: { alignItems: "center", marginBottom: 20 },
+  titleRow: { flexDirection: "row", alignItems: "center" },
+  titleText: { color: colors.textOnDark, fontWeight: "900", letterSpacing: 3.5, fontSize: 18 },
   profile: { alignItems: "center", padding: 20, marginBottom: 14 },
   avatarRing: { width: 86, height: 86, borderRadius: 43, padding: 3, alignItems: "center", justifyContent: "center" },
   avatar: { width: 80, height: 80, borderRadius: 40 },
