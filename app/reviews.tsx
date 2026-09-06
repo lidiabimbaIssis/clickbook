@@ -12,7 +12,6 @@ import { colors } from "../src/theme";
 export type Topic = { label: string; percent: number; icon: string; color: string };
 export type CompositionItem = { label: string; percent: number; icon: string; color: string; description: string };
 export type CollectiveFeeling = { emoji: string; label: string; count_label: string };
-export type LeerSiItem = { emoji: string; label: string };
 export type CompatibleBook = { book_id: string; title: string; author: string; cover_url: string };
 export type VibesData = {
   overall_rating: number;
@@ -118,14 +117,19 @@ const iconMap: Record<string, string> = {
 // orden en ambos bloques para que la pantalla se lea como un sistema.
 const ACCENT_COLORS = [colors.iron, colors.copper, colors.brass];
 
-// Degradados cíclicos para los 3 iconos de "Qué sentirás leyendo este
-// libro": 1º rosa→morado, 2º morado→azul, 3º azul→rosa — un pequeño
-// "carrusel de color" entre los tres, en vez de un color plano fijo cada
-// uno como en ACCENT_COLORS.
+// Degradados de los 3 iconos de "Qué sentirás leyendo este libro",
+// exactamente con la misma combinación de colores que usamos en los
+// círculos de AÑO / PÁGINAS / GÉNERO de la Flash Card: 1º cian→morado,
+// 2º morado→cian, 3º cian→morado. Sin rosa/fucsia.
 const EMOTION_GRADIENTS: [string, string][] = [
-  [colors.iron, colors.copper],
-  [colors.copper, colors.brass],
-  [colors.brass, colors.iron],
+  [hexToRgba(colors.copper, 0.55), hexToRgba(colors.iron, 0.55)],
+  [hexToRgba(colors.brass, 0.55), hexToRgba(colors.copper, 0.55)],
+  [hexToRgba(colors.copper, 0.55), hexToRgba(colors.brass, 0.55)],
+];
+
+const ACCENT_GRADIENT: [string, string] = [
+  hexToRgba(colors.copper, 0.75),
+  hexToRgba(colors.brass, 0.75),
 ];
 
 // Convierte cualquier color hex a rgba con la opacidad indicada, para
@@ -141,7 +145,7 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-const capitalize = (str: string) =>
+const capitalize = (str: string) => 
   str.charAt(0).toUpperCase() + str.slice(1);
 
 export default function VibesScreen() {
@@ -238,7 +242,7 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
                           <Text allowFontScaling={false} style={styles.topicLabel} numberOfLines={1}>
                             {capitalize(t.label)}
                           </Text>
-                          <Text allowFontScaling={false} style={[styles.topicPct, { color: hexToRgba(accent, 0.75) }]}>{t.percent}%</Text>
+                          <Text allowFontScaling={false} style={styles.topicPct}>{t.percent}%</Text>
                         </View>
                         <View style={styles.topicBarTrack}>
                           <View
@@ -265,9 +269,16 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
                 return (
                   <React.Fragment key={i}>
                     <View style={styles.emotionItem}>
-                      <View style={[styles.emotionIconBox, { borderColor: hexToRgba(accent, 0.55) }]}>
-                        <DynamicIcon name={e.icon} size={30} color={hexToRgba(accent, 0.85)} />
-                      </View>
+                      <LinearGradient
+                        colors={EMOTION_GRADIENTS[i % EMOTION_GRADIENTS.length]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.emotionIconRing}
+                      >
+                        <View style={styles.emotionIconInner}>
+                          <DynamicIcon name={e.icon} size={21} color="#FFFFFF" />
+                        </View>
+                      </LinearGradient>
                       <Text allowFontScaling={false} style={[styles.emotionPct, { color: hexToRgba(accent, 0.75) }]}>{e.percent}%</Text>
                       <Text allowFontScaling={false} style={styles.emotionLabel}>{capitalize(e.label)}</Text>
                     </View>
@@ -282,11 +293,18 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
           <View style={styles.card}>
             <Text allowFontScaling={false} style={styles.cardLabel}>LÉELO SI... ✨</Text>
             <View style={{ gap: 8, marginTop: 10 }}>
-              {(data as any).leer_si?.map((tag: LeerSiItem, i: number) => (
+              {(data as any).leer_si?.map((tag: any, i: number) => (
                 <View key={i} style={styles.leerSiPill}>
-                  <View style={styles.leerSiCheck}>
-                    <Ionicons allowFontScaling={false} name="checkmark" size={13} color={hexToRgba(colors.copper, 0.75)} />
-                  </View>
+                  <LinearGradient
+                    colors={ACCENT_GRADIENT}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.leerSiCheckRing}
+                  >
+                    <View style={styles.leerSiCheckInner}>
+                      <Ionicons allowFontScaling={false} name="checkmark" size={13} color="#FFFFFF" />
+                    </View>
+                  </LinearGradient>
                   <Text allowFontScaling={false} style={styles.leerSiText}>{capitalize(tag.label)}</Text>
                 </View>
               ))}
@@ -296,28 +314,27 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
           {/* reacciones de lectores — en cuarto lugar */}
           <View style={styles.card}>
             <Text allowFontScaling={false} style={styles.cardLabel}>REACCIONES DE LECTORES ✨</Text>
-            {data.collective_feelings.map((f: any, i: number) => {
-              // Intensidad → opacidad de la píldora: cuanto más alto el
-              // nivel, más saturado el color. Así "Muy Alto" destaca
-              // claramente frente a "Bajo" solo con la fuerza del color,
-              // sin depender únicamente de leer la palabra.
-              const level = (f.count_label || "").toLowerCase();
-              const levelOpacity = level.includes("muy alto") ? 0.9
-                : level.includes("alto") ? 0.65
-                : level.includes("medio") ? 0.4
-                : 0.25;
-              return (
-                <View key={i} style={styles.feelRow}>
-                  <View style={styles.feelEmojiBox}>
-                    <Text allowFontScaling={false} style={styles.feelEmoji}>{f.emoji}</Text>
-                  </View>
-                  <Text allowFontScaling={false} style={styles.feelLabel}>{capitalize(f.label)}</Text>
-                  <View style={[styles.feelCountPill, { backgroundColor: hexToRgba(colors.copper, levelOpacity * 0.25), borderColor: hexToRgba(colors.copper, levelOpacity) }]}>
-                    <Text allowFontScaling={false} style={[styles.feelCount, { color: hexToRgba(colors.copper, Math.max(levelOpacity, 0.6)) }]}>{f.count_label}</Text>
-                  </View>
+            {data.collective_feelings.map((f: any, i: number) => (
+              <View key={i} style={styles.feelRow}>
+                <View style={styles.feelEmojiBox}>
+                  <Text allowFontScaling={false} style={styles.feelEmoji}>{f.emoji}</Text>
                 </View>
-              );
-            })}
+                <Text allowFontScaling={false} style={styles.feelLabel}>{capitalize(f.label)}</Text>
+                <LinearGradient
+                  colors={[
+                    hexToRgba(colors.copper, 0.75),
+                    hexToRgba(colors.brass, 0.75),
+                  ]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.feelCountPillRing}
+                >
+                  <View style={styles.feelCountPillInner}>
+                    <Text allowFontScaling={false} style={styles.feelCount}>{f.count_label}</Text>
+                  </View>
+                </LinearGradient>
+              </View>
+            ))}
           </View>
         </ScrollView>
       )}
@@ -328,11 +345,11 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
 // Función DynamicIcon robusta para evitar errores de Ionicons
 function DynamicIcon({ name, size, color }: { name: string; size: number; color: string }) {
   if (name?.startsWith("mc:")) return <MaterialCommunityIcons allowFontScaling={false} name={name.slice(3) as any} size={size} color={color} />;
-
+  
   const iconName = iconMap[name];
   // Si no encuentra el icono en el mapa, pone uno de alerta en lugar de fallar
   const finalName = iconName || "alert-circle-outline";
-
+  
   return <Ionicons allowFontScaling={false} name={finalName as any} size={size} color={color} />;
 }
 
@@ -375,13 +392,20 @@ const styles = StyleSheet.create({
   // Cambiado de círculo (borderRadius 19) a cuadrado con esquinas
   // redondeadas (borderRadius 13), mismo criterio que el resto de
   // botones de icono en toda la app. Color sin tocar.
-  backBtn: { width: 38, height: 38, borderRadius: 13, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
+  // Sin recuadro (borde quitado) a petición de Lidia, mismo criterio que
+  // se aplicó ya en el feed general — solo la flechita suelta.
+  backBtn: { width: 38, height: 38, alignItems: "center", justifyContent: "center" },
   titleRow: { flexDirection: "row", alignItems: "center" },
   titleText: { color: colors.textOnDark, fontWeight: "900", letterSpacing: 8, fontSize: 18 },
   subtitle: { color: colors.copper, fontSize: 12, marginTop: 4, letterSpacing: 0.5 },
   // Las 4 tarjetas comparten un único borde: morado oscuro (copperDark),
   // muy fino y sutil — antes cada una tenía su propio hex suelto
   // (#4b017c, #002988, #971d76…) sin relación entre sí.
+  // (Se probó el acento morado grueso solo a la izquierda, como en el
+  // "hook" de la ficha técnica — funcionaba bien ahí porque es un
+  // elemento único, pero repetido en las 4 tarjetas seguidas se veía
+  // como una línea continua que cargaba demasiado la pantalla. Vuelta
+  // al borde fino de siempre.)
   card: { borderWidth: 1, borderColor: "rgba(78,2,122,0.55)", borderRadius: 14, padding: 14, marginBottom: 12, backgroundColor: colors.bgSurface },
   cardCols: { flexDirection: "row" },
   cardHead: { flexDirection: "row", alignItems: "center" },
@@ -393,7 +417,7 @@ const styles = StyleSheet.create({
   // Fila de label + porcentaje encima de cada barra de "¿De qué hablan más?"
   topicRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 5 },
   topicLabel: { fontSize: 13, fontWeight: "400", flexShrink: 1, marginRight: 6, color: colors.textOnDark },
-  topicPct: { fontSize: 13, fontWeight: "900", flexShrink: 0 },
+  topicPct: { fontSize: 13, fontWeight: "900", flexShrink: 0, color: "rgba(232,228,255,0.82)" },
   // Barra de progreso: track fijo semitransparente + relleno proporcional
   // al %, en el color de marca fijo (apagado) que le toque por posición.
   topicBarTrack: { height: 6, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.08)", overflow: "hidden" },
@@ -405,14 +429,30 @@ const styles = StyleSheet.create({
   feelEmojiBox: { width: 34, height: 34, borderRadius: 10, borderWidth: 1, borderColor: "rgba(78,2,122,0.4)", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.02)" },
   feelEmoji: { fontSize: 16 },
   feelLabel: { color: colors.textOnDark, fontSize: 13, flex: 1, fontWeight: "300" },
-  feelCountPill: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
-  feelCount: { fontSize: 11, fontWeight: "800", letterSpacing: 0.5 },
+  feelCountPillRing: { borderRadius: 999, padding: 1, alignSelf: "center" },
+  feelCountPillInner: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, backgroundColor: "rgba(6,1,15,0.88)" },
+  feelCount: { fontSize: 11, fontWeight: "800", letterSpacing: 0.5, color: "rgba(232,228,255,0.82)" },
   compatCard: { width: 120, alignItems: "center" },
   compatCover: { width: 120, height: 180, borderRadius: 10, backgroundColor: colors.bgSurfaceLight, borderWidth: 1, borderColor: colors.brassSoft },
   compatTitle: { color: colors.textOnDark, fontSize: 12, fontWeight: "800", marginTop: 8, textAlign: "center" },
   emotionsContainer: { flexDirection: "row", justifyContent: "space-around", alignItems: "center", marginTop: 10 },
   emotionItem: { alignItems: "center", flex: 1 },
-  emotionIconBox: { width: 56, height: 56, borderRadius: 16, borderWidth: 1.5, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.02)" },
+  emotionIconRing: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    padding: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emotionIconInner: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 21.5,
+    backgroundColor: "rgba(6,1,15,0.85)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   // Línea divisoria vertical fina entre cada emoción, en el mismo morado
   // apagado que ya usan los bordes de las tarjetas, para que quede
   // coherente con el resto de la pantalla.
@@ -426,6 +466,7 @@ const styles = StyleSheet.create({
   // completa aunque ocupe varias líneas. Check circular a la izquierda,
   // borde copper, relleno transparente.
   leerSiPill: { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderColor: "rgba(78,2,122,0.22)", borderRadius: 999, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: "rgba(78,2,122,0.08)" },
-  leerSiCheck: { width: 24, height: 24, borderRadius: 8, borderWidth: 1.5, borderColor: "rgba(160,32,240,0.75)", alignItems: "center", justifyContent: "center" },
+  leerSiCheckRing: { width: 26, height: 26, borderRadius: 8, padding: 1.5, alignItems: "center", justifyContent: "center" },
+  leerSiCheckInner: { width: "100%", height: "100%", borderRadius: 6.5, backgroundColor: "rgba(6,1,15,0.9)", alignItems: "center", justifyContent: "center" },
   leerSiText: { color: colors.textOnDark, fontSize: 13, fontWeight: "300", flex: 1 },
 });

@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { createAudioPlayer } from "expo-audio";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFonts, Lora_700Bold } from "@expo-google-fonts/lora";
 import { api, Book } from "../../src/lib/api";
 import { useAuth } from "../../src/providers/AuthProvider";
 import { colors } from "../../src/theme";
@@ -14,6 +15,7 @@ import { shareContent } from "../../src/lib/share";
 import ShareCard from "../../src/components/ShareCard";
 import { captureAndShare } from "../../src/lib/share";
 import { LinearGradient } from 'expo-linear-gradient';
+import MaskedView from "@react-native-masked-view/masked-view";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
@@ -34,11 +36,6 @@ function inferMood(book: Book): { label: string; icon: string; color: string } {
   return { label: book.mood || "Descubre", icon: "📖", color: colors.brass };
 }
 
-// Helper para atenuar cualquier color hex mezclándolo con transparencia
-// (misma técnica que ya usas en onboarding.tsx). Al aplicarlo sobre el
-// fondo oscuro de la app, un color al 50% de opacidad se percibe mucho
-// más apagado/menos "glow" que el mismo color sólido, sin tener que
-// inventar un hex nuevo por cada tono.
 function hexToRgba(hex: string, alpha: number): string {
   const clean = hex.replace("#", "");
   const bigint = parseInt(clean.length === 3
@@ -50,35 +47,14 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
-// Opacidad general aplicada a TODOS los degradados de botones laterales
-// y vibe tags de esta pantalla, para bajar la intensidad/glow que
-// Lidia veía demasiado llamativa — cuanto más bajo, más apagado.
 const GLOW_ALPHA = 0.55;
 
-// Paleta que rotan los chips de vibe_tags (borde), en el mismo espíritu
-// que las imágenes de referencia: cada chip con su propio color de
-// acento (dorado / azul hielo / fucsia) para que se distingan de un
-// vistazo sin depender de un campo de color que no existe en el JSON.
-// Degradados de los chips de vibe tags: cada familia de color va de su
-// tono luminoso a uno oscuro. El par azul/cian usaba brass->brassMuted,
-// pero esos dos tonos están demasiado cerca en brillo y el degradado
-// casi no se apreciaba — lo cambié por un azul marino calculado a mano
-// (~35% del brillo de brass) para que el contraste sea visible. Para
-// el rosa (iron) tampoco existe variante oscura en theme.ts, así que
-// también uso un hex calculado (~50% de brillo). Si más adelante
-// añades `colors.brassDark`/`colors.ironDark` al tema, sustituye esos
-// valores aquí. Todo el par pasa además por hexToRgba(GLOW_ALPHA) para
-// que se vea apagado, no neón.
 const VIBE_TAG_GRADIENTS: [string, string][] = [
-  [hexToRgba(colors.copper, GLOW_ALPHA), hexToRgba(colors.copperDark, GLOW_ALPHA)], // morado
-  [hexToRgba(colors.brass, GLOW_ALPHA), hexToRgba("#043552", GLOW_ALPHA)],          // azul/cian
-  [hexToRgba(colors.iron, GLOW_ALPHA), hexToRgba("#7F173C", GLOW_ALPHA)],           // rosa
+  [hexToRgba(colors.copper, GLOW_ALPHA), hexToRgba(colors.copperDark, GLOW_ALPHA)],
+  [hexToRgba(colors.brass, GLOW_ALPHA), hexToRgba("#043552", GLOW_ALPHA)],
+  [hexToRgba(colors.iron, GLOW_ALPHA), hexToRgba("#7F173C", GLOW_ALPHA)],
 ];
 
-// Mismo criterio para la botonera lateral: cada botón usa su par de
-// colores (ver comentario junto a cada <SideButton>) pero atenuado con
-// hexToRgba(GLOW_ALPHA) para que no destaquen tanto sobre el resto de
-// la interfaz.
 const SIDE_BTN_GRADIENTS = {
   azulMorado: [hexToRgba(colors.brass, GLOW_ALPHA), hexToRgba(colors.copper, GLOW_ALPHA)] as [string, string],
   moradoRosa: [hexToRgba(colors.copper, GLOW_ALPHA), hexToRgba(colors.iron, GLOW_ALPHA)] as [string, string],
@@ -92,6 +68,10 @@ export default function Discover() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
+  const [fontsLoaded] = useFonts({
+    Lora_700Bold,
+  });
+
   const [slideH, setSlideH] = useState(SCREEN_H);
   const onContainerLayout = useCallback((e: LayoutChangeEvent) => {
     const h = e.nativeEvent.layout.height;
@@ -99,7 +79,7 @@ export default function Discover() {
   }, [slideH]);
   const SLIDE_H = slideH;
 
-  const params = useLocalSearchParams<{ q?: string; book_id?: string; mode?: string; t?: string; vibe?: string; authorQuery?: string }>();
+  const params = useLocalSearchParams<{ q?: string; book_id?: string; mode?: string; t?: string; vibe?: string; authorQuery?: string; fromFavorites?: string }>();
   const query = (params.q || "").toString();
   const seedBookId = (params.book_id || "").toString();
   const isRandom = params.mode === "random";
@@ -108,6 +88,7 @@ export default function Discover() {
   const isAuthorMode = params.mode === "author";
   const authorQuery = (params.authorQuery || "").toString();
   const navKey = (params.t || "").toString();
+  const fromFavorites = params.fromFavorites === "1";
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -119,6 +100,8 @@ export default function Discover() {
   const [paywallReason, setPaywallReason] = useState<"limit" | "chat" | "general">("limit");
   const [audioLoading, setAudioLoading] = useState(false);
   const [playing, setPlaying] = useState(false);
+  const [audioPosition, setAudioPosition] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(0);
   const [premiumSummaries, setPremiumSummaries] = useState<Record<string, string>>({});
   const playerRef = useRef<any>(null);
   const [hookRemaining, setHookRemaining] = useState<number | null>(null);
@@ -135,10 +118,6 @@ export default function Discover() {
     if (Math.abs(h - buyRowHeight) > 0.5) setBuyRowHeight(h);
   }, [buyRowHeight]);
 
-  // Pista de swipe (flechitas en cascada) que se muestra solo la primera
-  // vez que el usuario abre el feed, para enseñarle el gesto de deslizar
-  // hacia arriba. Se guarda por dispositivo (AsyncStorage), no por cuenta,
-  // así también la ven los invitados solo una vez.
   const [showSwipeHint, setShowSwipeHint] = useState(false);
   useEffect(() => {
     (async () => {
@@ -153,13 +132,6 @@ export default function Discover() {
     AsyncStorage.setItem("hasSeenSwipeHint", "true").catch(() => {});
   }, []);
 
-  // Mismo patrón que showSwipeHint: mucha gente no se daba cuenta de que
-  // el botón del hook (esquina inferior izquierda de la portada) existe
-  // — es pequeño y semitransparente, y compite visualmente con el badge
-  // NEW y las pastillas de arriba. Aviso puntual, una sola vez por
-  // dispositivo, apuntando directamente al botón. Se descarta al tocar
-  // el propio botón del hook (no con el swipe, que ya tiene su aviso
-  // aparte) o automáticamente pasados unos segundos.
   const [showHookHint, setShowHookHint] = useState(false);
   useEffect(() => {
     (async () => {
@@ -184,6 +156,8 @@ export default function Discover() {
     playerRef.current = null;
     setPlaying(false);
     setHookPlayingId(null);
+    setAudioPosition(0);
+    setAudioDuration(0);
   }, []);
   useFocusEffect(
   useCallback(() => {
@@ -227,12 +201,6 @@ const fetchBooks = useCallback(async (initial: boolean, seedId?: string) => {
 
       let authorBooks = authorRes?.books || [];
 
-      // Reordena para que el libro concreto en el que se hizo tap en el
-      // grid del autor (seedId, viene como book_id en la navegación)
-      // sea siempre el primero de la fila — así el feed empieza justo
-      // por el libro que el usuario eligió, no por el primero que
-      // devuelva la búsqueda por autor. El resto de libros del autor le
-      // siguen en su orden habitual, y al acabar entra el feed general.
       if (seedId) {
         const idx = authorBooks.findIndex((b) => b.book_id === seedId);
         if (idx > 0) {
@@ -280,9 +248,14 @@ const endpoint = query
       }
     }
 
-    let randomIdx: number | null = null;
+    // Sorpréndeme: el libro random va al índice 0.
+    // Evita pintar el libro 0 del feed y scrollear 250ms después.
     if (initial && isRandom && incomingBooks.length > 0) {
-      randomIdx = Math.floor(Math.random() * incomingBooks.length);
+      const randomIdx = Math.floor(Math.random() * incomingBooks.length);
+      incomingBooks = [
+        ...incomingBooks.slice(randomIdx),
+        ...incomingBooks.slice(0, randomIdx),
+      ];
     }
 
     let seedIdx: number | null = null;
@@ -307,11 +280,8 @@ const endpoint = query
       setTimeout(() => {
         listRef.current?.scrollToIndex({ index: seedIdx!, animated: false });
       }, 250);
-    } else if (randomIdx !== null) {
-      setCurrentIndex(randomIdx);
-      setTimeout(() => {
-        listRef.current?.scrollToIndex({ index: randomIdx!, animated: false });
-      }, 250);
+    } else if (initial && isRandom) {
+      setCurrentIndex(0);
     }
   } catch (e) {
     console.warn("feed error", e);
@@ -468,7 +438,11 @@ useEffect(() => {
         : `data:${res.mime};base64,${res.audio_base64}`;
       const p = createAudioPlayer({ uri });
       playerRef.current = p;
-      p.addListener("playbackStatusUpdate", (st: any) => { if (st.didJustFinish) stopAudio(); });
+      p.addListener("playbackStatusUpdate", (st: any) => {
+        if (typeof st.currentTime === "number") setAudioPosition(st.currentTime);
+        if (typeof st.duration === "number" && st.duration > 0) setAudioDuration(st.duration);
+        if (st.didJustFinish) stopAudio();
+      });
       p.play(); setPlaying(true);
     } catch (e: any) {
       const msg = String(e?.message || "");
@@ -515,15 +489,6 @@ useEffect(() => {
   const openAuthorFeed = (author: string) => {
     if (!author || !current) return;
     setInfoOpen(false);
-    // Antes esto llevaba al propio /discover en "modo autor" (que
-    // mezclaba sus libros con más random del feed general después).
-    // Ahora abre una pantalla dedicada solo con las portadas del autor
-    // en cuadrícula — al tocar una, esa pantalla es la que navega al
-    // feed general (con book_id como seed), nunca al revés. Le pasamos
-    // el book_id de ESTE libro (fromBookId) para que su botón "atrás"
-    // pueda volver aquí de forma explícita, en vez de fiarse del
-    // historial de navegación (router.back()), que con varias
-    // navegaciones seguidas no siempre lo encuentra bien.
     router.push({
       pathname: "/author-books",
       params: { authorQuery: author, fromBookId: current.book_id },
@@ -550,9 +515,24 @@ await Image.prefetch(coverUrl);
     else { Linking.openURL(url).catch((e) => console.warn("open url", e)); }
   };
 
+  if (!fontsLoaded) {
+    return (
+      <LinearGradient colors={colors.bgGradient} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={styles.center}>
+        <ActivityIndicator size="large" color={colors.brass} />
+      </LinearGradient>
+    );
+  }
+
   if (loading && books.length === 0) {
     return (
-      <LinearGradient colors={colors.bgGradient} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={styles.center} testID="discover-loading">
+      // onLayout añadido aquí: antes solo estaba en la pantalla
+      // principal (más abajo), así que la medición del alto real de la
+      // pantalla (slideH) no se resolvía hasta que el FlatList ya se
+      // había montado con la posición aleatoria — provocando el salto
+      // visible al entrar en frío. Midiendo ya durante la carga (que
+      // dura bastante más que un solo frame de layout), cuando el
+      // FlatList por fin se monta, la medición ya está lista.
+      <LinearGradient colors={colors.bgGradient} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={styles.center} testID="discover-loading" onLayout={onContainerLayout}>
         <ActivityIndicator size="large" color={colors.brass} />
         <Text allowFontScaling={false} style={styles.loadingText}>Buscando tu vibe…</Text>
       </LinearGradient>
@@ -630,29 +610,29 @@ await Image.prefetch(coverUrl);
 
       <View style={[styles.topBar, { paddingTop: insets.top + 8 }]} pointerEvents="box-none">
         <TouchableOpacity
-          onPress={() => router.replace("/home")}
+          onPress={() => {
+            if (fromFavorites && current?.book_id === seedBookId) {
+              router.replace("/favorites");
+            } else {
+              router.replace("/home");
+            }
+          }}
           style={styles.backBtn}
           testID="btn-back-home"
         >
           <Ionicons allowFontScaling={false} name="chevron-back" size={20} color={colors.brass} />
         </TouchableOpacity>
         <View style={styles.brandRow}>
-          <Text allowFontScaling={false} style={styles.brandCyan}>Book</Text>
-          <Text allowFontScaling={false} style={styles.brandPurple}>Vibes</Text>
+          <Text allowFontScaling={false} style={styles.brandWord}>
+            <Text style={styles.brandCyan}>Book</Text>
+            <Text style={styles.brandPurple}>Vibes</Text>
+          </Text>
         </View>
         <TouchableOpacity onPress={shareBook} style={styles.backBtn} testID="btn-share-book">
           <Ionicons allowFontScaling={false} name="share-social" size={18} color={colors.brass} />
         </TouchableOpacity>
       </View>
 
-      {/*
-        Botonera lateral: vuelve a vivir aquí fuera (fija en pantalla,
-        no por-slide) — moverla dentro de cada BookSlide hacía que se
-        viera "arrastrar" durante el gesto de swipe entre libros. Ajuste
-        manual pedido: marginTop más negativo (-90 -> -110) para subir
-        el conjunto un poco, y botones más pequeños (42 -> 38, iconos
-        20 -> 18) para que ocupen menos espacio vertical total.
-      */}
       <View style={styles.sideButtons} pointerEvents="box-none">
         <SideButton icon="information-circle-outline" onPress={() => setInfoOpen(true)} testID="btn-info" gradientColors={SIDE_BTN_GRADIENTS.azulMorado} />
         <SideButton icon={isFav ? "heart" : "heart-outline"} active={isFav} onPress={toggleFavorite} testID="btn-favorite" gradientColors={SIDE_BTN_GRADIENTS.moradoRosa} />
@@ -661,16 +641,6 @@ await Image.prefetch(coverUrl);
         <SideButton icon="star" onPress={() => router.push({ pathname: "/reviews", params: { book_id: current.book_id, title: current.title, author: current.author } })} testID="btn-reviews" gradientColors={SIDE_BTN_GRADIENTS.moradoAzul} />
       </View>
 
-      {/*
-
-        Antes: dos botones fijos (Amazon, Casa del Libro) en la misma
-        fila. Ahora: un único botón "COMPRAR" que abre BuyStoreModal con
-        la lista de tiendas — así, cuando te afilies a BuscaLibre, FNAC,
-        etc., solo hay que añadir una fila más dentro del modal, sin
-        tocar nada del diseño de esta pantalla. El aviso de afiliados va
-        justo debajo, pequeño y siempre visible (no solo dentro del
-        modal), para que cumpla igual con cualquier tienda que se añada.
-      */}
       <View
         style={[styles.buyRow, { bottom: 6 }]}
         pointerEvents="box-none"
@@ -697,7 +667,7 @@ await Image.prefetch(coverUrl);
       )}
 
       <FlashCardModal visible={infoOpen} book={current} lang={lang} onClose={() => setInfoOpen(false)} onAuthorChat={openAuthorChat} onAuthorPress={openAuthorFeed} isPremium={!!user?.is_premium} />
-      <AudioModal visible={audioOpen} book={current} lang={lang} playing={playing} loading={audioLoading} text={premiumSummaries[current.book_id]} onPlay={playAudio} onClose={() => { setAudioOpen(false); stopAudio(); }} />
+      <AudioModal visible={audioOpen} book={current} lang={lang} playing={playing} loading={audioLoading} text={premiumSummaries[current.book_id]} position={audioPosition} duration={audioDuration} onPlay={playAudio} onClose={() => { setAudioOpen(false); stopAudio(); }} />
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} reason={paywallReason} onUpgraded={async () => { await refreshAuth(); }} />
       {current && (
         <CharacterSelectModal
@@ -749,17 +719,11 @@ function BookSlide({
   const insets = useSafeAreaInsets();
   const mood = useMemo(() => inferMood(book), [book]);
   const coverW = SCREEN_W * 0.88;
-  // Antes: `!!(book as any).fecha_novedad` — solo comprobaba que el campo
-  // existiera, sin mirar la fecha en sí. Eso hacía que el badge "NEW" se
-  // quedara pegado para siempre en cuanto un libro recibía esa fecha en
-  // el JSON, en vez de desaparecer pasados los 15 días previstos. Ahora
-  // se calcula la diferencia real entre hoy y fecha_novedad, y solo se
-  // considera "novedad" si caen 15 días o menos.
   const isNovedad = useMemo(() => {
     const fecha = (book as any).fecha_novedad;
     if (!fecha) return false;
     const fechaNovedad = new Date(fecha);
-    if (isNaN(fechaNovedad.getTime())) return false; // fecha con formato raro -> no se arriesga a mostrarla como NEW indefinidamente
+    if (isNaN(fechaNovedad.getTime())) return false;
     const diffMs = Date.now() - fechaNovedad.getTime();
     const diffDias = diffMs / (1000 * 60 * 60 * 24);
     return diffDias >= 0 && diffDias <= 15;
@@ -769,12 +733,6 @@ function BookSlide({
   const slidePaddingTop = topBarSpace + 45;
 
   const hookPulse = useRef(new Animated.Value(0)).current;
-  // Segundo valor animado, SOLO para el color: la interpolación de color
-  // no es compatible con useNativeDriver (a diferencia de scale/opacity),
-  // así que corre en su propio Animated.Value en el hilo de JS, con
-  // exactamente el mismo ritmo (850ms) que el pulso de tamaño, para que
-  // ambas animaciones se vean sincronizadas aunque corran por caminos
-  // distintos.
   const hookColorPulse = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const loop = Animated.loop(
@@ -795,14 +753,8 @@ function BookSlide({
   }, [hookPulse, hookColorPulse]);
   const hookScale = hookPulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.22] });
   const hookOpacity = hookPulse.interpolate({ inputRange: [0, 1], outputRange: [0.65, 1] });
-  // Blanco -> rosa fucsia (iron, el mismo color de "activo" en toda la
-  // app) -> blanco.
   const hookColor = hookColorPulse.interpolate({ inputRange: [0, 1], outputRange: ["rgba(255,255,255,0.85)", colors.iron] });
   const hookIdle = !(hookLoading || hookPlaying);
-  // El parpadeo solo tiene sentido para avisar a usuarios gratis/invitado
-  // de que tienen un número limitado de hooks — un usuario premium ya
-  // sabe que el play está ahí y no necesita el aviso, así que para ellos
-  // el icono se queda siempre estático, sin animar, incluso en reposo.
   const shouldPulse = hookIdle && !hookIsPremium;
 
   const hookButton = isCurrent && (hookIsPremium || (hookRemaining ?? 0) > 0) ? (
@@ -832,13 +784,6 @@ function BookSlide({
           )}
         </TouchableOpacity>
       </Animated.View>
-      {/*
-        Aviso puntual (una sola vez por dispositivo) apuntando al botón
-        del hook — mucha gente no se daba cuenta de que existe, ya que es
-        pequeño y compite visualmente con el badge NEW y las pastillas de
-        arriba. Mismo criterio que SwipeHint: se apaga solo a los 5s o al
-        tocar el propio botón.
-      */}
       {showHookHint && (
         <View style={styles.hookHintWrap} pointerEvents="none" testID="hook-hint">
           <View style={styles.hookHintBubble}>
@@ -856,13 +801,6 @@ function BookSlide({
       <View style={styles.coverArea}>
         <View style={styles.coverWrap}>
           <View style={styles.topBadgesRow} pointerEvents="box-none">
-            {/*
-              Badges de arriba: mismo degradado violeta (copper claro ->
-              copperDark) en los dos, pero con la dirección invertida
-              entre ellos para que se "miren" — en el mood pill (el de
-              la izquierda) el oscuro cae a la derecha; en el rating
-              pill (el de la derecha) el oscuro cae a la izquierda.
-            */}
             <LinearGradient
               colors={[hexToRgba(colors.copper, GLOW_ALPHA), hexToRgba(colors.copperDark, GLOW_ALPHA)]}
               start={{ x: 0, y: 0 }}
@@ -916,18 +854,6 @@ function BookSlide({
         </View>
       </View>
 
-      {/*
-        Vibe tags: cada tag es su propio chip (borderRadius 13, borde de
-        color rotando entre copperDark/#971d76/brassMuted/copper). Antes
-        usaba flexWrap, pero eso hacía que en pantallas más estrechas un
-        chip "saltara" solo a una segunda línea, centrado y descuadrado
-        (se veía distinto según el móvil). Con ScrollView horizontal la
-        fila NUNCA se parte: si caben todos, se ven centrados igual que
-        antes (contentContainerStyle con flexGrow+justifyContent:center);
-        si no caben, se puede deslizar hacia los lados en vez de romperse
-        en una línea fea — así el aspecto es idéntico en todos los
-        dispositivos.
-      */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -972,11 +898,6 @@ function renderStarsCompact(rating: number) {
   return <View style={{ flexDirection: "row" }}>{arr}</View>;
 }
 
-// Botón lateral: por defecto, borde en degradado brass→copper (misma
-// técnica que la tarjeta hero de la home). Cuando `active` es true
-// (favorito marcado / audio sonando), cambia a borde SÓLIDO fucsia
-// (colors.iron), sin degradado — así se distingue de un vistazo el
-// estado activo frente al resto de botones en reposo.
 function SideButton({ icon, active, onPress, loading, testID, gradientColors }: { icon: any; active?: boolean; onPress: () => void; loading?: boolean; testID?: string; gradientColors?: [string, string]; }) {
   const iconColor = active ? colors.iron : "#FFFFFF";
   const content = loading ? (
@@ -984,6 +905,33 @@ function SideButton({ icon, active, onPress, loading, testID, gradientColors }: 
   ) : (
     <Ionicons allowFontScaling={false} name={icon} size={18} color={iconColor} />
   );
+
+  if (icon === "heart" && active) {
+    return (
+      <TouchableOpacity testID={testID} onPress={onPress} activeOpacity={0.7} style={styles.sideBtnWrap}>
+        <LinearGradient
+          colors={[colors.brass, colors.copper]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.sideBtnGradientBorder}
+        >
+          <View style={styles.sideBtnInner}>
+            <MaskedView
+              style={{ width: 18, height: 18 }}
+              maskElement={<Ionicons allowFontScaling={false} name="heart" size={18} color="black" />}
+            >
+              <LinearGradient
+                colors={[colors.brass, colors.copper]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{ width: 18, height: 18 }}
+              />
+            </MaskedView>
+          </View>
+        </LinearGradient>
+      </TouchableOpacity>
+    );
+  }
 
   if (active) {
     return (
@@ -997,13 +945,6 @@ function SideButton({ icon, active, onPress, loading, testID, gradientColors }: 
 
   return (
     <TouchableOpacity testID={testID} onPress={onPress} activeOpacity={0.7} style={styles.sideBtnWrap}>
-      {/*
-        Cada botón lateral recibe su propio par de colores vía
-        `gradientColors` (prueba de Lidia: info y audio en azul→morado,
-        favorito en morado→rosa, chat en rosa→morado, reviews en
-        morado→azul). Si no se pasa nada, cae al par apagado de
-        siempre (brassMuted/copperDark).
-      */}
       <LinearGradient
         colors={gradientColors || [colors.brassMuted, colors.copperDark]}
         start={{ x: 0, y: 0 }}
@@ -1069,11 +1010,6 @@ function FlashCardModal({ visible, book, lang, onClose, onAuthorChat, onAuthorPr
   const ext = (book as any) || {};
   const [authorPressed, setAuthorPressed] = useState(false);
 
-  // Este modal es una única instancia reutilizada para todos los libros
-  // (solo cambia el prop `book`, nunca se desmonta) — sin este reset,
-  // authorPressed se quedaba en true de la vez anterior, así que el
-  // nombre del autor aparecía ya en rosa fucsia en un libro donde nunca
-  // se había tocado nada.
   useEffect(() => {
     setAuthorPressed(false);
   }, [book?.book_id]);
@@ -1100,23 +1036,15 @@ function FlashCardModal({ visible, book, lang, onClose, onAuthorChat, onAuthorPr
                 style={styles.flashAuthorRow}
               >
                 <Text allowFontScaling={false} style={[styles.flashAuthor, authorPressed && { color: colors.iron }]}>{book.author}</Text>
-                {/*
-                  Pista visual permanente de que el nombre es pulsable —
-                  antes no había nada que lo distinguiera de un texto
-                  normal, así que mucha gente no descubría que lleva a
-                  todos los libros del autor. En vez de un aviso temporal
-                  más (ya hay dos: swipe y hook), una flechita fija es
-                  más duradero y no satura de tutoriales al abrir la app.
-                */}
                 <Ionicons allowFontScaling={false} name="chevron-forward" size={13} color={authorPressed ? colors.iron : colors.brass} style={{ marginTop: 4 }} />
               </TouchableOpacity>
             ) : (
               <Text allowFontScaling={false} style={[styles.flashAuthor, { marginTop: 4 }]}>{book.author}</Text>
             )}
             <View style={styles.statRow}>
-              <StatBox icon="calendar" label="AÑO" value={String(book.year)} />
-              <StatBox icon="book" label="PÁGINAS" value={String(book.pages)} />
-              <StatBox icon="rocket" label="GÉNERO" value={book.genre.split("/")[0].trim()} small />
+              <StatBox icon="calendar" label="AÑO" value={String(book.year)} gradientColors={SIDE_BTN_GRADIENTS.azulMorado} />
+              <StatBox icon="book" label="PÁGINAS" value={String(book.pages)} gradientColors={SIDE_BTN_GRADIENTS.moradoRosa} />
+              <StatBox icon="rocket" label="GÉNERO" value={book.genre.split("/")[0].trim()} small gradientColors={SIDE_BTN_GRADIENTS.moradoAzul} />
             </View>
             <View style={styles.flashLabel}>
               <Text allowFontScaling={false} style={styles.flashLabelText}>— FLASH CARD —</Text>
@@ -1149,10 +1077,19 @@ function FlashCardModal({ visible, book, lang, onClose, onAuthorChat, onAuthorPr
   );
 }
 
-function StatBox({ icon, label, value, small }: { icon: any; label: string; value: string; small?: boolean }) {
+function StatBox({ icon, label, value, small, gradientColors }: { icon: any; label: string; value: string; small?: boolean; gradientColors: [string, string] }) {
   return (
     <View style={styles.statBox}>
-      <Ionicons allowFontScaling={false} name={icon} size={20} color={colors.brass} />
+      <LinearGradient
+        colors={gradientColors}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.statIconRing}
+      >
+        <View style={styles.statIconInner}>
+          <Ionicons allowFontScaling={false} name={icon} size={18} color="#FFFFFF" />
+        </View>
+      </LinearGradient>
       <Text allowFontScaling={false} style={styles.statLabel}>{label}</Text>
       <Text allowFontScaling={false} style={[styles.statValue, small && { fontSize: 13 }]} numberOfLines={1}>{value}</Text>
     </View>
@@ -1171,9 +1108,19 @@ function DetailItem({ label, value, color }: { label: string; value: string; col
   );
 }
 
-function AudioModal({ visible, book, lang, playing, loading, text, onPlay, onClose }: { visible: boolean; book: Book; lang: "es" | "en"; playing: boolean; loading: boolean; text?: string; onPlay: () => void; onClose: () => void; }) {
+function formatAudioTime(totalSeconds: number): string {
+  const s = Math.max(0, Math.floor(totalSeconds || 0));
+  const mins = Math.floor(s / 60);
+  const secs = s % 60;
+  return `${mins}:${String(secs).padStart(2, "0")}`;
+}
+
+function AudioModal({ visible, book, lang, playing, loading, text, position, duration, onPlay, onClose }: { visible: boolean; book: Book; lang: "es" | "en"; playing: boolean; loading: boolean; text?: string; position: number; duration: number; onPlay: () => void; onClose: () => void; }) {
   const insets = useSafeAreaInsets();
   const fallback = lang === "es" ? book.summary_es : book.summary_en;
+  const effectiveDuration = duration > 0 ? duration : 60;
+  const progressPct = Math.max(0, Math.min(100, (position / effectiveDuration) * 100));
+
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.modalBackdrop}>
@@ -1181,16 +1128,51 @@ function AudioModal({ visible, book, lang, playing, loading, text, onPlay, onClo
           <TouchableOpacity onPress={onClose} style={styles.flashClose} testID="btn-close-audio">
             <Ionicons allowFontScaling={false} name="close" size={22} color={colors.textOnDarkMuted} />
           </TouchableOpacity>
-          <View style={styles.audioHeader}>
-            <Text allowFontScaling={false} style={styles.audioBadge}>// RESUMEN · 1 MIN</Text>
-            <TouchableOpacity onPress={onPlay} style={styles.audioPlayBtn} disabled={loading} testID="btn-audio-play">
-              {loading ? <ActivityIndicator color={colors.brass} /> : <Ionicons allowFontScaling={false} name={playing ? "pause" : "play"} size={26} color={colors.brass} />}
-            </TouchableOpacity>
-          </View>
+
+          <Text allowFontScaling={false} style={styles.audioBadge}>// RESUMEN · 1 MIN</Text>
           <View style={styles.dividerLine} />
-          <Text allowFontScaling={false} style={styles.flashTitle}>{book.title}</Text>
-          <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 10 }}>
-            <Text allowFontScaling={false} style={styles.synopsisText}>{text || fallback}</Text>
+
+          <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 4 }}>
+            <View style={styles.audioHeroWrap}>
+              <Image
+                source={require("../../assets/images/audio-headphones-glow.png")}
+                style={styles.audioHeadphonesImg}
+                resizeMode="contain"
+              />
+            </View>
+
+            <TouchableOpacity onPress={onPlay} disabled={loading} style={styles.audioPlayCircleWrap} testID="btn-audio-play">
+              <LinearGradient
+                colors={[colors.brass, colors.copper]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.audioPlayCircleBorder}
+              >
+                <View style={styles.audioPlayCircleInner}>
+                  {loading ? (
+                    <ActivityIndicator color={colors.brass} />
+                  ) : (
+                    <Ionicons allowFontScaling={false} name={playing ? "pause" : "play"} size={26} color={colors.textOnDark} />
+                  )}
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <View style={styles.audioProgressRow}>
+              <Text allowFontScaling={false} style={styles.audioTimeText}>{formatAudioTime(position)}</Text>
+              <View style={styles.audioProgressTrack}>
+                <View style={[styles.audioProgressFill, { width: `${progressPct}%` }]} />
+              </View>
+              <Text allowFontScaling={false} style={styles.audioTimeText}>{formatAudioTime(effectiveDuration)}</Text>
+            </View>
+
+            <Text allowFontScaling={false} style={[styles.flashTitle, { marginTop: 18 }]}>{book.title}</Text>
+            <Text allowFontScaling={false} style={[styles.synopsisText, { marginTop: 10 }]}>{text || fallback}</Text>
+
+            <View style={styles.audioBottomPill}>
+              <Ionicons allowFontScaling={false} name="time-outline" size={14} color={colors.copper} />
+              <Text allowFontScaling={false} style={styles.audioBottomPillText}>UN MINUTO PARA DECIDIR SI LEERLO O NO</Text>
+            </View>
           </ScrollView>
         </View>
       </View>
@@ -1218,24 +1200,13 @@ const styles = StyleSheet.create({
     aspectRatio: 2 / 3,
     maxHeight: "100%",
     borderRadius: 15,
-    // Se quitó la sombra (shadowColor/shadowOpacity/shadowRadius/
-    // shadowOffset/elevation): con portadas que no llenan el frame
-    // (horizontales, o más pequeñas que el 2:3 estándar) el fondo +
-    // sombra se veía como un recuadro grisáceo alrededor de la
-    // portada. Ahora solo se ve la imagen del libro, sin marco.
   },
-  // Fondo y borde quitados por el mismo motivo que arriba: portadas que
-  // no llenan el frame (horizontales o más pequeñas) dejaban ver un
-  // recuadro de fondo + borde blanco detrás — ahora es transparente, así
-  // que solo se ve la portada en sí, sin caja alrededor.
   coverFrame: { width: "100%", height: "100%", borderRadius: 15, overflow: "hidden", backgroundColor: "transparent" },
   coverImage: { width: "100%", height: "100%" },
   hookBtn: {
     position: "absolute",
     bottom: 10,
     left: 10,
-    // Bajado de 38x38 a 30x30 — el fondo (0.55) y el borde blanco se
-    // quedan igual que en la versión grande, solo cambia el tamaño.
     width: 30,
     height: 30,
     borderRadius: 15,
@@ -1253,9 +1224,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   hookBtnNumber: { color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: "800" },
-  // Globo de aviso apuntando al botón del hook (esquina inferior
-  // izquierda de la portada) — mismo criterio de posición absoluta que
-  // SwipeHint, pero anclado cerca del propio botón en vez del centro.
   hookHintWrap: {
     position: "absolute",
     bottom: 38,
@@ -1278,7 +1246,6 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   hookHintText: { color: colors.bgBase, fontSize: 12, fontWeight: "800" },
-  // Piquito del globo apuntando hacia abajo, hacia el botón del hook.
   hookHintArrow: {
     width: 0,
     height: 0,
@@ -1300,10 +1267,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     elevation: 8,
   },
-  // Borde en degradado (misma técnica que el resto de la app): el
-  // LinearGradient exterior lleva 1.5px de padding y actúa de borde; el
-  // View interior tiene fondo oscuro semitransparente, y dentro va el
-  // texto "NEW" también en degradado (GradientText).
   novedadBorder: {
     borderRadius: 999,
     padding: 1.5,
@@ -1316,9 +1279,6 @@ const styles = StyleSheet.create({
   },
   novedadText: { color: "#ffffff", fontSize: 11, fontWeight: "900", letterSpacing: 1.5 },
   topBadgesRow: { position: "absolute", top: -45, left: 0, right: 0, flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 4, zIndex: 8 },
-  // Wrapper de borde en degradado compartido por moodPill y ratingPill
-  // (mismo patrón que sideBtnGradientBorder: LinearGradient exterior +
-  // padding fino actuando de borde).
   pillGradientBorder: { borderRadius: 999, padding: 1.3 },
   moodPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 5, borderRadius: 998, backgroundColor: "rgba(6,1,15,0.9)" },
   moodPillIcon: { fontSize: 14 },
@@ -1326,20 +1286,29 @@ const styles = StyleSheet.create({
   ratingPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 998, backgroundColor: "rgba(6,1,15,0.9)" },
   ratingValue: { color:"#962fd2ad", fontSize: 12, fontWeight: "900", letterSpacing: 0.5 },
   topBar: { position: "absolute", top: 0, left: 0, right: 0, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, zIndex: 10 },
-  backBtn: { width: 38, height: 38, borderRadius: 13, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.4)" },
-  brandRow: { flexDirection: "row" },
-  brandCyan: { color: colors.brass, fontWeight: "900", fontSize: 18 },
-  brandPurple: { color: colors.copper, fontWeight: "900", fontSize: 18 },
+  backBtn: { width: 38, height: 38, alignItems: "center", justifyContent: "center" },
+  brandRow: { flexDirection: "row", alignItems: "center" },
+
+  brandWord: {
+    fontSize: 18,
+    letterSpacing: -0.3,
+    includeFontPadding: false,
+  },
+  brandCyan: {
+    color: colors.brass,
+    fontFamily: "Lora_700Bold",
+  },
+  brandPurple: {
+    color: colors.copper,
+    fontFamily: "Lora_700Bold",
+  },
+
   queryWrap: { position: "absolute", left: 0, right: 0, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 5 },
   queryHint: { color: colors.copper, fontSize: 12, fontWeight: "600", letterSpacing: 1, maxWidth: 240 },
   sideButtons: { position: "absolute", right: 10, top: "50%", marginTop: -118, gap: 18, alignItems: "center", zIndex: 10 },
   sideBtnWrap: { alignItems: "center" },
-  // Botón por defecto (sin active): wrapper de borde en degradado, mismo
-  // patrón que gradientBorder/gradientBorderWrap de home.tsx.
   sideBtnGradientBorder: { width: 38, height: 38, borderRadius: 13, padding: 1.5 },
   sideBtnInner: { flex: 1, borderRadius: 11.5, backgroundColor: "rgba(6,1,15,0.75)", alignItems: "center", justifyContent: "center" },
-  // Botón activo (favorito marcado / audio sonando): borde sólido fucsia,
-  // sin degradado, para diferenciarse claramente del resto.
   sideBtn: { width: 38, height: 38, borderRadius: 13, borderWidth: 1.5, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(6,1,15,0.6)", shadowOpacity: 0.9, shadowRadius: 12, shadowOffset: { width: 0, height: 0 }, elevation: 8 },
   buyRow: { position: "absolute", left: 0, right: 0, alignItems: "center", gap: 4, paddingHorizontal: 12, zIndex: 10 },
   buyMainWrap: { borderRadius: 14, width: SCREEN_W * 0.88 },
@@ -1366,12 +1335,25 @@ const styles = StyleSheet.create({
   flashAuthorRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4, alignSelf: "flex-start" },
   flashAuthor: { color: colors.brass, fontSize: 14, fontStyle: "italic" },
   statRow: { flexDirection: "row", gap: 10, marginTop: 18 },
-  statBox: { flex: 1, borderWidth: 1, borderColor: colors.brassSoft, borderRadius: 12, padding: 10, alignItems: "center", backgroundColor: "rgba(0,240,255,0.04)" },
-  statLabel: { color: colors.textOnDark, fontSize: 11, fontWeight: "800", letterSpacing: 1.5, marginTop: 4 },
+  statBox: { flex: 1, borderRadius: 12, padding: 10, alignItems: "center", backgroundColor: "rgba(255,255,255,0.03)", borderWidth: 1, borderColor: "rgba(78,2,122,0.55)" },
+  statIconRing: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    padding: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 6,
+  },
+  statIconInner: { width: "100%", height: "100%", borderRadius: 18.5, backgroundColor: "rgba(6,1,15,0.85)", alignItems: "center", justifyContent: "center" },
+  statLabel: { color: colors.textOnDark, fontSize: 11, fontWeight: "800", letterSpacing: 1.5, marginTop: 8 },
   statValue: { color: colors.brass, fontSize: 13, fontWeight: "900", marginTop: 2 },
   flashLabel: { alignItems: "center", marginTop: 18 },
   flashLabelText: { color: colors.copper, fontSize: 13, letterSpacing: 4, fontWeight: "800" },
-  detailGrid: { flexDirection: "row", flexWrap: "wrap", borderWidth: 1, borderColor: colors.brassSoft, borderRadius: 12, padding: 14, marginTop: 10 },
+  detailGrid: { flexDirection: "row", flexWrap: "wrap", borderWidth: 1, borderColor: "rgba(78,2,122,0.55)", borderRadius: 12, padding: 14, marginTop: 10 },
   detailItem: { width: "50%", paddingVertical: 8, paddingRight: 8 },
   detailHeader: { flexDirection: "row", alignItems: "center", gap: 4 },
   detailLabel: { fontSize: 11, fontWeight: "900", letterSpacing: 1 },
@@ -1382,26 +1364,24 @@ const styles = StyleSheet.create({
   iaBtnText: { color: colors.bgBase, fontWeight: "900", fontSize: 13, letterSpacing: 0.5 },
   iaBtnLocked: { backgroundColor: "transparent", borderWidth: 1.5, borderColor: colors.gold },
   iaBtnTextLocked: { color: colors.gold },
-  audioHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 16 },
-  audioBadge: { color: colors.copper, fontSize: 12, letterSpacing: 3, fontWeight: "900" },
-  audioPlayBtn: { width: 50, height: 50, borderRadius: 25, borderWidth: 2, borderColor: colors.brass, alignItems: "center", justifyContent: "center", backgroundColor: colors.bgBase },
+  audioBadge: { color: colors.copper, fontSize: 12, letterSpacing: 3, fontWeight: "900", marginTop: 16 },
+  audioHeroWrap: { alignItems: "center", justifyContent: "center", marginTop: 6, marginBottom: 10 },
+  audioHeadphonesImg: { width: "82%", height: 150 },
+  audioPlayCircleWrap: { alignSelf: "center", borderRadius: 999, shadowColor: colors.copper, shadowOpacity: 0.5, shadowRadius: 16, shadowOffset: { width: 0, height: 0 }, elevation: 10 },
+  audioPlayCircleBorder: { width: 68, height: 68, borderRadius: 34, padding: 2, alignItems: "center", justifyContent: "center" },
+  audioPlayCircleInner: { width: "100%", height: "100%", borderRadius: 32, backgroundColor: colors.bgSurface, alignItems: "center", justifyContent: "center" },
+  audioProgressRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 16, paddingHorizontal: 4 },
+  audioTimeText: { color: colors.textOnDarkMuted, fontSize: 12, fontWeight: "700", minWidth: 32 },
+  audioProgressTrack: { flex: 1, height: 5, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.1)", overflow: "hidden" },
+  audioProgressFill: { height: "100%", borderRadius: 999, backgroundColor: colors.copper },
+  audioBottomPill: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1, borderColor: "rgba(112,3,174,0.4)", borderRadius: 999, paddingVertical: 12, paddingHorizontal: 16, marginTop: 22, marginBottom: 8 },
+  audioBottomPillText: { color: colors.copper, fontSize: 11, fontWeight: "800", letterSpacing: 0.8, textAlign: "center", flexShrink: 1 },
   dividerLine: { height: 1, backgroundColor: colors.copper, opacity: 0.4, marginTop: 10, marginBottom: 12 },
-  // Wrapper del ScrollView horizontal de vibe tags. No lleva flex:1
-  // porque va dentro de una columna (coverArea es flex:1, esto no debe
-  // competir por ese espacio) — solo alto fijo implícito por su
-  // contenido.
   vibeTagsScroll: {
     flexGrow: 0,
     marginTop: 12,
     marginBottom: 18,
   },
-  // contentContainerStyle del ScrollView: flexGrow 1 + justifyContent
-  // center hace que, cuando todos los chips caben en el ancho de
-  // pantalla, se vean centrados exactamente igual que antes con
-  // flexWrap. Cuando no caben, el ScrollView simplemente permite
-  // deslizar en vez de partir a una segunda línea — así el aspecto es
-  // idéntico en cualquier dispositivo, nunca se ve un chip "huérfano"
-  // centrado solo en su propia línea.
   vibeTagsRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1410,9 +1390,6 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: "center",
   },
-  // Borde en degradado (misma técnica que sideBtnGradientBorder/Inner):
-  // el LinearGradient exterior lleva ~1.2px de padding y hace de borde;
-  // el View interior tiene fondo oscuro semitransparente.
   vibeTagGradientBorder: {
     borderRadius: 13,
     padding: 1.2,
