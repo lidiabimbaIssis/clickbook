@@ -14,6 +14,8 @@ import BuyStoreModal from "../../src/components/BuyStoreModal";
 import { shareContent } from "../../src/lib/share";
 import ShareCard from "../../src/components/ShareCard";
 import { captureAndShare } from "../../src/lib/share";
+import { sinResenasAun } from "../../src/lib/novedad";
+import { notaLibro, mediaVotos } from "../../src/lib/rating";
 import { LinearGradient } from 'expo-linear-gradient';
 import MaskedView from "@react-native-masked-view/masked-view";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
@@ -696,7 +698,8 @@ await Image.prefetch(coverUrl);
               title: current.title,
               author: current.author,
               coverUrl: `https://res.cloudinary.com/ddppclcl1/image/upload/v1780422197/${current.book_id}.webp`,
-              rating: current.rating,
+              rating: notaVisible(current) ?? undefined,
+              sinResenas: notaVisible(current) == null,
               hookText: (premiumSummaries[current.book_id] || (lang === "es" ? current.summary_es : current.summary_en) || "").split(/\.\s/)[0],
             }}
           />
@@ -728,6 +731,11 @@ function BookSlide({
     const diffDias = diffMs / (1000 * 60 * 60 * 24);
     return diffDias >= 0 && diffDias <= 15;
   }, [book]);
+  // Novedad recién subida: estrellas en lila y sin nota hasta que pasen
+  // DIAS_SIN_RESENAS días desde fecha_novedad (ver src/lib/novedad.ts) o
+  // hasta que algún lector la vote en la app.
+  const nota = useMemo(() => notaVisible(book), [book]);
+  const sinResenas = nota == null;
 
   const topBarSpace = insets.top + 8 + 38 + 8;
   const slidePaddingTop = topBarSpace + 45;
@@ -819,8 +827,8 @@ function BookSlide({
               style={styles.pillGradientBorder}
             >
               <View style={styles.ratingPill}>
-                {renderStarsCompact(book.rating)}
-                <Text allowFontScaling={false} style={styles.ratingValue}>{book.rating.toFixed(1)}</Text>
+                {nota == null ? renderStarsCompact(0, true) : renderStarsCompact(nota)}
+                <Text allowFontScaling={false} style={[styles.ratingValue, sinResenas && styles.ratingValueSinResenas]}>{nota == null ? "–" : nota.toFixed(1)}</Text>
               </View>
             </LinearGradient>
           </View>
@@ -860,7 +868,9 @@ function BookSlide({
         contentContainerStyle={styles.vibeTagsRow}
         style={styles.vibeTagsScroll}
       >
-        {(book.vibe_tags || []).map((tag, index) => {
+        {/* Las etiquetas tipo "Más de 5.000 reseñas" vienen inventadas en los
+            JSON, así que no se muestran. */}
+        {(book.vibe_tags || []).filter((tag) => !/rese[ñn]a|valoraci/i.test(tag.label || "")).map((tag, index) => {
           const tagGradient = VIBE_TAG_GRADIENTS[index % VIBE_TAG_GRADIENTS.length];
           return (
             <LinearGradient
@@ -884,7 +894,15 @@ function BookSlide({
   );
 }
 
-function renderStarsCompact(rating: number) {
+// Nota que se enseña en la tarjeta: en novedades, solo la media de los
+// votos reales (null si aún nadie ha votado); en el resto, la nota del
+// JSON mezclada con los votos de los lectores (ver src/lib/rating.ts).
+function notaVisible(book: any): number | null {
+  if (sinResenasAun(book.fecha_novedad)) return mediaVotos(book.user_ratings_sum, book.user_ratings_count);
+  return notaLibro(book.rating, book.user_ratings_sum, book.user_ratings_count);
+}
+
+function renderStarsCompact(rating: number, gris = false) {
   const r = Math.max(0, Math.min(5, rating));
   const full = Math.floor(r);
   const half = r - full >= 0.5;
@@ -893,7 +911,7 @@ function renderStarsCompact(rating: number) {
     let icon: any = "star-outline";
     if (i < full) icon = "star";
     else if (i === full && half) icon = "star-half";
-    arr.push(<Ionicons allowFontScaling={false} key={i} name={icon} size={11} color={colors.gold} style={{ marginHorizontal: 0.5 }} />);
+    arr.push(<Ionicons allowFontScaling={false} key={i} name={icon} size={11} color={gris ? colors.lilac : colors.gold} style={{ marginHorizontal: 0.5 }} />);
   }
   return <View style={{ flexDirection: "row" }}>{arr}</View>;
 }
@@ -1285,6 +1303,7 @@ const styles = StyleSheet.create({
   moodPillLabel: { fontSize: 11, fontWeight: "800", letterSpacing: 1 },
   ratingPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 998, backgroundColor: "rgba(6,1,15,0.9)" },
   ratingValue: { color:"#962fd2ad", fontSize: 12, fontWeight: "900", letterSpacing: 0.5 },
+  ratingValueSinResenas: { color: colors.lilac },
   topBar: { position: "absolute", top: 0, left: 0, right: 0, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, zIndex: 10 },
   backBtn: { width: 38, height: 38, alignItems: "center", justifyContent: "center" },
   brandRow: { flexDirection: "row", alignItems: "center" },

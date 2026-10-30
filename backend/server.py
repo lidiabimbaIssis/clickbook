@@ -14,6 +14,7 @@ from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depend
 from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo import ReturnDocument
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
@@ -317,6 +318,13 @@ async def delete_my_account(response: Response, user: User = Depends(get_current
     await db.daily_hook_usage.delete_many({"user_id": user_id})
     await db.user_interactions.delete_many({"user_id": user_id})
     await db.character_chats.delete_many({"user_id": user_id})
+    # Sus votos se quitan también de la suma/recuento de cada libro.
+    async for r in db.book_ratings.find({"user_id": user_id}):
+        await db.books.update_one(
+            {"book_id": r["book_id"]},
+            {"$inc": {"user_ratings_sum": -r["stars"], "user_ratings_count": -1}},
+        )
+    await db.book_ratings.delete_many({"user_id": user_id})
 
     # El documento del propio usuario se borra el último, por si algo
     # falla a mitad de camino es más fácil detectar que quedó a medias
@@ -648,6 +656,55 @@ async def clear_favorites(user: User = Depends(get_current_user)):
 async def reset_history(user: User = Depends(get_current_user)):
     await db.user_interactions.delete_many({"user_id": user.user_id, "action": "dislike"})
     return {"ok": True}
+
+
+# ----------------- Votos de lectores -----------------
+# Cada usuario puede dar UN voto (1-5 estrellas) por libro; si vuelve a
+# votar se cambia su voto, no se suma otro. Los votos individuales viven
+# en la colección book_ratings y, para no tener que recalcular la media
+# en cada listado, el propio documento del libro guarda la suma y el
+# número de votos (user_ratings_sum / user_ratings_count). La app mezcla
+# esos votos con la nota inicial del libro (ver src/lib/rating.ts).
+class RatingRequest(BaseModel):
+    stars: int
+
+
+@api_router.get("/books/{book_id}/my-rating")
+async def get_my_rating(book_id: str, user: User = Depends(get_current_user)):
+    doc = await db.book_ratings.find_one({"user_id": user.user_id, "book_id": book_id}, {"_id": 0})
+    return {"stars": doc["stars"] if doc else None}
+
+
+@api_router.post("/books/{book_id}/rate")
+async def rate_book(book_id: str, body: RatingRequest, user: User = Depends(get_current_user)):
+    if body.stars < 1 or body.stars > 5:
+        raise HTTPException(400, "stars debe estar entre 1 y 5")
+    if not await db.books.find_one({"book_id": book_id}, {"_id": 1}):
+        raise HTTPException(404, f"Libro con ID {book_id} no encontrado")
+
+    previous = await db.book_ratings.find_one_and_update(
+        {"user_id": user.user_id, "book_id": book_id},
+        {"$set": {"user_id": user.user_id, "book_id": book_id, "stars": body.stars, "updated_at": datetime.now(timezone.utc)}},
+        upsert=True,
+    )
+    # find_one_and_update devuelve el documento ANTERIOR (o None si es su
+    # primer voto), así sabemos si hay que sumar un voto nuevo o solo
+    # corregir la suma con la diferencia.
+    if previous:
+        inc = {"user_ratings_sum": body.stars - previous["stars"]}
+    else:
+        inc = {"user_ratings_sum": body.stars, "user_ratings_count": 1}
+    book = await db.books.find_one_and_update(
+        {"book_id": book_id},
+        {"$inc": inc},
+        projection={"_id": 0, "user_ratings_sum": 1, "user_ratings_count": 1},
+        return_document=ReturnDocument.AFTER,
+    )
+    return {
+        "stars": body.stars,
+        "user_ratings_sum": book.get("user_ratings_sum", 0),
+        "user_ratings_count": book.get("user_ratings_count", 0),
+    }
 
 
 # ----------------- TTS -----------------
@@ -1256,6 +1313,10 @@ app.add_middleware(
 )
 @app.on_event("startup")
 async def ensure_indexes():
+    try:
+        await db.book_ratings.create_index([("user_id", 1), ("book_id", 1)], unique=True, name="user_book_unique")
+    except Exception:
+        logger.exception("Failed to create book_ratings index")
     index_name = "book_search_text_index"
     index_fields = [
         ("title", "text"),

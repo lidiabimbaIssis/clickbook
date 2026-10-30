@@ -8,6 +8,8 @@ export type ShareCardData = {
   author: string;
   coverUrl: string;
   rating?: number;
+  // Novedad recién subida: estrellas vacías en lila (ver src/lib/novedad.ts)
+  sinResenas?: boolean;
   hookText?: string;
 };
 
@@ -15,7 +17,7 @@ const CARD_W = 540;
 const CARD_H = 960;
 
 const ShareCard = forwardRef<View, { data: ShareCardData; onCoverLoad?: () => void }>(({ data, onCoverLoad }, ref) => {
-const rating = Math.round(data.rating || 4);
+const rating = data.sinResenas ? 0 : Math.round(data.rating || 4);
   const hook = (data.hookText || "Una historia en 60 segundos").slice(0, 130);
   const stars = Array.from({ length: 5 }).map((_, i) =>
     i < rating ? "★" : "☆"
@@ -43,7 +45,7 @@ const rating = Math.round(data.rating || 4);
       <View style={styles.infoBlock}>
         <Text allowFontScaling={false} style={styles.title} numberOfLines={2}>{data.title}</Text>
         <Text allowFontScaling={false} style={styles.author} numberOfLines={1}>{data.author}</Text>
-        <Text allowFontScaling={false} style={styles.stars}>{stars}</Text>
+        <Text allowFontScaling={false} style={[styles.stars, data.sinResenas && { color: colors.lilac }]}>{stars}</Text>
         <Text allowFontScaling={false} style={styles.hook} numberOfLines={3}>"{hook}"</Text>
       </View>
 

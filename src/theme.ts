@@ -10,6 +10,7 @@ export const colors = {
   copperDark: "#4E027A",      // morado aún más oscuro — tags/rating, para que pasen desapercibidos frente a la botonera lateral
   textOnDark: "#E8E4FF",
   textOnDarkMuted: "#9183B8",
+  lilac: "#B57BFF",           // lila — rating de novedades aún sin valoraciones
   textOnLight: "#E8E4FF",
   textOnLightMuted: "#9183B8",
   verdigris: "#00FFA3",       // neon green (like)
