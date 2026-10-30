@@ -8,7 +8,7 @@ import Purchases from "react-native-purchases";
 
 type PricingConfig = { monthly_regular: string; monthly_launch: string; yearly_regular: string; yearly_launch: string; launch_promo_active: boolean; launch_promo_label: string; free_daily_audio_limit: number; };
 
-export default function PaywallModal({ visible, onClose, onUpgraded, reason = "limit" }: { visible: boolean; onClose: () => void; onUpgraded?: () => void; reason?: "limit" | "chat" | "general"; }) {
+export default function PaywallModal({ visible, onClose, onUpgraded, reason = "limit" }: { visible: boolean; onClose: () => void; onUpgraded?: () => void; reason?: "limit" | "chat" | "general" | "games"; }) {
   const [pricing, setPricing] = useState<PricingConfig | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<"yearly" | "monthly">("yearly");
@@ -51,8 +51,8 @@ export default function PaywallModal({ visible, onClose, onUpgraded, reason = "l
     }
   };
 
-  const headline = reason === "limit" ? "Llegaste al límite diario" : reason === "chat" ? "Chat IA con tus personajes favoritos" : "BookVibes Premium";
-  const sub = reason === "limit" ? `Ya has descubierto ${pricing?.free_daily_audio_limit ?? 3} historias con audio. Con Premium, puedes seguir descubriendo sin límites.` : reason === "chat" ? "Desbloquea la experiencia completa de BookVibes" : "Desbloquea todo BookVibes";
+  const headline = reason === "limit" ? "Llegaste al límite diario" : reason === "chat" ? "Chat IA con tus personajes favoritos" : reason === "games" ? "Ya has jugado tus partidas de hoy" : "BookVibes Premium";
+  const sub = reason === "limit" ? `Ya has descubierto ${pricing?.free_daily_audio_limit ?? 3} historias con audio. Con Premium, puedes seguir descubriendo sin límites.` : reason === "chat" ? "Desbloquea la experiencia completa de BookVibes" : reason === "games" ? "Mañana tendrás 3 partidas gratis más. Con Premium, puedes jugar sin límites cuando quieras." : "Desbloquea todo BookVibes";
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -68,6 +68,7 @@ export default function PaywallModal({ visible, onClose, onUpgraded, reason = "l
             <Benefit icon="infinite" text="Resúmenes con voz ilimitados." />
             <Benefit icon="headset" text="Hooks ilimitados en cada libro." />
             <Benefit icon="chatbubbles" text="Habla con los personajes del libro." />
+            <Benefit icon="game-controller" text="Juegos de libros sin límite." />
           </View>
           {pricing && (
             <View style={styles.plans}>
