@@ -15,7 +15,7 @@ import { shareContent } from "../../src/lib/share";
 import ShareCard from "../../src/components/ShareCard";
 import { captureAndShare } from "../../src/lib/share";
 import { sinResenasAun } from "../../src/lib/novedad";
-import { notaLibro, mediaVotos } from "../../src/lib/rating";
+import { notaLibro, mediaVotos, conVotosActualizados, useVotosActualizados } from "../../src/lib/rating";
 import { LinearGradient } from 'expo-linear-gradient';
 import MaskedView from "@react-native-masked-view/masked-view";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
@@ -698,8 +698,8 @@ await Image.prefetch(coverUrl);
               title: current.title,
               author: current.author,
               coverUrl: `https://res.cloudinary.com/ddppclcl1/image/upload/v1780422197/${current.book_id}.webp`,
-              rating: notaVisible(current) ?? undefined,
-              sinResenas: notaVisible(current) == null,
+              rating: notaVisible(conVotosActualizados(current)) ?? undefined,
+              sinResenas: notaVisible(conVotosActualizados(current)) == null,
               hookText: (premiumSummaries[current.book_id] || (lang === "es" ? current.summary_es : current.summary_en) || "").split(/\.\s/)[0],
             }}
           />
@@ -734,7 +734,8 @@ function BookSlide({
   // Novedad recién subida: estrellas en lila y sin nota hasta que pasen
   // DIAS_SIN_RESENAS días desde fecha_novedad (ver src/lib/novedad.ts) o
   // hasta que algún lector la vote en la app.
-  const nota = useMemo(() => notaVisible(book), [book]);
+  useVotosActualizados();
+  const nota = notaVisible(conVotosActualizados(book));
   const sinResenas = nota == null;
 
   const topBarSpace = insets.top + 8 + 38 + 8;

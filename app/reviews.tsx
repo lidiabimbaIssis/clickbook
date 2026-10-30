@@ -8,7 +8,7 @@ import MaskedView from "@react-native-masked-view/masked-view";
 import { api } from "../src/lib/api";
 import { colors } from "../src/theme";
 import { sinResenasAun } from "../src/lib/novedad";
-import { notaLibro, mediaVotos } from "../src/lib/rating";
+import { notaLibro, mediaVotos, guardarVotosLibro } from "../src/lib/rating";
 
 /* ====== Tipos esperados desde la API ====== */
 export type Topic = { label: string; percent: number; icon: string; color: string };
@@ -203,6 +203,7 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
     try {
       const r = await api<any>(`/books/${bookId}/rate`, { method: "POST", body: JSON.stringify({ stars }) });
       setVotos({ sum: r.user_ratings_sum || 0, count: r.user_ratings_count || 0 });
+      guardarVotosLibro(bookId, r.user_ratings_sum || 0, r.user_ratings_count || 0);
     } catch {
       setMiVoto(anterior);
       Alert.alert("No se pudo guardar tu voto", "Inténtalo de nuevo en un rato.");

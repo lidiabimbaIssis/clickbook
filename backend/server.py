@@ -435,6 +435,49 @@ async def get_my_chat_usage(user: User = Depends(get_current_user)):
         "remaining": max(0, FREE_CHAT_QUESTIONS_LIMIT - used) if not is_premium else None,
     }
 
+# Contador de partidas de la pestaña JUEGOS: mismo patrón que los hooks
+# (límite DIARIO, se resetea cada día por _today_key()), en su propia
+# colección. Cuenta cada partida que se empieza, no cada ronda: pasar de
+# nivel o pedir otra portada dentro de una partida no gasta otra.
+FREE_DAILY_GAME_LIMIT = int(os.environ.get("FREE_DAILY_GAME_LIMIT", "3"))
+
+async def _get_today_game_count(user_id: str) -> int:
+    doc = await db.daily_game_usage.find_one({"user_id": user_id, "date": _today_key()})
+    return int(doc["count"]) if doc else 0
+
+@api_router.get("/me/game-usage")
+async def get_my_game_usage(user: User = Depends(get_current_user)):
+    plays_today = await _get_today_game_count(user.user_id)
+    is_premium = _is_premium_active(user)
+    return {
+        "is_premium": is_premium, "plays_today": plays_today, "limit": FREE_DAILY_GAME_LIMIT,
+        "remaining": max(0, FREE_DAILY_GAME_LIMIT - plays_today) if not is_premium else None,
+    }
+
+@api_router.post("/me/game-play")
+async def start_game_play(user: User = Depends(get_current_user)):
+    # Se llama justo antes de empezar una partida. Si el usuario free ya
+    # gastó las de hoy, 402 y el frontend abre el PaywallModal.
+    is_premium = _is_premium_active(user)
+    if not is_premium:
+        plays_today = await _get_today_game_count(user.user_id)
+        if plays_today >= FREE_DAILY_GAME_LIMIT:
+            raise HTTPException(status_code=402, detail={
+                "error": "daily_limit_reached",
+                "message": f"Has jugado tus {FREE_DAILY_GAME_LIMIT} partidas gratis de hoy.",
+                "plays_today": plays_today, "limit": FREE_DAILY_GAME_LIMIT,
+            })
+    res = await db.daily_game_usage.find_one_and_update(
+        {"user_id": user.user_id, "date": _today_key()},
+        {"$inc": {"count": 1}, "$set": {"updated_at": datetime.now(timezone.utc)}},
+        upsert=True, return_document=True,
+    )
+    count = int(res.get("count", 1)) if res else 1
+    return {
+        "ok": True, "is_premium": is_premium, "plays_today": count, "limit": FREE_DAILY_GAME_LIMIT,
+        "remaining": max(0, FREE_DAILY_GAME_LIMIT - count) if not is_premium else None,
+    }
+
 @api_router.get("/config/pricing")
 async def get_pricing():
     return PRICING
