@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Image } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Image, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -7,6 +7,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import MaskedView from "@react-native-masked-view/masked-view";
 import { api } from "../src/lib/api";
 import { colors } from "../src/theme";
+import { sinResenasAun } from "../src/lib/novedad";
+import { notaLibro, mediaVotos } from "../src/lib/rating";
 
 /* ====== Tipos esperados desde la API ====== */
 export type Topic = { label: string; percent: number; icon: string; color: string };
@@ -158,6 +160,11 @@ export default function VibesScreen() {
   const [data, setData] = useState<VibesData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [esNovedad, setEsNovedad] = useState(false);
+  // Votos reales de los lectores de la app (suma y número) y el del propio usuario.
+  const [votos, setVotos] = useState({ sum: 0, count: 0 });
+  const [miVoto, setMiVoto] = useState<number | null>(null);
+  const [guardandoVoto, setGuardandoVoto] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -165,6 +172,14 @@ export default function VibesScreen() {
     try {
       const res = await api<any>(`/books/${bookId}`);
 setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
+      setEsNovedad(sinResenasAun(res.fecha_novedad));
+      setVotos({ sum: res.user_ratings_sum || 0, count: res.user_ratings_count || 0 });
+      try {
+        const mio = await api<any>(`/books/${bookId}/my-rating`);
+        setMiVoto(mio?.stars ?? null);
+      } catch {
+        setMiVoto(null);
+      }
     } catch (e: any) {
       setError("No se pudieron cargar las vibes.");
       setData(null);
@@ -174,6 +189,27 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
   }, [bookId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Novedades: solo la media de los votos reales (sin nota inicial). Resto:
+  // nota del JSON mezclada con los votos (ver src/lib/rating.ts).
+  const nota = !data ? null : esNovedad ? mediaVotos(votos.sum, votos.count) : notaLibro(data.overall_rating, votos.sum, votos.count);
+  const sinResenas = nota == null;
+
+  const votar = async (stars: number) => {
+    if (guardandoVoto) return;
+    const anterior = miVoto;
+    setMiVoto(stars);
+    setGuardandoVoto(true);
+    try {
+      const r = await api<any>(`/books/${bookId}/rate`, { method: "POST", body: JSON.stringify({ stars }) });
+      setVotos({ sum: r.user_ratings_sum || 0, count: r.user_ratings_count || 0 });
+    } catch {
+      setMiVoto(anterior);
+      Alert.alert("No se pudo guardar tu voto", "Inténtalo de nuevo en un rato.");
+    } finally {
+      setGuardandoVoto(false);
+    }
+  };
 
   const openBook = (id: string, title: string) => {
     router.push({ pathname: "/discover", params: { book_id: id, title } });
@@ -221,15 +257,17 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
               <View style={{ flex: 0.9 }}>
                 <Text allowFontScaling={false} style={styles.cardLabel}>CALIFICACIÓN GENERAL</Text>
                 <View style={styles.ratingRow}>
-                  <Text allowFontScaling={false} style={styles.ratingNumber}>{data.overall_rating.toFixed(1)}</Text>
-                  <Ionicons allowFontScaling={false} name="star" size={22} color={hexToRgba(colors.copper, 0.75)} style={{ marginLeft: 6, marginTop: 8 }} />
+                  <Text allowFontScaling={false} style={[styles.ratingNumber, sinResenas && { color: colors.lilac }]}>{nota == null ? "–" : nota.toFixed(1)}</Text>
+                  <Ionicons allowFontScaling={false} name={sinResenas ? "star-outline" : "star"} size={22} color={sinResenas ? colors.lilac : hexToRgba(colors.copper, 0.75)} style={{ marginLeft: 6, marginTop: 8 }} />
                 </View>
                 <View style={styles.starsRow}>
                   {[1, 2, 3, 4, 5].map((i) => (
-                    <Ionicons allowFontScaling={false} key={i} name={i <= Math.round(data.overall_rating) ? "star" : "star-outline"} size={14} color={colors.gold} style={{ marginRight: 2 }} />
+                    <Ionicons allowFontScaling={false} key={i} name={nota != null && i <= Math.round(nota) ? "star" : "star-outline"} size={14} color={sinResenas ? colors.lilac : colors.gold} style={{ marginRight: 2 }} />
                   ))}
                 </View>
-                <Text allowFontScaling={false} style={styles.totalLabel}>{data.total_reviews_label}</Text>
+                {/* El número de reseñas ("Más de X reseñas") ya no se muestra: no
+                    venía de ninguna fuente real. Solo queda el aviso en novedades. */}
+                {sinResenas && <Text allowFontScaling={false} style={styles.totalLabel}>Aún sin valoraciones</Text>}
               </View>
               <View style={{ flex: 1.1, paddingLeft: 10 }}>
                 <Text allowFontScaling={false} style={[styles.cardLabel, { marginBottom: 10 }]}>¿DE QUÉ HABLAN MÁS?</Text>
@@ -258,6 +296,20 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
                 </View>
               </View>
             </View>
+          </View>
+
+          <View style={styles.card}>
+            <Text allowFontScaling={false} style={styles.cardLabel}>¿QUÉ TE HA PARECIDO? ✨</Text>
+            <View style={styles.voteRow}>
+              {[1, 2, 3, 4, 5].map((i) => (
+                <TouchableOpacity key={i} onPress={() => votar(i)} disabled={guardandoVoto} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }} testID={`btn-vote-${i}`}>
+                  <Ionicons allowFontScaling={false} name={miVoto != null && i <= miVoto ? "star" : "star-outline"} size={34} color={colors.lilac} />
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text allowFontScaling={false} style={styles.voteHint}>
+              {miVoto != null ? "¡Gracias por tu voto! Toca otra estrella si quieres cambiarlo." : "Toca una estrella para dar tu nota."}
+            </Text>
           </View>
 
           <View style={styles.card}>
@@ -320,19 +372,6 @@ setData({ ...res.vibes_data, mood_tags: res.mood_tags, leer_si: res.leer_si });
                   <Text allowFontScaling={false} style={styles.feelEmoji}>{f.emoji}</Text>
                 </View>
                 <Text allowFontScaling={false} style={styles.feelLabel}>{capitalize(f.label)}</Text>
-                <LinearGradient
-                  colors={[
-                    hexToRgba(colors.copper, 0.75),
-                    hexToRgba(colors.brass, 0.75),
-                  ]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.feelCountPillRing}
-                >
-                  <View style={styles.feelCountPillInner}>
-                    <Text allowFontScaling={false} style={styles.feelCount}>{f.count_label}</Text>
-                  </View>
-                </LinearGradient>
               </View>
             ))}
           </View>
@@ -413,6 +452,8 @@ const styles = StyleSheet.create({
   ratingRow: { flexDirection: "row", alignItems: "center", marginTop: 6 },
   ratingNumber: { color: colors.textOnDark, fontSize: 48, fontWeight: "900", letterSpacing: -2 },
   starsRow: { flexDirection: "row", marginTop: 4 },
+  voteRow: { flexDirection: "row", justifyContent: "center", gap: 14, marginTop: 14 },
+  voteHint: { color: colors.textOnDarkMuted, fontSize: 12, textAlign: "center", marginTop: 10 },
   totalLabel: { color: colors.textOnDarkMuted, fontSize: 12, marginTop: 8 },
   // Fila de label + porcentaje encima de cada barra de "¿De qué hablan más?"
   topicRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 5 },

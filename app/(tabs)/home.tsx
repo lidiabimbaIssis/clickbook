@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useMemo, useEffect } from "react";
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Platform, Keyboard, KeyboardAvoidingView, ScrollView, Animated, Easing } from "react-native";
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Platform, Keyboard, KeyboardAvoidingView, ScrollView, Animated, Easing, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,10 +9,17 @@ import { api } from "../../src/lib/api";
 import Logo from "../../src/components/Logo";
 import { LinearGradient } from "expo-linear-gradient";
 import MaskedView from "@react-native-masked-view/masked-view";
-import {
-  ExpoSpeechRecognitionModule,
-  useSpeechRecognitionEvent,
-} from "expo-speech-recognition";
+import Constants, { ExecutionEnvironment } from "expo-constants";
+
+// El reconocimiento de voz es un módulo nativo que Expo Go no trae: si se
+// importa normal, la app se cierra al abrir esta pantalla en Expo Go. Por
+// eso solo se carga fuera de Expo Go (APK / Play Store). En Expo Go el
+// micrófono avisa de que no está disponible y el resto funciona igual.
+const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+const speech: any = isExpoGo ? null : require("expo-speech-recognition");
+const ExpoSpeechRecognitionModule: any = speech?.ExpoSpeechRecognitionModule;
+const useSpeechRecognitionEvent: (event: string, listener: (event: any) => void) => void =
+  speech?.useSpeechRecognitionEvent ?? (() => {});
 
 const HERO_TITLES = [
   "NO SÉ QUÉ LEER",
@@ -194,6 +201,10 @@ export default function Home() {
   });
 
   const onMicPress = useCallback(async () => {
+    if (!ExpoSpeechRecognitionModule) {
+      Alert.alert("No disponible en Expo Go", "La búsqueda por voz solo funciona en la app instalada (APK).");
+      return;
+    }
     if (listening) {
       ExpoSpeechRecognitionModule.stop();
       return;

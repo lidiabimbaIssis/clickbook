@@ -10,12 +10,18 @@ import { Ionicons } from "@expo/vector-icons";
 import { AuthProvider, useAuth } from "../src/providers/AuthProvider";
 import { colors } from "../src/theme";
 import Purchases from "react-native-purchases";
+import Constants, { ExecutionEnvironment } from "expo-constants";
 // Mantén el splash hasta que las fuentes carguen
 SplashScreen.preventAutoHideAsync().catch(() => {});
 // Inicializa RevenueCat una sola vez, al arrancar la app. Clave PÚBLICA de
 // PRODUCCIÓN de la app "BookVibes (Play Store)" en RevenueCat (proyecto
 // 86d45ddf). Sustituye a la clave de test usada durante el desarrollo.
-Purchases.configure({ apiKey: "goog_XYySCsTPFMckLwLJgMzjRStYsob" });
+// En Expo Go no hay tienda real y RevenueCat rechaza la clave de producción
+// (la app se cierra con "Invalid API key"), así que ahí no se inicializa.
+// Los pagos solo funcionan en la app instalada (APK / Play Store).
+if (Constants.executionEnvironment !== ExecutionEnvironment.StoreClient) {
+  Purchases.configure({ apiKey: "goog_XYySCsTPFMckLwLJgMzjRStYsob" });
+}
 
 // Pantalla de carga compartida: se usa tanto mientras cargan las fuentes
 // como mientras AuthProvider todavía no sabe si hay una sesión guardada

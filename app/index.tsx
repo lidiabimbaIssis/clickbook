@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ImageBackground, Platform } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ImageBackground, Platform, Alert } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import { useRouter, Redirect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -10,7 +10,16 @@ import { colors } from "../src/theme";
 import Logo from "../src/components/Logo";
 import { LinearGradient } from "expo-linear-gradient";
 import MaskedView from "@react-native-masked-view/masked-view";
-import { GoogleSignin } from "@react-native-google-signin/google-signin";
+import Constants, { ExecutionEnvironment } from "expo-constants";
+
+// Google Sign-In es un módulo nativo que Expo Go no incluye: si se importa
+// de forma normal, la app peta nada más abrirse en Expo Go. Por eso solo se
+// carga cuando NO estamos en Expo Go (APK, build de EAS, dev client). En
+// Expo Go se puede entrar con el botón "Como invitado".
+const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+const GoogleSignin: any = isExpoGo
+  ? null
+  : require("@react-native-google-signin/google-signin").GoogleSignin;
 
 // Clave fija en AsyncStorage para el ID de dispositivo. A diferencia del
 // session_token (que se borra al cerrar sesión), este ID se guarda una
@@ -30,7 +39,7 @@ async function getOrCreateDeviceId(): Promise<string> {
   }
   return id;
 }
-GoogleSignin.configure({
+GoogleSignin?.configure({
   webClientId: "322089590785-m18kg46nbvsstgrdo5ctdu0jh1necg55.apps.googleusercontent.com",
 });
 
@@ -135,6 +144,10 @@ export default function LoginScreen() {
   }, [refresh, router]);
 
   const signIn = async () => {
+    if (!GoogleSignin) {
+      Alert.alert("No disponible en Expo Go", "El login con Google solo funciona en la app instalada (APK). Para probar aquí, entra como invitado.");
+      return;
+    }
     setProcessing(true);
     try {
       await GoogleSignin.hasPlayServices();

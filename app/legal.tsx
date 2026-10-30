@@ -11,7 +11,7 @@ export default function LegalScreen() {
         <Text style={styles.h1}>Términos y Condiciones</Text>
 
         <Text style={styles.body}>
-          Estos términos y condiciones se aplican a la aplicación ClickBook (en adelante denominada "Aplicación") para dispositivos móviles, la cual fue creada por Lidia Egea Gutiérrez (en adelante denominada "Proveedor del Servicio") como un servicio Freemium.
+          Estos términos y condiciones se aplican a la aplicación BookVibes (en adelante denominada "Aplicación") para dispositivos móviles, la cual fue creada por Lidia Egea Gutiérrez (en adelante denominada "Proveedor del Servicio") como un servicio Freemium.
         </Text>
 
         <Text style={styles.body}>
