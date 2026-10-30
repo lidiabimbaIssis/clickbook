@@ -134,6 +134,14 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="juegos"
+        options={{
+          title: "JUEGOS",
+          tabBarIcon: ({ focused, size }) => <TabIcon name="game-controller" size={size} focused={focused} />,
+          tabBarLabel: ({ focused }) => <TabLabel label="JUEGOS" focused={focused} />,
+        }}
+      />
+      <Tabs.Screen
         name="settings"
         options={{
           title: "AJUSTES",
@@ -147,5 +155,8 @@ export default function TabsLayout() {
 
 const styles = StyleSheet.create({
   loading: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bgBase },
-  label: { fontSize: 11, letterSpacing: 1.2, fontWeight: "700" },
+  // Con la 5ª pestaña (JUEGOS) cada hueco es más estrecho: a tamaño 11
+  // "DESCUBRIR" y "FAVORITOS" perdían la última letra, así que se baja
+  // a 9.5 y casi sin espaciado.
+  label: { fontSize: 9.5, letterSpacing: 0.2, fontWeight: "700" },
 });

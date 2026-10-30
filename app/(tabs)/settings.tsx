@@ -14,6 +14,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { api } from "../../src/lib/api";
+import { resetGameRecords } from "../../src/lib/games";
 import { useAuth } from "../../src/providers/AuthProvider";
 import { colors } from "../../src/theme";
 import PaywallModal from "../../src/components/PaywallModal";
@@ -26,6 +27,7 @@ export default function Settings() {
   const isPremium = !!user?.is_premium;
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [clearingFavorites, setClearingFavorites] = useState(false);
+  const [resettingGames, setResettingGames] = useState(false);
 
   const doSignOut = async () => {
     const confirm = () => {
@@ -76,6 +78,39 @@ export default function Settings() {
         [
           { text: "Cancelar", style: "cancel" },
           { text: "Vaciar", style: "destructive", onPress: run },
+        ]
+      );
+    }
+  };
+
+  // Borra los récords de todos los juegos (se guardan solo en el móvil).
+  // No toca el límite diario de partidas, que lleva el servidor.
+  const doResetGames = () => {
+    const run = async () => {
+      setResettingGames(true);
+      try {
+        await resetGameRecords();
+        if (Platform.OS !== "web") {
+          Alert.alert("Hecho", "Tus juegos empiezan de cero otra vez.");
+        }
+      } catch (e) {
+        console.warn("reset games failed", e);
+      } finally {
+        setResettingGames(false);
+      }
+    };
+
+    if (Platform.OS === "web") {
+      if (typeof window !== "undefined" && window.confirm("¿Borrar todos tus récords de los juegos? Esta acción no se puede deshacer.")) {
+        run();
+      }
+    } else {
+      Alert.alert(
+        "Resetear juegos",
+        "Se borrarán tus récords y niveles de todos los juegos y empezarás de cero. Esta acción no se puede deshacer.",
+        [
+          { text: "Cancelar", style: "cancel" },
+          { text: "Resetear", style: "destructive", onPress: run },
         ]
       );
     }
@@ -183,6 +218,17 @@ export default function Settings() {
             <Ionicons allowFontScaling={false} name="trash-outline" size={18} color={colors.brass} />
             <Text allowFontScaling={false} style={styles.rowText}>
               {clearingFavorites ? "Vaciando favoritos…" : "Vaciar favoritos"}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.row}
+            testID="btn-reset-games"
+            onPress={doResetGames}
+            disabled={resettingGames}
+          >
+            <Ionicons allowFontScaling={false} name="game-controller-outline" size={18} color={colors.brass} />
+            <Text allowFontScaling={false} style={styles.rowText}>
+              {resettingGames ? "Reseteando juegos…" : "Resetear juegos"}
             </Text>
           </TouchableOpacity>
         </View>
