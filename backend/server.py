@@ -609,35 +609,99 @@ async def books_novedades(count: int = 50):
     return {"books": books}
 
 
+# ----------------- Búsqueda -----------------
+# Palabras vacías que no deben contar para decidir si un título "contiene
+# todas las palabras" de la búsqueda (si no, "con amor mamá" exigiría
+# también el "con").
+_SEARCH_STOPWORDS = {
+    "el", "la", "los", "las", "un", "una", "unos", "unas", "de", "del", "al",
+    "a", "y", "e", "o", "u", "en", "con", "por", "para", "sin", "que", "se",
+    "su", "sus", "mi", "mis", "tu", "tus", "lo", "le", "les", "es",
+    "the", "of", "and", "an", "to", "in",
+}
+
+_ACCENT_CLASSES = {
+    "a": "[aáàäâ]", "e": "[eéèëê]", "i": "[iíìïî]", "o": "[oóòöô]",
+    "u": "[uúùüû]", "n": "[nñ]", "c": "[cç]",
+}
+
+
+def _norm_text(s) -> str:
+    """minúsculas, sin tildes y sin signos de puntuación, para comparar
+    "Con amor, mamá" con "con amor mama" como si fueran lo mismo."""
+    import unicodedata
+    if not isinstance(s, str):
+        s = " ".join(str(x) for x in s) if isinstance(s, (list, tuple)) else str(s or "")
+    s = unicodedata.normalize("NFKD", s.lower())
+    s = "".join(ch for ch in s if not unicodedata.combining(ch))
+    s = re.sub(r"[^\w\s]", " ", s)
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def _accent_regex(word: str) -> str:
+    return "".join(_ACCENT_CLASSES.get(ch, re.escape(ch)) for ch in word)
+
+
+def _search_tier(book: dict, q_norm: str, q_words: list) -> int:
+    """0 = título idéntico, 1 = título contiene la frase, 2 = título tiene
+    todas las palabras, 3 = autor coincide, 4 = el resto (coincidencias en
+    género, tema, vibes...). Menor = más relevante."""
+    title = _norm_text(book.get("title", ""))
+    author = _norm_text(book.get("author", ""))
+    if title == q_norm:
+        return 0
+    if q_norm and f" {q_norm} " in f" {title} ":
+        return 1
+    title_words = set(title.split())
+    if q_words and all(w in title_words for w in q_words):
+        return 2
+    if q_norm and (author == q_norm or f" {q_norm} " in f" {author} "):
+        return 3
+    return 4
+
+
 @api_router.get("/books/search")
 async def search_books(query: str, user: User = Depends(get_current_user)):
-    search_exclude_fields = dict(BOOK_LIST_EXCLUDE_FIELDS)
-    search_exclude_fields["score"] = {"$meta": "textScore"}
+    import random
 
-    # 1º intento: frase exacta entre comillas. En MongoDB, envolver el
-    # término entre comillas dentro de $search prioriza mucho más la
-    # coincidencia literal de la frase completa (en cualquier orden de
-    # las palabras que la componen) frente al modo "OR de palabras
-    # sueltas" que usa por defecto — así el libro con el título exacto
-    # sube al primer puesto en vez de perder frente a coincidencias
-    # parciales dispersas en otros campos.
-    phrase_query = f'"{query}"'
-    books = await db.books.find(
-        {"$text": {"$search": phrase_query}},
-        search_exclude_fields
-    ).sort([("score", {"$meta": "textScore"})]).to_list(length=100)
+    q_norm = _norm_text(query)
+    q_words = [w for w in q_norm.split() if w not in _SEARCH_STOPWORDS] or q_norm.split()
 
-    # 2º intento (fallback): si la frase exacta no encuentra nada, se
-    # cae al modo de palabras sueltas de siempre — mejor unos resultados
-    # aproximados que ninguno.
-    if not books:
-        books = await db.books.find(
-            {"$text": {"$search": query}},
-            search_exclude_fields
-        ).sort([("score", {"$meta": "textScore"})]).to_list(length=100)
+    candidates: dict = {}
 
-    books = [_strip_dynamic_cache_fields(b) for b in books]
-    return {"books": books}
+    # 1) Títulos que contienen todas las palabras (ignorando tildes y
+    # puntuación). Esto garantiza que "Con amor, mamá" aparezca aunque la
+    # búsqueda por texto lo pierda entre cientos de libros con "amor".
+    if q_words:
+        title_filter = {"$and": [
+            {"title": {"$regex": r"(^|\W)" + _accent_regex(w), "$options": "i"}}
+            for w in q_words
+        ]}
+        for b in await db.books.find(title_filter, BOOK_LIST_EXCLUDE_FIELDS).to_list(length=200):
+            candidates[b.get("book_id")] = b
+
+    # 2) Búsqueda por texto en todos los campos (género, tema, vibes...).
+    # Sin ordenar por textScore: así no son siempre los mismos 100 en el
+    # mismo orden; el orden lo decidimos abajo por niveles + azar.
+    try:
+        text_books = await db.books.find(
+            {"$text": {"$search": query}}, BOOK_LIST_EXCLUDE_FIELDS
+        ).to_list(length=600)
+    except Exception:
+        logger.exception("Text search failed")
+        text_books = []
+    for b in text_books:
+        candidates.setdefault(b.get("book_id"), b)
+
+    books = [_strip_dynamic_cache_fields(b) for b in candidates.values()]
+
+    # Orden: primero por relevancia (título exacto > frase en el título >
+    # todas las palabras en el título > autor > resto) y, DENTRO de cada
+    # nivel, aleatorio — así "thriller" sale distinto cada vez, pero
+    # "con amor mamá" siempre sale el primero.
+    keyed = [(_search_tier(b, q_norm, q_words), random.random(), b) for b in books]
+    keyed.sort(key=lambda t: (t[0], t[1]))
+    return {"books": [b for _, _, b in keyed[:200]]}
 
 
 @api_router.post("/books/interact")
